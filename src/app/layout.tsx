@@ -11,11 +11,11 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "Riel — Cambodia Personal Finance",
+  title: "Luy Manager — Cambodia Personal Finance",
   description:
     "Track USD and KHR side by side. Accounts, budgets and spending built for Cambodia.",
   manifest: "/manifest.webmanifest",
-  appleWebApp: { capable: true, statusBarStyle: "default", title: "Riel" },
+  appleWebApp: { capable: true, statusBarStyle: "default", title: "Luy Manager" },
 };
 
 export const viewport: Viewport = {

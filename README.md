@@ -1,4 +1,4 @@
-# Riel — Cambodia Personal Finance
+# Luy Manager — Cambodia Personal Finance
 
 A personal finance app built for Cambodia, where USD and KHR are both everyday
 currencies. Full product spec in
@@ -78,7 +78,8 @@ docs/                PRD
 
 1. Create a project at [supabase.com](https://supabase.com).
 2. Copy `.env.example` to `.env.local` and fill in the URL and anon key.
-3. Apply `supabase/migrations/0001_phase1_core.sql`, then `0002_seed_defaults.sql`.
+3. Apply the migrations in order: `0001_phase1_core.sql`,
+   `0002_seed_defaults.sql`, then `0003_enforce_account_currency.sql`.
 4. Replace the `DEMO_*` imports in the page components with queries. The
    aggregation functions take plain rows, so nothing else changes.
 
@@ -88,12 +89,12 @@ against a real project before putting live data in.
 
 ## Claude skill
 
-`.claude/skills/multi-currency-money/` packages the money-handling rules above as
+`.claude/skills/luy-manager-money/` packages the money-handling rules above as
 a [Claude Agent Skill](https://claude.com/docs/skills/how-to). Claude Code picks
 it up automatically in this repo. It also carries a working scanner:
 
 ```bash
-node .claude/skills/multi-currency-money/scripts/check-money-safety.mjs src supabase
+node .claude/skills/luy-manager-money/scripts/check-money-safety.mjs src supabase
 ```
 
 Exits non-zero on a high-confidence finding, so it works as a CI gate.
@@ -102,10 +103,10 @@ To use it on claude.ai, zip the skill directory and upload it under
 Settings > Capabilities:
 
 ```powershell
-Compress-Archive -Path .claude/skills/multi-currency-money -DestinationPath dist/multi-currency-money.zip
+Compress-Archive -Path .claude/skills/luy-manager-money -DestinationPath dist/luy-manager-money.zip
 ```
 
-The archive root must be the `multi-currency-money/` directory itself, not its
+The archive root must be the `luy-manager-money/` directory itself, not its
 loose contents.
 
 ## Attribution

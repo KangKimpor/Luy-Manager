@@ -1,4 +1,4 @@
-# Cambodia Personal Finance App PRD & AI Build Prompt
+# Luy Manager — Cambodia Personal Finance App PRD & AI Build Prompt
 
 > **Objective:** Build a production-ready personal finance platform optimized for Cambodia with first-class support for USD and KHR, secure cloud synchronization, Telegram integration, analytics, budgeting, and scalable architecture.
 
