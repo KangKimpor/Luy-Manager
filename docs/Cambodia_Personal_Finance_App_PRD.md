@@ -384,14 +384,36 @@ Reversibility: if native mobile becomes a hard requirement, the API, database, a
 
 **4. Credential ownership — Supabase Auth.** This supersedes the Argon2 requirement in [Section 4](#4-authentication); Supabase manages hashing with bcrypt. Owning the hash is not worth running a credential store for a single-user product, and Supabase Auth is what the Row Level Security policies in [Section 12](#12-security) key off via `auth.uid()`.
 
+**5. Exchange rate source — a keyless aggregator with an independent fallback, and manual entry as the override.**
+
+The chain, in order, is implemented in `src/lib/rates/provider.ts`:
+
+1. **[exchangerate-api.com open endpoint](https://open.er-api.com/v6/latest/USD)** — primary. Free, no API key, quotes KHR, and publishes `time_last_update_unix` plus the time of the next update, which is what makes a daily job meaningful rather than a guess.
+2. **[@fawazahmed0/currency-api](https://github.com/fawazahmed0/exchange-api) via jsDelivr** — fallback. Deliberately built on a different upstream dataset; a second aggregator sharing the primary's source would fail at the same moment and add no resilience.
+3. **Manual entry** — always available, and it outranks both. `exchange_rates.user_id` is non-null for a user's own rate, and that row wins over the published one for the same day. For a personal-finance product this is often the truest figure, because the rate that matters is the one the user's own bank or money changer actually applied.
+
+Rejected, with reasons:
+
+- **National Bank of Cambodia**, which `references/currency-data.md` ranks as most authoritative, publishes its official daily rate on a PHP page with no API, and the host refuses programmatic requests outright (verified: HTTP 403). Scraping it would be a silent single point of failure.
+- **exchangerate.host** now requires an API key, so it cannot be the zero-configuration default.
+- **Frankfurter** does not quote KHR at all.
+
+Both chosen providers were verified live to quote KHR and agree to within 0.15% (4047.47 and 4041.51 on the same day).
+
+**Fallback behaviour when the source is unavailable** — the part that actually needed deciding:
+
+- A fetched rate outside a plausible 2,000–8,000 KHR/USD band is rejected as a misread payload rather than stored. A units error is a factor of 100, and a placeholder is `1.0`; either would silently corrupt every converted balance in the app.
+- A failed fetch never quietly leaves the stale rate in place. Every run — success or failure — writes a row to `exchange_rate_sync_runs` (migration `0005`) recording the provider chain tried, and on failure the rate users are consequently still being served *and its age in days*. The absence of a recent row is the signal that the job has stalled.
+- The UI states the age of the rate behind its totals, so a rate weeks stale does not look identical to a fresh one.
+- With nothing stored at all, conversion falls back to a documented cold-start constant of 4,100 and labels itself as a fallback rather than presenting itself as real.
+
+The job runs daily at 01:30 UTC (08:30 Phnom Penh, after the upstream providers publish just after 00:00 UTC), scheduled in `vercel.json` and guarded by `CRON_SECRET`.
+
 ### Still open
 
 | # | Decision | Options | Blocks |
 | --- | --- | --- | --- |
-| 5 | Exchange rate source | Which provider supplies automatic USD/KHR rates, and fallback behaviour when it is unavailable | [Section 7](#7-currency-engine), net worth accuracy |
 | 6 | Telegram bot parsing | Rules-based parser vs LLM intent extraction for the commands in [Section 9](#9-telegram-integration) | Phase 2 cost and offline behaviour |
-
-Phase 1 proceeds with manual exchange rates, which are already specified in [Section 7](#7-currency-engine), so decision 5 does not block it.
 
 ## 18. Deliverables
 

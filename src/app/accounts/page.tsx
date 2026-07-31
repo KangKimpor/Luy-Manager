@@ -1,8 +1,11 @@
+import { CurrencyToggle } from "@/components/currency-toggle";
 import { CurrencyBadge, MoneyAmount } from "@/components/money-amount";
 import { Card, CardBody, CardHeader, CardTitle } from "@/components/ui/card";
+import { otherCurrency, readDisplayCurrency } from "@/lib/display-currency";
 import { ACCOUNT_TYPE_LABELS, balanceOf, summarizeNetWorth } from "@/lib/domain/accounts";
 import type { AccountType } from "@/lib/domain/types";
-import { DEMO_ACCOUNTS, DEMO_BASE_CURRENCY, DEMO_RATE } from "@/lib/demo-data";
+import { DEMO_ACCOUNTS } from "@/lib/demo-data";
+import { loadUsdKhrRate } from "@/lib/rates/repository";
 
 /**
  * Accounts, PRD Section 6.
@@ -10,6 +13,10 @@ import { DEMO_ACCOUNTS, DEMO_BASE_CURRENCY, DEMO_RATE } from "@/lib/demo-data";
  * Grouped by type so the shape of someone's money is legible at a glance: what
  * is spendable, what is put away, what is owed. Each balance stays in the
  * account's own currency, since that is the figure the bank app will show.
+ *
+ * Only the net worth total follows the currency toggle. Converting the individual
+ * rows would be actively unhelpful: the point of a per-account balance is to be
+ * checked against the bank, and a converted figure cannot be.
  */
 
 const GROUP_ORDER: AccountType[] = [
@@ -21,8 +28,21 @@ const GROUP_ORDER: AccountType[] = [
   "credit_card",
 ];
 
-export default function AccountsPage() {
-  const summary = summarizeNetWorth(DEMO_ACCOUNTS, DEMO_BASE_CURRENCY, DEMO_RATE);
+export default async function AccountsPage() {
+  const [displayCurrency, { rate }] = await Promise.all([
+    readDisplayCurrency(),
+    loadUsdKhrRate(),
+  ]);
+
+  const summary = summarizeNetWorth(DEMO_ACCOUNTS, displayCurrency, rate);
+  // Aggregated in the other currency, not converted from the total above, so the
+  // equivalent matches exactly what the toggle will show rather than differing by
+  // a few riel of rounding.
+  const equivalent = summarizeNetWorth(
+    DEMO_ACCOUNTS,
+    otherCurrency(displayCurrency),
+    rate,
+  ).netWorth;
 
   const grouped = GROUP_ORDER.map((type) => ({
     type,
@@ -31,11 +51,19 @@ export default function AccountsPage() {
 
   return (
     <div className="space-y-4">
-      <header>
-        <h1 className="text-ink text-2xl font-bold">Accounts</h1>
-        <p className="text-ink-muted text-sm">
-          Net worth <MoneyAmount amount={summary.netWorth} className="font-semibold" />
-        </p>
+      <header className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <h1 className="text-ink text-2xl font-bold">Accounts</h1>
+          <p className="text-ink-muted text-sm">
+            Net worth <MoneyAmount amount={summary.netWorth} className="font-semibold" />
+            <span className="text-ink-faint">
+              {" "}
+              ≈ <MoneyAmount amount={equivalent} />
+            </span>
+          </p>
+        </div>
+
+        <CurrencyToggle current={displayCurrency} className="shrink-0" />
       </header>
 
       {grouped.map((group) => (

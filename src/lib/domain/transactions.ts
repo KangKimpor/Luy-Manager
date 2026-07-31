@@ -16,6 +16,7 @@ import {
   type ExchangeRate,
   money,
   type Money,
+  MoneyError,
   negate,
   zero,
 } from "@/lib/money";
@@ -113,13 +114,50 @@ export interface TransferDraft {
   /** Amount leaving the source account, in the source account's currency. */
   amount: Money;
   /**
-   * Amount arriving in the destination account. Omit when both accounts share a
-   * currency, or to let the exchange rate decide.
+   * Currency of the destination account. Required, not inferred.
+   *
+   * An account is single-currency and the `transactions_currency_matches_account`
+   * trigger rejects any leg that disagrees with its account. Defaulting this to
+   * the source currency would mean a forgotten cross-currency case builds a row
+   * denominated in the wrong currency, which fails at the database rather than
+   * at the call site. Making the caller state it is the only way the type system
+   * can catch that.
+   */
+  toCurrency: CurrencyCode;
+  /**
+   * Amount actually credited to the destination account. Omit to convert the
+   * sent amount at `rate`.
    */
   receivedAmount?: Money;
   occurredAt?: Date;
   notes?: string | null;
   createdVia?: string;
+}
+
+/**
+ * The figure to credit the destination account.
+ *
+ * A user-supplied amount always wins: the rate a bank actually applied is rarely
+ * the rate in the table, and the figure that landed in the account is the one
+ * that reconciles. Otherwise the table rate decides.
+ */
+function resolveReceivedAmount(
+  draft: TransferDraft,
+  sent: Money,
+  rate: ExchangeRate,
+): Money {
+  if (draft.receivedAmount) {
+    const received = absolute(draft.receivedAmount);
+    if (received.currency !== draft.toCurrency) {
+      throw new MoneyError(
+        `Received amount is in ${received.currency} but the destination account holds ` +
+          `${draft.toCurrency}. A transfer leg must match its account's currency.`,
+      );
+    }
+    return received;
+  }
+
+  return convert(sent, draft.toCurrency, rate);
 }
 
 /**
@@ -144,9 +182,7 @@ export function buildTransfer(
   }
 
   const sent = absolute(draft.amount);
-  const received = draft.receivedAmount
-    ? absolute(draft.receivedAmount)
-    : sent;
+  const received = resolveReceivedAmount(draft, sent, rate);
 
   const occurredAt = draft.occurredAt ?? new Date();
 

@@ -8,7 +8,7 @@
  */
 
 import type { AccountBalance, Category, Transaction } from "@/lib/domain/types";
-import { exchangeRate } from "@/lib/money";
+import { convert, exchangeRate, money } from "@/lib/money";
 
 export const DEMO_RATE = exchangeRate(4100, "USD", "KHR", new Date("2026-07-01"), "manual");
 
@@ -156,6 +156,56 @@ function transaction(
   };
 }
 
+/**
+ * The two legs of a transfer, as `buildTransfer` would produce them.
+ *
+ * Written as a pair because a single leg is not a representable state: migration
+ * 0004 rejects a transfer group that does not hold exactly two opposite legs. The
+ * conversion fields are populated on whichever leg is not already in the base
+ * currency, matching the all-or-nothing rule in `transactions_base_fields_together`.
+ */
+function transferPair(
+  groupId: string,
+  out: { id: string; accountId: string; amount: number; currency: Transaction["currency"] },
+  incoming: { id: string; accountId: string; amount: number; currency: Transaction["currency"] },
+  occurredAt: string,
+  notes: string | null,
+  base: Transaction["currency"] = DEMO_BASE_CURRENCY,
+): Transaction[] {
+  const leg = (
+    part: { id: string; accountId: string; amount: number; currency: Transaction["currency"] },
+    signedAmount: number,
+  ): Transaction => {
+    const needsConversion = part.currency !== base;
+    return {
+      id: part.id,
+      userId: "demo",
+      accountId: part.accountId,
+      categoryId: null,
+      merchantId: null,
+      type: "transfer",
+      amount: signedAmount,
+      currency: part.currency,
+      exchangeRate: needsConversion ? 1 / DEMO_RATE.rate : null,
+      baseAmount: needsConversion
+        ? convert(money(signedAmount, part.currency), base, DEMO_RATE).minor
+        : null,
+      baseCurrency: needsConversion ? base : null,
+      occurredAt,
+      notes,
+      location: null,
+      transferGroupId: groupId,
+      createdVia: "web",
+      isPending: false,
+    };
+  };
+
+  return [
+    leg(out, -Math.abs(out.amount)),
+    leg(incoming, Math.abs(incoming.amount)),
+  ];
+}
+
 /** July 2026 activity. Amounts are signed minor units. */
 export const DEMO_TRANSACTIONS: Transaction[] = [
   transaction("t-01", "acc-aba-usd", "income", 160_000, "USD", "cat-salary", "2026-07-01T02:00:00.000Z", "July salary"),
@@ -182,6 +232,26 @@ export const DEMO_TRANSACTIONS: Transaction[] = [
   transaction("t-22", "acc-wing", "expense", -55_000, "KHR", "cat-groceries", "2026-07-30T10:45:00.000Z", "Chip Mong"),
   transaction("t-23", "acc-cash-khr", "expense", -6_000, "KHR", "cat-coffee", "2026-07-31T01:20:00.000Z", "Coffee", "telegram"),
   transaction("t-24", "acc-cash-usd", "expense", -300, "USD", "cat-grab", "2026-07-31T08:30:00.000Z", "Tuk tuk"),
+
+  // A cross-currency transfer: $100 out of the USD bank account, 410,000៛ into
+  // the riel e-wallet. Neither leg is an expense, so both are excluded from the
+  // cash flow and category totals — the money never left the user's control.
+  ...transferPair(
+    "tg-0001",
+    { id: "t-25", accountId: "acc-aba-usd", amount: 10_000, currency: "USD" },
+    { id: "t-26", accountId: "acc-wing", amount: 410_000, currency: "KHR" },
+    "2026-07-18T03:30:00.000Z",
+    "Top up Wing",
+  ),
+
+  // A same-currency transfer, to cover the case with no conversion fields at all.
+  ...transferPair(
+    "tg-0002",
+    { id: "t-27", accountId: "acc-aba-usd", amount: 20_000, currency: "USD" },
+    { id: "t-28", accountId: "acc-savings", amount: 20_000, currency: "USD" },
+    "2026-07-05T02:00:00.000Z",
+    "Monthly saving",
+  ),
 ];
 
 /** The window the demo data covers. */

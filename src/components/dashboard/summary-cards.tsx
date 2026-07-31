@@ -72,10 +72,20 @@ export function SummaryCards({
   netWorth,
   cashFlow,
   budgetRemaining,
+  netWorthEquivalent,
 }: {
   netWorth: NetWorthSummary;
   cashFlow: CashFlowSummary;
   budgetRemaining?: Money;
+  /**
+   * The same net worth in the other currency.
+   *
+   * Shown alongside rather than instead of the chosen figure because the question
+   * "how much do I have" has two honest answers here: rent and savings are
+   * thought about in dollars, daily spending in riel. Having both removes the need
+   * to toggle just to do the sum in your head.
+   */
+  netWorthEquivalent?: Money;
 }) {
   const overspending = cashFlow.net.minor < 0;
 
@@ -87,6 +97,12 @@ export function SummaryCards({
           Net Worth
         </span>
         <MoneyAmount amount={netWorth.netWorth} className="mt-1 block text-3xl font-bold" />
+
+        {netWorthEquivalent ? (
+          <p className="mt-0.5 text-sm text-white/70">
+            ≈ <MoneyAmount amount={netWorthEquivalent} className="font-semibold" />
+          </p>
+        ) : null}
 
         <div className="mt-4 flex items-center gap-4 text-xs text-white/80">
           <span className="flex items-center gap-1">

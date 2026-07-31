@@ -110,7 +110,12 @@ describe("buildTransaction", () => {
 describe("buildTransfer", () => {
   it("produces two legs that net to zero in a single currency", () => {
     const [out, incoming] = buildTransfer(
-      { fromAccountId: "aba", toAccountId: "wing", amount: fromMajor(100, "USD") },
+      {
+        fromAccountId: "aba",
+        toAccountId: "wing",
+        amount: fromMajor(100, "USD"),
+        toCurrency: "USD",
+      },
       "group-1",
       "USD",
       rate,
@@ -130,6 +135,7 @@ describe("buildTransfer", () => {
         fromAccountId: "aba-usd",
         toAccountId: "wing-khr",
         amount: fromMajor(100, "USD"),
+        toCurrency: "KHR",
         receivedAmount: fromMajor(410000, "KHR"),
       },
       "group-2",
@@ -151,6 +157,7 @@ describe("buildTransfer", () => {
         fromAccountId: "aba-usd",
         toAccountId: "wing-khr",
         amount: fromMajor(100, "USD"),
+        toCurrency: "KHR",
         // A worse rate than the table's 4100.
         receivedAmount: fromMajor(400000, "KHR"),
       },
@@ -165,12 +172,56 @@ describe("buildTransfer", () => {
   it("refuses a transfer to the same account", () => {
     expect(() =>
       buildTransfer(
-        { fromAccountId: "same", toAccountId: "same", amount: fromMajor(10, "USD") },
+        {
+          fromAccountId: "same",
+          toAccountId: "same",
+          amount: fromMajor(10, "USD"),
+          toCurrency: "USD",
+        },
         "group-4",
         "USD",
         rate,
       ),
     ).toThrow(/two different accounts/);
+  });
+
+  it("converts at the table rate when no received amount is given", () => {
+    const [out, incoming] = buildTransfer(
+      {
+        fromAccountId: "aba-usd",
+        toAccountId: "wing-khr",
+        amount: fromMajor(100, "USD"),
+        toCurrency: "KHR",
+      },
+      "group-5",
+      "USD",
+      rate,
+    );
+
+    // The destination leg must land in the destination account's own currency,
+    // never in the source currency. Crossing the scale gap: $100 -> 410,000 riel.
+    expect(out.currency).toBe("USD");
+    expect(out.amount).toBe(-10000);
+    expect(incoming.currency).toBe("KHR");
+    expect(incoming.amount).toBe(410_000);
+  });
+
+  it("refuses a received amount that contradicts the destination currency", () => {
+    expect(() =>
+      buildTransfer(
+        {
+          fromAccountId: "aba-usd",
+          toAccountId: "wing-khr",
+          amount: fromMajor(100, "USD"),
+          toCurrency: "KHR",
+          // Plausible-looking mistake: the sent figure pasted into the received field.
+          receivedAmount: fromMajor(100, "USD"),
+        },
+        "group-6",
+        "USD",
+        rate,
+      ),
+    ).toThrow(/destination account holds/);
   });
 });
 
