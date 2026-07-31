@@ -87,10 +87,13 @@ console.log(styles.head("1. Environment"));
 
 const REQUIRED = {
   NEXT_PUBLIC_SUPABASE_URL: "Project URL, from Project Settings > API",
-  NEXT_PUBLIC_SUPABASE_ANON_KEY: "anon public key, from Project Settings > API",
+  NEXT_PUBLIC_SUPABASE_ANON_KEY:
+    "publishable key (sb_publishable_...) or legacy anon key, from Project " +
+    "Settings > API Keys. Both resolve to the anon role, so RLS behaves the same",
   SUPABASE_SERVICE_ROLE_KEY:
-    "service_role key, from Project Settings > API. Writes the published rate, " +
-    "which has no owner and so cannot be written by any user session",
+    "secret key (sb_secret_...) or legacy service_role key, from Project Settings > " +
+    "API Keys. Writes the published rate, which has no owner and so cannot be " +
+    "written by any user session",
 };
 
 const OPTIONAL = {
@@ -110,26 +113,56 @@ for (const [key, why] of Object.entries(OPTIONAL)) {
   else console.log(styles.warn(`${key} is not set — ${why}`));
 }
 
-// A service_role key in a NEXT_PUBLIC_ variable would be shipped to the browser,
-// which hands every row in the database to anyone who opens the page.
-for (const [key, value] of Object.entries(env)) {
-  if (key.startsWith("NEXT_PUBLIC_") && typeof value === "string") {
-    // Supabase keys are JWTs; the role sits in the payload.
-    const parts = value.split(".");
-    if (parts.length === 3) {
-      try {
-        const payload = JSON.parse(Buffer.from(parts[1], "base64url").toString("utf8"));
-        if (payload.role === "service_role") {
-          fail(
-            `${key} contains a service_role key. Anything NEXT_PUBLIC_ is sent to the ` +
-              `browser, so this would expose every row. Use the anon key here.`,
-          );
-        }
-      } catch {
-        // Not a JWT we can read; nothing to assert.
-      }
-    }
+/**
+ * Is this value a key that bypasses Row Level Security?
+ *
+ * Two formats, because Supabase changed them and a project may hold either:
+ *
+ *   sb_secret_...        the current style. An opaque string, NOT a JWT, so there
+ *                        is no payload to inspect and the prefix is the only
+ *                        signal. Checking only the JWT shape below silently let
+ *                        these through, which is the exact mistake this guard
+ *                        exists to catch.
+ *   eyJ... (JWT)         the legacy style, with "role": "service_role" in the
+ *                        payload.
+ */
+function bypassesRls(value) {
+  if (typeof value !== "string" || value === "") return false;
+
+  if (value.startsWith("sb_secret_")) return true;
+
+  const parts = value.split(".");
+  if (parts.length !== 3) return false;
+  try {
+    const payload = JSON.parse(Buffer.from(parts[1], "base64url").toString("utf8"));
+    return payload.role === "service_role";
+  } catch {
+    // Not a JWT we can read; nothing to assert.
+    return false;
   }
+}
+
+// A key that bypasses RLS in a NEXT_PUBLIC_ variable would be shipped to the
+// browser, which hands every row in the database to anyone who opens the page.
+for (const [key, value] of Object.entries(env)) {
+  if (key.startsWith("NEXT_PUBLIC_") && bypassesRls(value)) {
+    fail(
+      `${key} contains a key that bypasses Row Level Security. Anything ` +
+        `NEXT_PUBLIC_ is sent to the browser, so this would expose every row. ` +
+        `Use the publishable key (sb_publishable_...) or the anon key here.`,
+    );
+  }
+}
+
+// The mirror of the above: a publishable key in the service-role slot means the
+// rate writer will fail on every run, and it fails at write time rather than
+// here, which makes it look like a provider outage instead of a config mistake.
+if (env.SUPABASE_SERVICE_ROLE_KEY?.startsWith("sb_publishable_")) {
+  fail(
+    "SUPABASE_SERVICE_ROLE_KEY contains a publishable key. The published rate is " +
+      "stored with a null owner that no user session can write, so this needs the " +
+      "secret key (sb_secret_...) or the legacy service_role key.",
+  );
 }
 
 if (failed) {
