@@ -31,8 +31,11 @@ export default function GlobalError({
           justifyContent: "center",
           padding: "1.5rem",
           fontFamily: "system-ui, -apple-system, sans-serif",
-          background: "#f5f6f8",
-          color: "#1a1d23",
+          // Literals on purpose: this renders when the root layout has failed, so
+          // it cannot rely on the stylesheet or any import. Kept in step with
+          // --color-surface-muted and --color-ink by hand.
+          background: "#f9f9ff",
+          color: "#181c24",
         }}
       >
         <div style={{ maxWidth: "24rem", textAlign: "center" }}>

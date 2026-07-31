@@ -74,8 +74,7 @@ export default async function ReportsPage() {
     <div className="space-y-4">
       <header className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <h1 className="text-ink text-2xl font-bold">Reports</h1>
-          <p className="text-ink-muted text-sm">Last 12 months</p>
+          <p className="text-ink-muted text-body-md">Last 12 months</p>
         </div>
         <CurrencyToggle current={displayCurrency} className="shrink-0" />
       </header>

@@ -5,6 +5,8 @@ import { BudgetSummaryCard } from "@/components/dashboard/budget-summary-card";
 import { CashFlowChart } from "@/components/dashboard/cash-flow-chart";
 import { CategoryBreakdown } from "@/components/dashboard/category-breakdown";
 import { SummaryCards } from "@/components/dashboard/summary-cards";
+import { MonthStepper } from "@/components/month-stepper";
+import { RateStrip } from "@/components/rate-strip";
 import { TransactionList } from "@/components/transaction-list";
 import { isDemoMode } from "@/lib/auth";
 import { accountLookup, listAccountBalances } from "@/lib/data/accounts";
@@ -19,9 +21,8 @@ import {
   spendingByCategory,
   summarizeCashFlow,
 } from "@/lib/domain/transactions";
-import { formatMoney, fromMajor } from "@/lib/money";
 import { monthFromParam, monthParam, shiftMonth } from "@/lib/period";
-import { describeFreshness, loadUsdKhrRate } from "@/lib/rates/repository";
+import { loadUsdKhrRate } from "@/lib/rates/repository";
 
 /**
  * Dashboard, PRD Section 11.
@@ -78,17 +79,15 @@ export default async function DashboardPage(props: {
 
   return (
     <div className="space-y-4">
-      <header className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <h1 className="text-ink text-2xl font-bold">{period.label}</h1>
-          <p className="text-ink-muted text-sm">
-            {formatMoney(fromMajor(rate.rate, "KHR"))} per $1
-            <span className="text-ink-faint"> · {describeFreshness(snapshot)}</span>
-          </p>
-        </div>
+      <RateStrip snapshot={snapshot}>
+        <CurrencyToggle current={displayCurrency} />
+      </RateStrip>
 
-        <CurrencyToggle current={displayCurrency} className="shrink-0" />
-      </header>
+      <MonthStepper
+        label={period.label}
+        prevHref={`/?month=${monthParam(previous)}`}
+        nextHref={`/?month=${monthParam(next)}`}
+      />
 
       {isDemoMode() ? (
         <p className="bg-brand-soft text-brand rounded-card px-3 py-2 text-xs font-medium">
@@ -113,18 +112,12 @@ export default async function DashboardPage(props: {
 
       <TransactionList transactions={transactions} categories={categories} accounts={lookup} />
 
-      <div className="flex items-center justify-between gap-2 text-sm">
+      <div className="flex justify-center pt-1">
         <Link
-          href={`/?month=${monthParam(previous)}`}
-          className="text-brand font-semibold"
+          href="/transactions"
+          className="text-brand text-body-md rounded-pill border-surface-variant bg-surface hover:bg-surface-container border px-5 py-2 font-semibold transition-colors"
         >
-          ← {previous.label}
-        </Link>
-        <Link href="/transactions" className="text-ink-muted font-medium underline">
           All transactions
-        </Link>
-        <Link href={`/?month=${monthParam(next)}`} className="text-brand font-semibold">
-          {next.label} →
         </Link>
       </div>
     </div>

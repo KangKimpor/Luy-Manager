@@ -58,8 +58,10 @@ export function CurrencyBadge({
   return (
     <span
       className={cn(
+        // Dedicated currency accents, not the income/expense palette. Tinting the
+        // KHR badge green made a riel account read as a gain.
         "rounded-pill px-2 py-0.5 text-[0.625rem] font-bold tracking-wide",
-        currency === "USD" ? "bg-inflow-soft text-usd" : "bg-outflow-soft text-khr",
+        currency === "USD" ? "bg-usd-soft text-usd" : "bg-khr-soft text-khr",
         className,
       )}
     >

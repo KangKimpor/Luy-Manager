@@ -1,3 +1,4 @@
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import Link from "next/link";
 
 import { TransactionFilters } from "@/components/transaction-filters";
@@ -83,14 +84,12 @@ export default async function TransactionsPage(props: {
 
   return (
     <div className="space-y-4">
-      <header>
-        <h1 className="text-ink text-2xl font-bold">Transactions</h1>
-        <p className="text-ink-muted text-sm">
-          {result.total === 0
-            ? "Nothing matches these filters."
-            : `Showing ${shownFrom}–${shownTo} of ${result.total}`}
-        </p>
-      </header>
+      {/* The screen name lives in the app bar, so this is only the result count. */}
+      <p className="text-ink-muted text-body-md">
+        {result.total === 0
+          ? "Nothing matches these filters."
+          : `Showing ${shownFrom} to ${shownTo} of ${result.total}`}
+      </p>
 
       <TransactionFilters
         accounts={accounts}
@@ -135,12 +134,24 @@ export default async function TransactionsPage(props: {
           a row of small ones, and the total above already gives a sense of scale. */}
       {result.total > result.pageSize ? (
         <nav className="flex items-center justify-between gap-2 text-sm" aria-label="Pages">
+          {/*
+            Chevron icons rather than "←" and "→". The arrow characters are outside
+            every font subset the app ships and rendered as tofu boxes.
+          */}
           {page > 1 ? (
-            <Link href={pageHref(page - 1)} className="text-brand font-semibold">
-              ← Newer
+            <Link
+              href={pageHref(page - 1)}
+              rel="prev"
+              className="text-brand flex items-center gap-1 font-semibold"
+            >
+              <ChevronLeft size={16} aria-hidden="true" />
+              Newer
             </Link>
           ) : (
-            <span className="text-ink-faint">← Newer</span>
+            <span className="text-ink-faint flex items-center gap-1">
+              <ChevronLeft size={16} aria-hidden="true" />
+              Newer
+            </span>
           )}
 
           <span className="text-ink-muted text-xs">
@@ -148,11 +159,19 @@ export default async function TransactionsPage(props: {
           </span>
 
           {result.hasMore ? (
-            <Link href={pageHref(page + 1)} className="text-brand font-semibold">
-              Older →
+            <Link
+              href={pageHref(page + 1)}
+              rel="next"
+              className="text-brand flex items-center gap-1 font-semibold"
+            >
+              Older
+              <ChevronRight size={16} aria-hidden="true" />
             </Link>
           ) : (
-            <span className="text-ink-faint">Older →</span>
+            <span className="text-ink-faint flex items-center gap-1">
+              Older
+              <ChevronRight size={16} aria-hidden="true" />
+            </span>
           )}
         </nav>
       ) : null}

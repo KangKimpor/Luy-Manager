@@ -33,7 +33,7 @@ export default async function SettingsPage() {
   return (
     <div className="space-y-4">
       <header>
-        <h1 className="text-ink text-2xl font-bold">Settings</h1>
+
         {user?.email ? (
           <p className="text-ink-muted text-sm">{user.email}</p>
         ) : demo ? (

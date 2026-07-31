@@ -28,9 +28,7 @@ export default async function EditTransactionPage(props: {
 
   return (
     <div className="space-y-4">
-      <header>
-        <h1 className="text-ink text-2xl font-bold">Edit transaction</h1>
-      </header>
+
 
       <EditTransactionForm
         transaction={transaction}

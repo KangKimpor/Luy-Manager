@@ -53,7 +53,7 @@ export default async function BudgetsPage() {
   return (
     <div className="space-y-4">
       <header>
-        <h1 className="text-ink text-2xl font-bold">Budgets</h1>
+
         {progress.length > 0 ? (
           <p className="text-ink-muted text-sm">
             <MoneyAmount amount={remaining} className="font-semibold" /> left across

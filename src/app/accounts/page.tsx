@@ -1,16 +1,26 @@
-import { Plus, Settings } from "lucide-react";
+import {
+  CreditCard,
+  Landmark,
+  PiggyBank,
+  Plus,
+  Smartphone,
+  TrendingUp,
+  Wallet,
+  type LucideIcon,
+} from "lucide-react";
 import Link from "next/link";
 
 import { AccountRowActions } from "@/components/account-row-actions";
 import { CurrencyToggle } from "@/components/currency-toggle";
 import { CurrencyBadge, MoneyAmount } from "@/components/money-amount";
 import { buttonVariants } from "@/components/ui/button";
-import { Card, CardBody, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardBody } from "@/components/ui/card";
 import { isDemoMode } from "@/lib/auth";
 import { listAccountBalances } from "@/lib/data/accounts";
 import { otherCurrency, readDisplayCurrency } from "@/lib/display-currency";
 import { ACCOUNT_TYPE_LABELS, balanceOf, summarizeNetWorth } from "@/lib/domain/accounts";
 import type { AccountType } from "@/lib/domain/types";
+import { totalInBaseCurrency } from "@/lib/money";
 import { loadUsdKhrRate } from "@/lib/rates/repository";
 import { cn } from "@/lib/utils";
 
@@ -21,9 +31,9 @@ import { cn } from "@/lib/utils";
  * spendable, what is put away, what is owed. Each balance stays in the account's
  * own currency, since that is the figure the bank app will show.
  *
- * Only the net worth total follows the currency toggle. Converting the individual
- * rows would be actively unhelpful: the point of a per-account balance is to be
- * checked against the bank, and a converted figure cannot be.
+ * Only the totals follow the currency toggle. Converting the individual rows would
+ * be actively unhelpful: the point of a per-account balance is to be checked
+ * against the bank, and a converted figure cannot be.
  */
 
 const GROUP_ORDER: AccountType[] = [
@@ -34,6 +44,28 @@ const GROUP_ORDER: AccountType[] = [
   "investment",
   "credit_card",
 ];
+
+const GROUP_ICONS: Record<AccountType, LucideIcon> = {
+  bank: Landmark,
+  ewallet: Smartphone,
+  cash: Wallet,
+  savings: PiggyBank,
+  investment: TrendingUp,
+  credit_card: CreditCard,
+};
+
+/**
+ * Two tints, not six.
+ *
+ * The design mockup gave each account type its own colour, which looks lively but
+ * encodes nothing: the colours were decorative and a reader learns nothing from
+ * green versus red here. One distinction is worth colour, and it is the one that
+ * changes the arithmetic: an asset adds to net worth, a credit card subtracts
+ * from it.
+ */
+function tintFor(type: AccountType): string {
+  return type === "credit_card" ? "bg-outflow-soft text-outflow" : "bg-brand-soft text-brand";
+}
 
 export default async function AccountsPage() {
   const [displayCurrency, { rate }, accounts] = await Promise.all([
@@ -48,42 +80,48 @@ export default async function AccountsPage() {
   // few riel of rounding.
   const equivalent = summarizeNetWorth(accounts, otherCurrency(displayCurrency), rate).netWorth;
 
-  const grouped = GROUP_ORDER.map((type) => ({
-    type,
-    accounts: accounts.filter((account) => account.type === type),
-  })).filter((group) => group.accounts.length > 0);
+  const grouped = GROUP_ORDER.map((type) => {
+    const members = accounts.filter((account) => account.type === type);
+    const balances = members.map(balanceOf);
+
+    // A group of accounts all held in one currency has an exact subtotal. A group
+    // mixing USD and KHR does not, so its subtotal is a conversion and is marked
+    // as approximate rather than presented as a hard figure.
+    const currencies = new Set(members.map((account) => account.currency));
+    const isMixed = currencies.size > 1;
+    const subtotalCurrency = isMixed ? displayCurrency : (members[0]?.currency ?? displayCurrency);
+
+    return {
+      type,
+      accounts: members,
+      isMixed,
+      subtotal: totalInBaseCurrency(balances, subtotalCurrency, rate),
+    };
+  }).filter((group) => group.accounts.length > 0);
 
   return (
-    <div className="space-y-4">
-      <header className="flex items-start justify-between gap-3">
+    <div className="space-y-5">
+      <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <h1 className="text-ink text-2xl font-bold">Accounts</h1>
-          <p className="text-ink-muted text-sm">
-            Net worth <MoneyAmount amount={summary.netWorth} className="font-semibold" />
-            <span className="text-ink-faint">
-              {" "}
-              ≈ <MoneyAmount amount={equivalent} />
-            </span>
+          <p className="text-label-caps text-ink-muted uppercase">Net worth</p>
+          <MoneyAmount amount={summary.netWorth} className="text-headline-lg text-ink block" />
+          {/* ASCII "~": U+2248 is not in any subset this app ships and tofus. */}
+          <p className="text-body-md text-ink-faint">
+            ~ <MoneyAmount amount={equivalent} />
           </p>
         </div>
 
-        <div className="flex shrink-0 items-center gap-2">
-          <CurrencyToggle current={displayCurrency} />
-          <Link
-            href="/settings"
-            aria-label="Settings"
-            className="text-ink-muted hover:text-ink flex size-9 items-center justify-center"
-          >
-            <Settings size={18} aria-hidden="true" />
-          </Link>
-        </div>
-      </header>
+        <CurrencyToggle current={displayCurrency} className="mt-1 shrink-0" />
+      </div>
 
       {accounts.length === 0 ? (
         <Card>
-          <CardBody className="space-y-3 text-center">
-            <p className="text-ink text-sm font-semibold">No accounts yet</p>
-            <p className="text-ink-muted text-sm">
+          <CardBody className="space-y-3 pt-4 text-center">
+            <span className="bg-brand-soft text-brand mx-auto flex size-12 items-center justify-center rounded-full">
+              <Wallet size={22} aria-hidden="true" />
+            </span>
+            <p className="text-ink text-numeric-md">No accounts yet</p>
+            <p className="text-ink-muted text-body-md">
               Add the banks, wallets and cash you actually use. There are presets for
               ABA, ACLEDA, Wing and TrueMoney.
             </p>
@@ -103,58 +141,87 @@ export default async function AccountsPage() {
         </Link>
       )}
 
-      {grouped.map((group) => (
-        <Card key={group.type}>
-          <CardHeader>
-            <CardTitle>{ACCOUNT_TYPE_LABELS[group.type]}</CardTitle>
-          </CardHeader>
-          <CardBody>
-            <ul className="divide-border-subtle/70 divide-y">
-              {group.accounts.map((account) => (
-                <li
-                  key={account.accountId}
-                  className="flex items-center justify-between gap-3 py-2.5"
-                >
-                  <div className="min-w-0">
-                    <p
+      {grouped.map((group) => {
+        const Icon = GROUP_ICONS[group.type];
+
+        return (
+          <section key={group.type} className="space-y-2">
+            {/*
+              Group heading sits outside the card, so the card holds only rows and
+              the eye can run down a single column of balances uninterrupted.
+            */}
+            <div className="flex items-baseline justify-between gap-2 px-1">
+              <h2 className="text-label-caps text-ink-muted uppercase">
+                {ACCOUNT_TYPE_LABELS[group.type]}
+              </h2>
+              <span className="text-numeric-md text-ink">
+                {group.isMixed ? <span className="text-ink-faint">~ </span> : null}
+                <MoneyAmount
+                  amount={group.subtotal}
+                  colorBySign={group.type === "credit_card"}
+                />
+              </span>
+            </div>
+
+            <Card className="overflow-hidden">
+              <ul className="divide-surface-variant divide-y">
+                {group.accounts.map((account) => (
+                  <li key={account.accountId} className="flex items-center gap-3 px-4 py-3">
+                    <span
                       className={cn(
-                        "truncate text-sm font-medium",
-                        account.isActive ? "text-ink" : "text-ink-faint line-through",
+                        "flex size-10 shrink-0 items-center justify-center rounded-full",
+                        tintFor(account.type),
                       )}
                     >
-                      {account.name}
-                    </p>
-                    <p className="text-ink-faint text-xs">
-                      {account.transactionCount} transactions
-                      {!account.isActive ? " · closed" : null}
-                      {account.isActive && !account.includeInNetWorth
-                        ? " · not counted"
-                        : null}
-                    </p>
-                  </div>
+                      <Icon size={20} aria-hidden="true" />
+                    </span>
 
-                  <div className="flex shrink-0 items-center gap-2">
-                    <MoneyAmount
-                      amount={balanceOf(account)}
-                      colorBySign={account.type === "credit_card"}
-                      className="text-sm font-semibold"
-                    />
-                    <CurrencyBadge currency={account.currency} />
-                    {isDemoMode() ? null : (
-                      <AccountRowActions
-                        accountId={account.accountId}
-                        name={account.name}
-                        isActive={account.isActive}
-                        transactionCount={account.transactionCount}
-                      />
-                    )}
-                  </div>
-                </li>
-              ))}
-            </ul>
-          </CardBody>
-        </Card>
-      ))}
+                    <div className="min-w-0 flex-1">
+                      <p
+                        className={cn(
+                          "text-numeric-md truncate",
+                          account.isActive ? "text-ink" : "text-ink-faint line-through",
+                        )}
+                      >
+                        {account.name}
+                      </p>
+                      <p className="text-ink-faint text-xs">
+                        {account.institution ?? ACCOUNT_TYPE_LABELS[account.type]}
+                        {" · "}
+                        {account.transactionCount} transactions
+                        {!account.isActive ? " · closed" : null}
+                        {account.isActive && !account.includeInNetWorth
+                          ? " · not counted"
+                          : null}
+                      </p>
+                    </div>
+
+                    <div className="flex shrink-0 items-center gap-2">
+                      <div className="flex flex-col items-end gap-1">
+                        <MoneyAmount
+                          amount={balanceOf(account)}
+                          colorBySign={account.type === "credit_card"}
+                          className="text-numeric-md"
+                        />
+                        <CurrencyBadge currency={account.currency} />
+                      </div>
+
+                      {isDemoMode() ? null : (
+                        <AccountRowActions
+                          accountId={account.accountId}
+                          name={account.name}
+                          isActive={account.isActive}
+                          transactionCount={account.transactionCount}
+                        />
+                      )}
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            </Card>
+          </section>
+        );
+      })}
     </div>
   );
 }

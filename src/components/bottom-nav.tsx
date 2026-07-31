@@ -57,11 +57,14 @@ function NavLink({ item, active }: { item: NavItem; active: boolean }) {
       href={item.href}
       aria-current={active ? "page" : undefined}
       className={cn(
-        "flex min-h-11 flex-1 flex-col items-center justify-center gap-1 text-[0.625rem] font-medium transition-colors",
+        // 10px, not the 12px label-caps step: five labels plus the centre action
+        // do not fit across a 390px phone at 12px, and "Dashboard" and "Accounts"
+        // run into each other.
+        "flex min-h-11 flex-1 flex-col items-center justify-center gap-1 text-[0.625rem] font-semibold transition-colors",
         active ? "text-brand" : "text-ink-faint hover:text-ink-muted",
       )}
     >
-      <Icon size={20} strokeWidth={active ? 2.4 : 1.8} aria-hidden="true" />
+      <Icon size={22} strokeWidth={active ? 2.4 : 1.8} aria-hidden="true" />
       {item.label}
     </Link>
   );
@@ -71,12 +74,13 @@ export function BottomNav() {
   const pathname = usePathname();
   const addActive = isActive(pathname, "/add");
 
+  // Sign-in is a full-bleed screen with nothing to navigate to yet.
+  if (pathname === "/login") return null;
+
   return (
     <nav
       aria-label="Main"
-      className="border-border-subtle bg-surface fixed inset-x-0 bottom-0 z-40 border-t"
-      // Keeps the bar clear of the iOS home indicator.
-      style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
+      className="bg-surface/85 shadow-nav pb-safe fixed inset-x-0 bottom-0 z-40 backdrop-blur-xl"
     >
       <div className="mx-auto flex h-navbar max-w-lg items-center px-2">
         {LEFT_ITEMS.map((item) => (
@@ -90,11 +94,13 @@ export function BottomNav() {
             aria-label="Add transaction"
             aria-current={addActive ? "page" : undefined}
             className={cn(
-              "shadow-fab -mt-7 flex size-14 items-center justify-center rounded-full text-white transition-transform active:scale-95",
-              addActive ? "bg-brand-strong" : "bg-brand",
+              // The ring is the page colour rather than the bar's, so the button
+              // reads as punched through the bar instead of sitting on it.
+              "shadow-fab border-surface-muted -mt-8 flex size-14 items-center justify-center rounded-full border-4 text-white transition-transform active:scale-95",
+              addActive ? "bg-brand-strong" : "bg-brand-container",
             )}
           >
-            <Plus size={26} strokeWidth={2.5} aria-hidden="true" />
+            <Plus size={28} strokeWidth={2.5} aria-hidden="true" />
           </Link>
         </div>
 
