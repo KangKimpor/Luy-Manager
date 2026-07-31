@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
 
 import { BottomNav } from "@/components/bottom-nav";
+import { ServiceWorkerRegistration } from "@/components/service-worker";
 
 import "./globals.css";
 
@@ -53,6 +54,7 @@ export default function RootLayout({
         </main>
 
         <BottomNav />
+        <ServiceWorkerRegistration />
       </body>
     </html>
   );

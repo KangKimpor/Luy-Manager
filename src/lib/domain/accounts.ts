@@ -154,7 +154,10 @@ export function summarizeNetWorth(
   base: CurrencyCode,
   rate: ExchangeRate = DEFAULT_RATE,
 ): NetWorthSummary {
-  const included = balances.filter((b) => b.includeInNetWorth);
+  // `countsTowardNetWorth` rather than `includeInNetWorth`: a closed account must
+  // also be left out, and the view combines both flags so this cannot be got
+  // half-right here.
+  const included = balances.filter((b) => b.countsTowardNetWorth);
 
   const liabilities = totalWhere(included, base, rate, (b) => b.type === "credit_card");
 

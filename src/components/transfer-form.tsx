@@ -17,10 +17,10 @@ import { Card, CardBody } from "@/components/ui/card";
 import {
   describeTransfer,
   planTransfer,
-  transferInserts,
   transferIssues,
   type TransferPlan,
 } from "@/lib/domain/transfers";
+import { createTransfer } from "@/app/actions/transactions";
 import type { AccountBalance } from "@/lib/domain/types";
 import {
   type CurrencyCode,
@@ -56,9 +56,15 @@ interface TransferFormProps {
   accounts: readonly AccountBalance[];
   /** The rate in force, from the daily sync. Falls back to the cold-start rate. */
   rate?: ExchangeRate;
+  /** Demo mode cannot persist, so the form says so rather than failing on submit. */
+  readOnly?: boolean;
 }
 
-export function TransferForm({ accounts, rate = DEFAULT_RATE }: TransferFormProps) {
+export function TransferForm({
+  accounts,
+  rate = DEFAULT_RATE,
+  readOnly = false,
+}: TransferFormProps) {
   const [fromId, setFromId] = useState(accounts[0]?.accountId ?? "");
   const [toId, setToId] = useState(
     // Default to the first account in a different currency, since exchanging is
@@ -71,6 +77,8 @@ export function TransferForm({ accounts, rate = DEFAULT_RATE }: TransferFormProp
   const [receivedRaw, setReceivedRaw] = useState("");
   const [note, setNote] = useState("");
   const [saved, setSaved] = useState<string | null>(null);
+  const [pending, setPending] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   const from = accounts.find((a) => a.accountId === fromId);
   const to = accounts.find((a) => a.accountId === toId);
@@ -124,7 +132,7 @@ export function TransferForm({ accounts, rate = DEFAULT_RATE }: TransferFormProp
   }, [from, to, amount, receivedRaw, note, rate]);
 
   const issues = useMemo(() => (plan ? transferIssues(plan) : []), [plan]);
-  const canSave = plan !== null && error === null;
+  const canSave = plan !== null && error === null && !readOnly;
 
   function press(key: KeypadKey) {
     setSaved(null);
@@ -165,28 +173,32 @@ export function TransferForm({ accounts, rate = DEFAULT_RATE }: TransferFormProp
     setReceivedRaw(formatMoney(plan.cashStepSuggestion, { showSymbol: false }));
   }
 
-  function handleSave() {
-    if (!plan) return;
+  async function handleSave() {
+    if (!plan || readOnly) return;
 
-    const [out, incoming] = transferInserts(
-      plan,
-      // Both legs must carry the same group id. Generated here, once, so the two
-      // rows are recognisable as one action.
-      crypto.randomUUID(),
-      // Reporting currency for the audit fields. USD until the profile's
-      // base_currency is wired up with authentication.
-      "USD",
-      rate,
-    );
+    setPending(true);
+    setSaveError(null);
 
-    // Placeholder for the Supabase insert, matching the existing quick-add form.
-    // Both rows must go in a single statement: migration 0004 defers its balance
-    // check to COMMIT precisely so the two legs land together, and a half-written
-    // transfer would debit an account and credit nothing.
-    setSaved(
-      `${describeTransfer(plan)} — 2 rows, group ${out.transfer_group_id?.slice(0, 8)}, ` +
-        `${out.amount} ${out.currency} / +${incoming.amount} ${incoming.currency}`,
-    );
+    // The action re-plans server-side from the accounts it reads itself, then
+    // inserts both legs in a single statement — migration 0004 defers its balance
+    // check to COMMIT precisely so the pair lands together, and a half-written
+    // transfer would debit one account and credit nothing.
+    const result = await createTransfer({
+      fromAccountId: plan.from.accountId,
+      toAccountId: plan.to.accountId,
+      amount: raw.trim(),
+      receivedAmount: receivedRaw.trim() === "" ? undefined : receivedRaw.trim(),
+      notes: note.trim() === "" ? null : note.trim(),
+    });
+
+    setPending(false);
+
+    if (!result.ok) {
+      setSaveError(result.error);
+      return;
+    }
+
+    setSaved(describeTransfer(plan));
     setRaw("");
     setReceivedRaw("");
     setNote("");
@@ -376,6 +388,13 @@ export function TransferForm({ accounts, rate = DEFAULT_RATE }: TransferFormProp
         </p>
       ) : null}
 
+      {saveError ? (
+        <p role="alert" className="text-outflow flex items-start gap-1.5 text-sm">
+          <TriangleAlert size={15} className="mt-0.5 shrink-0" aria-hidden="true" />
+          {saveError}
+        </p>
+      ) : null}
+
       {issues.map((issue) => (
         <p
           key={issue.code}
@@ -387,14 +406,25 @@ export function TransferForm({ accounts, rate = DEFAULT_RATE }: TransferFormProp
         </p>
       ))}
 
-      <Button size="full" disabled={!canSave} onClick={handleSave}>
+      <Button size="full" disabled={!canSave || pending} onClick={handleSave}>
         <Check size={18} aria-hidden="true" />
-        {plan?.isCrossCurrency ? "Exchange and transfer" : "Transfer"}
+        {pending
+          ? "Saving…"
+          : plan?.isCrossCurrency
+            ? "Exchange and transfer"
+            : "Transfer"}
       </Button>
+
+      {readOnly ? (
+        <p className="text-ink-faint text-center text-xs">
+          The demo runs on sample data, so nothing is saved. Connect Supabase to
+          record real transfers.
+        </p>
+      ) : null}
 
       {saved ? (
         <p role="status" className="text-inflow text-center text-sm font-medium">
-          Built transfer: {saved} — persistence lands with the Supabase wiring.
+          Transferred {saved}
         </p>
       ) : null}
     </div>

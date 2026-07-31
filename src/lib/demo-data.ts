@@ -7,104 +7,140 @@
  * dollars and riel, e-wallet top-ups, a credit card carrying a balance.
  */
 
-import type { AccountBalance, Category, Transaction } from "@/lib/domain/types";
+import type { AccountBalance, Budget, Category, Transaction } from "@/lib/domain/types";
 import { convert, exchangeRate, money } from "@/lib/money";
 
 export const DEMO_RATE = exchangeRate(4100, "USD", "KHR", new Date("2026-07-01"), "manual");
 
 export const DEMO_BASE_CURRENCY = "USD" as const;
 
+/**
+ * Fill in the columns the `account_balances` view derives or defaults.
+ *
+ * A factory rather than nine literals so that adding a column to the view means
+ * one change here, and so `countsTowardNetWorth` is always consistent with the
+ * two flags it comes from instead of being set by hand.
+ */
+function demoAccount(
+  seed: Pick<
+    AccountBalance,
+    "accountId" | "name" | "type" | "currency" | "currentBalance" | "transactionCount" | "lastActivityAt"
+  > &
+    Partial<AccountBalance>,
+): AccountBalance {
+  const isActive = seed.isActive ?? true;
+  const includeInNetWorth = seed.includeInNetWorth ?? true;
+
+  return {
+    userId: "demo",
+    institution: null,
+    icon: null,
+    color: null,
+    sortOrder: 0,
+    ...seed,
+    isActive,
+    includeInNetWorth,
+    countsTowardNetWorth: isActive && includeInNetWorth,
+  };
+}
+
 export const DEMO_ACCOUNTS: AccountBalance[] = [
-  {
+  demoAccount({
     accountId: "acc-aba-usd",
     name: "ABA USD",
+    institution: "ABA Bank",
     type: "bank",
     currency: "USD",
-    includeInNetWorth: true,
     currentBalance: 184_250, // $1,842.50
     transactionCount: 42,
     lastActivityAt: "2026-07-30T09:15:00.000Z",
-  },
-  {
+    sortOrder: 10,
+  }),
+  demoAccount({
     accountId: "acc-aba-khr",
     name: "ABA KHR",
+    institution: "ABA Bank",
     type: "bank",
     currency: "KHR",
-    includeInNetWorth: true,
     currentBalance: 1_240_000, // 1,240,000៛ ≈ $302
     transactionCount: 18,
     lastActivityAt: "2026-07-29T13:40:00.000Z",
-  },
-  {
+    sortOrder: 20,
+  }),
+  demoAccount({
     accountId: "acc-wing",
     name: "Wing",
+    institution: "Wing Bank",
     type: "ewallet",
     currency: "KHR",
-    includeInNetWorth: true,
     currentBalance: 385_000, // 385,000៛ ≈ $94
     transactionCount: 27,
     lastActivityAt: "2026-07-31T07:05:00.000Z",
-  },
-  {
+    sortOrder: 30,
+  }),
+  demoAccount({
     accountId: "acc-truemoney",
     name: "TrueMoney",
+    institution: "TrueMoney",
     type: "ewallet",
     currency: "KHR",
-    includeInNetWorth: true,
     currentBalance: 62_000,
     transactionCount: 9,
     lastActivityAt: "2026-07-26T18:20:00.000Z",
-  },
-  {
+    sortOrder: 40,
+  }),
+  demoAccount({
     accountId: "acc-cash-usd",
     name: "Cash USD",
     type: "cash",
     currency: "USD",
-    includeInNetWorth: true,
     currentBalance: 12_000, // $120
     transactionCount: 15,
     lastActivityAt: "2026-07-31T12:00:00.000Z",
-  },
-  {
+    sortOrder: 50,
+  }),
+  demoAccount({
     accountId: "acc-cash-khr",
     name: "Cash KHR",
     type: "cash",
     currency: "KHR",
-    includeInNetWorth: true,
     currentBalance: 148_000,
     transactionCount: 31,
     lastActivityAt: "2026-07-31T11:30:00.000Z",
-  },
-  {
+    sortOrder: 60,
+  }),
+  demoAccount({
     accountId: "acc-savings",
     name: "ACLEDA Savings",
+    institution: "ACLEDA Bank",
     type: "savings",
     currency: "USD",
-    includeInNetWorth: true,
     currentBalance: 620_000, // $6,200
     transactionCount: 6,
     lastActivityAt: "2026-07-01T02:00:00.000Z",
-  },
-  {
+    sortOrder: 70,
+  }),
+  demoAccount({
     accountId: "acc-invest",
     name: "Investment",
     type: "investment",
     currency: "USD",
-    includeInNetWorth: true,
     currentBalance: 310_000, // $3,100
     transactionCount: 4,
     lastActivityAt: "2026-07-15T02:00:00.000Z",
-  },
-  {
+    sortOrder: 80,
+  }),
+  demoAccount({
     accountId: "acc-card",
     name: "ABA Credit Card",
+    institution: "ABA Bank",
     type: "credit_card",
     currency: "USD",
-    includeInNetWorth: true,
     currentBalance: -48_500, // $485 owed
     transactionCount: 11,
     lastActivityAt: "2026-07-28T15:10:00.000Z",
-  },
+    sortOrder: 90,
+  }),
 ];
 
 export const DEMO_CATEGORIES: Category[] = [
@@ -259,3 +295,69 @@ export const DEMO_PERIOD = {
   from: new Date(2026, 6, 1),
   to: new Date(2026, 6, 31),
 };
+
+/**
+ * Demo budgets, chosen to show every state the progress bar can be in: comfortably
+ * under, past the warning threshold, and overspent. A screen where everything is
+ * green tells you nothing about whether the overspend case renders correctly.
+ */
+export const DEMO_BUDGETS: Budget[] = [
+  {
+    id: "bud-food",
+    userId: "demo",
+    categoryId: "cat-restaurant",
+    name: null,
+    amount: 15_000, // $150 — actual is ~$110, comfortably under
+    currency: "USD",
+    period: "monthly",
+    startsOn: "2026-07-01",
+    endsOn: null,
+    rollover: false,
+    alertThreshold: 0.8,
+    isActive: true,
+  },
+  {
+    id: "bud-coffee",
+    userId: "demo",
+    categoryId: "cat-coffee",
+    name: null,
+    amount: 2_000, // $20 — actual is ~$18, past the 80% warning
+    currency: "USD",
+    period: "monthly",
+    startsOn: "2026-07-01",
+    endsOn: null,
+    rollover: false,
+    alertThreshold: 0.8,
+    isActive: true,
+  },
+  {
+    id: "bud-groceries",
+    userId: "demo",
+    categoryId: "cat-groceries",
+    name: null,
+    amount: 5_000, // $50 — actual is ~$70, overspent
+    currency: "USD",
+    period: "monthly",
+    startsOn: "2026-07-01",
+    endsOn: null,
+    rollover: false,
+    alertThreshold: 0.9,
+    isActive: true,
+  },
+  {
+    id: "bud-overall",
+    userId: "demo",
+    // Null category: an overall cap on everything, which is where most people
+    // start before they trust their categories.
+    categoryId: null,
+    name: "Everything",
+    amount: 120_000, // $1,200
+    currency: "USD",
+    period: "monthly",
+    startsOn: "2026-07-01",
+    endsOn: null,
+    rollover: false,
+    alertThreshold: 0.8,
+    isActive: true,
+  },
+];

@@ -1,6 +1,13 @@
 "use client";
 
-import { LayoutDashboard, PieChart, Plus, Wallet, type LucideIcon } from "lucide-react";
+import {
+  ChartNoAxesColumn,
+  LayoutDashboard,
+  PieChart,
+  Plus,
+  Wallet,
+  type LucideIcon,
+} from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
@@ -32,7 +39,9 @@ const LEFT_ITEMS: NavItem[] = [
 
 const RIGHT_ITEMS: NavItem[] = [
   { href: "/budgets", label: "Budgets", icon: PieChart },
-  { href: "/reports", label: "Reports", icon: LayoutDashboard },
+  // Reports had the dashboard's icon, which made the two indistinguishable at a
+  // glance in a bar where the icon is most of what you read.
+  { href: "/reports", label: "Reports", icon: ChartNoAxesColumn },
 ];
 
 function isActive(pathname: string, href: string): boolean {
