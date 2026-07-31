@@ -13,7 +13,7 @@ runs with no setup.
 | Area | State |
 | --- | --- |
 | Currency engine (USD/KHR) | Done, 255 tests |
-| Database schema + RLS | 8 migrations, all 17 PRD tables, verified against Postgres 16 |
+| Database schema + RLS | 9 migrations, all 17 PRD tables, verified against Postgres 16 |
 | Authentication | Google OAuth + email magic link, session refresh in `proxy.ts` |
 | Accounts | Create, edit, close, reopen, delete — from the institution presets |
 | Transactions | Add, edit, soft-delete, restore; filtered and paged ledger |
@@ -117,7 +117,7 @@ Two rules worth knowing before adding a query or a policy, both enforced in CI:
 
 1. Create a project at [supabase.com](https://supabase.com).
 2. Copy `.env.example` to `.env.local` and fill in the URL and anon key.
-3. Apply the migrations in order, `0001` through `0008`.
+3. Apply the migrations in order, `0001` through `0009`.
 4. Nothing else. The pages read through `src/lib/data/`, which returns your own
    ledger once a session exists and demo data when it does not.
 
