@@ -40,9 +40,7 @@ function MetricCard({
   return (
     <Card className="p-4">
       <div className="flex items-start justify-between gap-2">
-        <span className="text-ink-muted text-xs font-semibold tracking-wide uppercase">
-          {label}
-        </span>
+        <span className="text-label-caps text-ink-muted uppercase">{label}</span>
         <Icon
           size={16}
           aria-hidden="true"
@@ -57,7 +55,7 @@ function MetricCard({
       <MoneyAmount
         amount={amount}
         className={cn(
-          "mt-2 block text-xl font-bold",
+          "text-numeric-lg mt-2 block",
           tone === "inflow" && "text-inflow",
           tone === "outflow" && "text-outflow",
         )}
@@ -91,16 +89,32 @@ export function SummaryCards({
 
   return (
     <div className="space-y-3">
-      {/* Hero: net worth. */}
-      <Card className="from-brand to-brand-strong bg-gradient-to-br p-5 text-white">
-        <span className="text-xs font-semibold tracking-wide text-white/70 uppercase">
-          Net Worth
-        </span>
-        <MoneyAmount amount={netWorth.netWorth} className="mt-1 block text-3xl font-bold" />
+      {/*
+        Hero: net worth. The one card allowed a gradient, so it reads as the
+        answer the rest of the screen is explaining.
 
+        No sparkline here, unlike the design mockup. A trend line needs net worth
+        history, which this page does not load and cannot derive from a single
+        month of transactions. Drawing a decorative curve would be inventing a
+        trend the data does not support; the real series lives on Reports.
+      */}
+      <Card className="from-brand to-brand-container relative overflow-hidden border-0 bg-gradient-to-br p-5 text-white">
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute -top-10 -right-10 size-40 rounded-full bg-white/10 blur-2xl"
+        />
+
+        <span className="text-label-caps text-white/70 uppercase">Net Worth</span>
+        <MoneyAmount amount={netWorth.netWorth} className="text-display-hero mt-1 block" />
+
+        {/*
+          ASCII "~", not "≈". U+2248 is outside every subset this app ships (Inter
+          latin and Noto Sans Khmer), so it rendered as a tofu box right next to
+          the figure it was qualifying.
+        */}
         {netWorthEquivalent ? (
-          <p className="mt-0.5 text-sm text-white/70">
-            ≈ <MoneyAmount amount={netWorthEquivalent} className="font-semibold" />
+          <p className="text-body-md mt-0.5 text-white/70">
+            ~ <MoneyAmount amount={netWorthEquivalent} className="font-semibold" />
           </p>
         ) : null}
 

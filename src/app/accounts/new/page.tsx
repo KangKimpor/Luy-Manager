@@ -6,9 +6,6 @@ export default async function NewAccountPage() {
   if (isDemoMode()) {
     return (
       <div className="space-y-4">
-        <header>
-          <h1 className="text-ink text-2xl font-bold">Add an account</h1>
-        </header>
         <Card>
           <CardBody>
             <p className="text-ink-muted text-sm">
@@ -27,12 +24,10 @@ export default async function NewAccountPage() {
 
   return (
     <div className="space-y-4">
-      <header>
-        <h1 className="text-ink text-2xl font-bold">Add an account</h1>
-        <p className="text-ink-muted text-sm">
-          Most banks here hold separate USD and KHR accounts. Add one for each.
-        </p>
-      </header>
+      {/* Title comes from the app bar; this is the part it cannot say. */}
+      <p className="text-ink-muted text-body-md">
+        Most banks here hold separate USD and KHR accounts. Add one for each.
+      </p>
 
       <AccountForm />
     </div>

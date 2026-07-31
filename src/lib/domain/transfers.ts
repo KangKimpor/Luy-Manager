@@ -282,9 +282,18 @@ export function transferInserts(
  * A cross-currency transfer names both figures, because "$100 to Wing" hides the
  * number the user will actually see in their Wing balance.
  */
+/*
+ * Worded rather than drawn with an arrow.
+ *
+ * This string is shown to the user after a transfer saves, and "→" (U+2192) is not
+ * in any font subset the app ships, so it rendered as a tofu box in the middle of
+ * the confirmation. "becomes" also says something an arrow cannot: on a
+ * cross-currency transfer the amount that arrives is a different number, and that
+ * is the whole point of showing this line.
+ */
 export function describeTransfer(plan: TransferPlan): string {
   return plan.isCrossCurrency
-    ? `${formatMoney(plan.sent)} from ${plan.from.name} → ` +
-        `${formatMoney(plan.received)} into ${plan.to.name}`
-    : `${formatMoney(plan.sent)} from ${plan.from.name} → ${plan.to.name}`;
+    ? `${formatMoney(plan.sent)} from ${plan.from.name} becomes ` +
+        `${formatMoney(plan.received)} in ${plan.to.name}`
+    : `${formatMoney(plan.sent)} from ${plan.from.name} to ${plan.to.name}`;
 }

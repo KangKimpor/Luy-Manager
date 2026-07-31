@@ -11,7 +11,7 @@ export default async function NewBudgetPage() {
   return (
     <div className="space-y-4">
       <header>
-        <h1 className="text-ink text-2xl font-bold">Add a budget</h1>
+
         <p className="text-ink-muted text-sm">
           A limit on one category, or one cap on everything.
         </p>

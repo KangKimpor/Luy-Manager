@@ -27,9 +27,6 @@ export default async function AddTransactionPage() {
   if (accounts.length === 0) {
     return (
       <div className="space-y-4">
-        <header>
-          <h1 className="text-ink text-2xl font-bold">Add</h1>
-        </header>
         <Card>
           <CardBody className="space-y-3 text-center">
             <p className="text-ink text-sm font-semibold">No accounts yet</p>
@@ -47,10 +44,7 @@ export default async function AddTransactionPage() {
 
   return (
     <div className="space-y-4">
-      <header>
-        <h1 className="text-ink text-2xl font-bold">Add</h1>
-        <p className="text-ink-muted text-sm">Amount first, everything else optional.</p>
-      </header>
+      <p className="text-ink-muted text-body-md">Amount first, everything else optional.</p>
 
       <AddEntry
         accounts={accounts}

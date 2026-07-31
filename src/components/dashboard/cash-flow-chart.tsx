@@ -12,6 +12,7 @@ import {
 import { Card, CardBody, CardHeader, CardTitle } from "@/components/ui/card";
 import type { DailyTotal } from "@/lib/domain/transactions";
 import { formatMoney, money, type CurrencyCode } from "@/lib/money";
+import { CHART_COLORS } from "@/lib/theme";
 
 /**
  * Daily cash flow, PRD Section 11.
@@ -49,18 +50,18 @@ export function CashFlowChart({ series, currency }: CashFlowChartProps) {
               <AreaChart data={data} margin={{ top: 4, right: 4, bottom: 0, left: 4 }}>
                 <defs>
                   <linearGradient id="inflowFill" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#16a34a" stopOpacity={0.35} />
-                    <stop offset="100%" stopColor="#16a34a" stopOpacity={0} />
+                    <stop offset="0%" stopColor={CHART_COLORS.inflow} stopOpacity={0.35} />
+                    <stop offset="100%" stopColor={CHART_COLORS.inflow} stopOpacity={0} />
                   </linearGradient>
                   <linearGradient id="outflowFill" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#e0324b" stopOpacity={0.35} />
-                    <stop offset="100%" stopColor="#e0324b" stopOpacity={0} />
+                    <stop offset="0%" stopColor={CHART_COLORS.outflow} stopOpacity={0.35} />
+                    <stop offset="100%" stopColor={CHART_COLORS.outflow} stopOpacity={0} />
                   </linearGradient>
                 </defs>
 
                 <XAxis
                   dataKey="label"
-                  tick={{ fontSize: 10, fill: "#9aa1ad" }}
+                  tick={{ fontSize: 10, fill: CHART_COLORS.inkFaint }}
                   axisLine={false}
                   tickLine={false}
                   interval="preserveStartEnd"
@@ -70,7 +71,7 @@ export function CashFlowChart({ series, currency }: CashFlowChartProps) {
                 <Tooltip
                   contentStyle={{
                     borderRadius: 12,
-                    border: "1px solid #e6e8ec",
+                    border: `1px solid ${CHART_COLORS.border}`,
                     fontSize: 12,
                   }}
                   // recharts types the value as possibly undefined or a string,
@@ -89,14 +90,14 @@ export function CashFlowChart({ series, currency }: CashFlowChartProps) {
                 <Area
                   type="monotone"
                   dataKey="income"
-                  stroke="#16a34a"
+                  stroke={CHART_COLORS.inflow}
                   strokeWidth={2}
                   fill="url(#inflowFill)"
                 />
                 <Area
                   type="monotone"
                   dataKey="expense"
-                  stroke="#e0324b"
+                  stroke={CHART_COLORS.outflow}
                   strokeWidth={2}
                   fill="url(#outflowFill)"
                 />

@@ -9,6 +9,7 @@ import { CurrencyBadge, MoneyAmount } from "@/components/money-amount";
 import { deleteTransaction, restoreTransaction } from "@/app/actions/transactions";
 import type { AccountBalance, Category, Transaction } from "@/lib/domain/types";
 import { money } from "@/lib/money";
+import { CHART_COLORS } from "@/lib/theme";
 import { cn } from "@/lib/utils";
 
 /**
@@ -28,7 +29,7 @@ function formatDate(iso: string): string {
   return new Date(iso).toLocaleDateString("en-GB", { day: "numeric", month: "short" });
 }
 
-/** "ABA USD → Wing" for either leg of a transfer. */
+/** "ABA USD to Wing" for either leg of a transfer. */
 function transferRoute(
   transaction: Transaction,
   transactions: readonly Transaction[],
@@ -45,7 +46,8 @@ function transferRoute(
   if (!counterpart) return own;
 
   const other = accounts[counterpart.accountId]?.name ?? "Account";
-  return transaction.amount < 0 ? `${own} → ${other}` : `${other} → ${own}`;
+  // "to", not "→": U+2192 is outside every font subset the app ships and tofus.
+  return transaction.amount < 0 ? `${own} to ${other}` : `${other} to ${own}`;
 }
 
 export function TransactionRow({
@@ -107,7 +109,7 @@ export function TransactionRow({
         style={{
           backgroundColor: isTransfer
             ? "var(--color-surface-muted)"
-            : `${category?.color ?? "#9aa1ad"}1f`,
+            : `${category?.color ?? CHART_COLORS.inkFaint}1f`,
         }}
       >
         {isTransfer ? <ArrowRightLeft size={14} /> : null}

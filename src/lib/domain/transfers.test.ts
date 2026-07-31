@@ -350,7 +350,7 @@ describe("describeTransfer", () => {
       rate,
     );
 
-    expect(describeTransfer(plan)).toBe("$100.00 from ABA USD → 410,000៛ into Wing");
+    expect(describeTransfer(plan)).toBe("$100.00 from ABA USD becomes 410,000៛ in Wing");
   });
 
   it("names one figure when no conversion happened", () => {
@@ -359,6 +359,6 @@ describe("describeTransfer", () => {
       rate,
     );
 
-    expect(describeTransfer(plan)).toBe("$25.00 from ABA USD → Cash USD");
+    expect(describeTransfer(plan)).toBe("$25.00 from ABA USD to Cash USD");
   });
 });

@@ -4,46 +4,142 @@
  * Design tokens.
  *
  * Plays the role app_theme.dart plays in the Flutter templates referenced in
- * PRD Section 14: colour and elevation defined once, consumed everywhere. Tailwind
- * v4 takes its config from CSS, so @theme is the config.
+ * PRD Section 14: colour, type and elevation defined once, consumed everywhere.
+ * Tailwind v4 takes its config from CSS, so @theme is the config.
+ *
+ * Values come from the Stitch design pass, which derived a Material 3 style
+ * palette from the original brand indigo. The token *names* here stay semantic
+ * rather than Material's role names (`primary`, `on-surface-variant`), because
+ * every existing component already reads `brand`, `ink` and `inflow`, and a
+ * rename would touch every file without changing a pixel.
  */
 
 @theme {
-  /* Surfaces, light mode. */
+  /*
+   * Font stack.
+   *
+   * This has to be set explicitly. `font-sans` resolves to `--font-sans`, and
+   * without this line that is Tailwind's default system stack, so the Inter file
+   * loaded by next/font in layout.tsx was being downloaded and then never used.
+   *
+   * Noto Sans Khmer sits second so the riel sign has a real glyph to fall back
+   * to. Order matters: Inter first keeps Latin text and figures in Inter, and the
+   * browser only reaches for the Khmer face for codepoints Inter lacks.
+   */
+  --font-sans:
+    var(--font-inter), var(--font-khmer), ui-sans-serif, system-ui, -apple-system,
+    "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+
+  /*
+   * Surfaces, light mode.
+   *
+   * A four-step container ramp rather than one flat grey: the page sits slightly
+   * blue-grey, cards sit pure white above it, and the ramp above that is used for
+   * pressed states and inset wells. This is what stops a screen of white cards on
+   * a white page from reading as one undifferentiated sheet.
+   */
   --color-surface: #ffffff;
-  --color-surface-muted: #f5f6f8;
+  --color-surface-muted: #f9f9ff;
   --color-surface-raised: #ffffff;
-  --color-border-subtle: #e6e8ec;
+  --color-surface-container-low: #f1f3ff;
+  --color-surface-container: #ebedf9;
+  --color-surface-container-high: #e5e8f4;
+  --color-surface-variant: #dfe2ee;
+
+  --color-border-subtle: #c5c5d6;
+  --color-outline: #757685;
 
   /* Text. */
-  --color-ink: #10141c;
-  --color-ink-muted: #6b7280;
-  --color-ink-faint: #9aa1ad;
+  --color-ink: #181c24;
+  --color-ink-muted: #454653;
+  --color-ink-faint: #757685;
 
   /* Brand. Deep indigo reads as financial software without being corporate. */
-  --color-brand: #4c5fd5;
-  --color-brand-strong: #3b4bb8;
+  --color-brand: #3145bb;
+  --color-brand-strong: #2338af;
+  --color-brand-container: #4c5fd5;
   --color-brand-soft: #eef0fc;
+  --color-brand-fixed: #dee0ff;
 
   /* Semantic money colours. Income green, expense red. */
-  --color-inflow: #16a34a;
-  --color-inflow-soft: #e7f6ec;
-  --color-outflow: #e0324b;
-  --color-outflow-soft: #fdeaed;
+  --color-inflow: #006e2d;
+  --color-inflow-soft: #e5f6ed;
+  --color-outflow: #ba1a1a;
+  --color-outflow-soft: #ffdad6;
 
-  /* Currency accents, so USD and KHR are distinguishable at a glance. */
-  --color-usd: #2f855a;
-  --color-khr: #c2410c;
+  /*
+   * Warning, for the one state that is neither good nor an error: a budget
+   * nearing its limit, and an exchange rate old enough that every converted
+   * total on screen is quietly wrong.
+   */
+  --color-warning: #8a5000;
+  --color-warning-soft: #ffeeda;
 
-  /* Card shadow, matching the soft elevation of the reference templates. */
-  --shadow-card: 0 2px 8px rgb(16 20 28 / 0.06), 0 1px 2px rgb(16 20 28 / 0.04);
-  --shadow-fab: 0 6px 20px rgb(76 95 213 / 0.35);
+  /*
+   * Currency accents.
+   *
+   * Deliberately not the income/expense greens and reds. The Stitch mockups tinted
+   * the KHR badge with the same green used for income, which makes a riel account
+   * look like a gain. Blue for USD and warm orange for KHR keeps "which currency"
+   * and "which direction" as two separate visual questions.
+   */
+  --color-usd: #2338af;
+  --color-usd-soft: #eef0fc;
+  --color-khr: #a3480a;
+  --color-khr-soft: #fdeee2;
+
+  /*
+   * Type scale.
+   *
+   * Money figures get their own `numeric` steps, sized and weighted for reading a
+   * column of amounts rather than prose.
+   */
+  --text-display-hero: 2.25rem;
+  --text-display-hero--line-height: 2.75rem;
+  --text-display-hero--letter-spacing: -0.02em;
+  --text-display-hero--font-weight: 700;
+
+  --text-headline-lg: 1.75rem;
+  --text-headline-lg--line-height: 2.125rem;
+  --text-headline-lg--letter-spacing: -0.01em;
+  --text-headline-lg--font-weight: 700;
+
+  --text-headline-md: 1.25rem;
+  --text-headline-md--line-height: 1.75rem;
+  --text-headline-md--font-weight: 600;
+
+  --text-numeric-lg: 1.25rem;
+  --text-numeric-lg--line-height: 1.5rem;
+  --text-numeric-lg--font-weight: 600;
+
+  --text-numeric-md: 1rem;
+  --text-numeric-md--line-height: 1.25rem;
+  --text-numeric-md--font-weight: 500;
+
+  --text-body-lg: 1rem;
+  --text-body-lg--line-height: 1.5rem;
+
+  --text-body-md: 0.875rem;
+  --text-body-md--line-height: 1.25rem;
+
+  --text-label-caps: 0.75rem;
+  --text-label-caps--line-height: 1rem;
+  --text-label-caps--letter-spacing: 0.05em;
+  --text-label-caps--font-weight: 600;
+
+  /* Elevation. One soft level for cards, plus a lifted level for the centre action. */
+  --shadow-card: 0 2px 4px rgb(16 20 28 / 0.04);
+  --shadow-header: 0 1px 8px rgb(0 0 0 / 0.04);
+  --shadow-nav: 0 -1px 8px rgb(0 0 0 / 0.04);
+  --shadow-fab: 0 4px 12px rgb(76 95 213 / 0.4);
 
   --radius-card: 1rem;
+  --radius-panel: 1.5rem;
   --radius-pill: 999px;
 
-  /* Height of the fixed bottom navigation, referenced by page padding. */
+  /* Fixed chrome heights, referenced by page padding so content never hides. */
   --spacing-navbar: 4.5rem;
+  --spacing-appbar: 4rem;
 }
 
 @layer base {
@@ -86,4 +182,26 @@
 /* Tabular figures keep decimal points aligned in amount columns. */
 @utility tabular {
   font-variant-numeric: tabular-nums;
+}
+
+/*
+ * Horizontal chip rows are scrolled by thumb, so the scrollbar is noise. Hidden
+ * visually only: the row stays keyboard scrollable and focus outlines still show.
+ */
+@utility scroll-row {
+  overflow-x: auto;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+/* Safe-area helpers for the fixed header and bottom bar on notched phones. */
+@utility pt-safe {
+  padding-top: env(safe-area-inset-top, 0px);
+}
+
+@utility pb-safe {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
 }

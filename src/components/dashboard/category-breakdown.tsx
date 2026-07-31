@@ -2,6 +2,7 @@ import { MoneyAmount } from "@/components/money-amount";
 import { Card, CardBody, CardHeader, CardTitle } from "@/components/ui/card";
 import type { Category } from "@/lib/domain/types";
 import type { CategoryTotal } from "@/lib/domain/transactions";
+import { CHART_COLORS } from "@/lib/theme";
 
 /**
  * Spending by category, PRD Section 11.
@@ -36,7 +37,7 @@ export function CategoryBreakdown({
             {shown.map((entry) => {
               const category = entry.categoryId ? categories[entry.categoryId] : undefined;
               const name = category?.name ?? "Uncategorised";
-              const color = category?.color ?? "#9aa1ad";
+              const color = category?.color ?? CHART_COLORS.inkFaint;
               const percent = Math.round(entry.share * 100);
 
               return (

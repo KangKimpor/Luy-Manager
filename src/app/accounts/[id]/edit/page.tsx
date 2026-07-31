@@ -20,7 +20,8 @@ export default async function EditAccountPage(props: {
   return (
     <div className="space-y-4">
       <header>
-        <h1 className="text-ink text-2xl font-bold">Edit {account.name}</h1>
+        {/* The bar says "Edit account"; which account is the useful part here. */}
+        <p className="text-ink text-numeric-md">{account.name}</p>
       </header>
 
       <AccountForm account={account} />
