@@ -114,7 +114,7 @@ export default async function TransactionsPage(props: {
       ) : (
         <Card>
           <CardBody>
-            <ul className="divide-border-subtle/70 divide-y">
+            <ul className="divide-surface-variant divide-y">
               {result.transactions.map((transaction) => (
                 <TransactionRow
                   key={transaction.id}

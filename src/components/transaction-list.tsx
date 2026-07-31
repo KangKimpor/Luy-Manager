@@ -40,7 +40,7 @@ export function TransactionList({
         {recent.length === 0 ? (
           <p className="text-ink-faint py-6 text-center text-sm">No transactions yet.</p>
         ) : (
-          <ul className="divide-border-subtle/70 divide-y">
+          <ul className="divide-surface-variant divide-y">
             {recent.map((transaction) => (
               <TransactionRow
                 key={transaction.id}

@@ -1,4 +1,4 @@
-import { LogOut } from "lucide-react";
+import { LogOut, User } from "lucide-react";
 
 import { signOut } from "@/app/actions/auth";
 import { CurrencyToggle } from "@/components/currency-toggle";
@@ -32,14 +32,22 @@ export default async function SettingsPage() {
 
   return (
     <div className="space-y-4">
-      <header>
-
-        {user?.email ? (
-          <p className="text-ink-muted text-sm">{user.email}</p>
-        ) : demo ? (
-          <p className="text-ink-muted text-sm">Running on sample data</p>
-        ) : null}
-      </header>
+      {/* Who you are. The screen name itself comes from the app bar. */}
+      <div className="flex items-center gap-3">
+        <span className="bg-brand text-surface flex size-10 shrink-0 items-center justify-center rounded-full">
+          <User size={20} aria-hidden="true" />
+        </span>
+        <div className="min-w-0">
+          {user?.email ? (
+            <p className="text-numeric-md text-ink truncate">{user.email}</p>
+          ) : (
+            <p className="text-numeric-md text-ink">Sample data</p>
+          )}
+          <p className="text-ink-faint text-xs">
+            {demo ? "Not signed in" : "Signed in"}
+          </p>
+        </div>
+      </div>
 
       <Card>
         <CardHeader>
@@ -94,7 +102,7 @@ export default async function SettingsPage() {
             <CardTitle>Recent rates</CardTitle>
           </CardHeader>
           <CardBody>
-            <ul className="divide-border-subtle/70 divide-y">
+            <ul className="divide-surface-variant divide-y">
               {history.map((entry) => (
                 <li
                   key={entry.asOf}
@@ -128,7 +136,8 @@ export default async function SettingsPage() {
         <form action={signOut}>
           <button
             type="submit"
-            className="border-border-subtle bg-surface text-ink-muted hover:text-outflow rounded-card flex min-h-11 w-full items-center justify-center gap-2 border text-sm font-semibold"
+            // Destructive actions read as destructive before they are pressed.
+            className="bg-outflow-soft text-outflow rounded-card flex min-h-12 w-full items-center justify-center gap-2 text-sm font-semibold transition-opacity active:opacity-80"
           >
             <LogOut size={16} aria-hidden="true" />
             Sign out
