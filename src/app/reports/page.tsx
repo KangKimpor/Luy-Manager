@@ -2,7 +2,7 @@ import { ArrowDownRight, ArrowUpRight } from "lucide-react";
 
 import { CurrencyToggle } from "@/components/currency-toggle";
 import { CategoryBreakdown } from "@/components/dashboard/category-breakdown";
-import { MoneyAmount } from "@/components/money-amount";
+import { CurrencyBadge, MoneyAmount } from "@/components/money-amount";
 import { NetWorthTrend } from "@/components/reports/net-worth-trend";
 import { Card, CardBody, CardHeader, CardTitle } from "@/components/ui/card";
 import { listAccountBalances } from "@/lib/data/accounts";
@@ -11,6 +11,7 @@ import { listTransactionsInRange } from "@/lib/data/transactions";
 import { readDisplayCurrency } from "@/lib/display-currency";
 import { summarizeNetWorth } from "@/lib/domain/accounts";
 import { spendingByCategory, summarizeCashFlow } from "@/lib/domain/transactions";
+import { CURRENCIES, isZero, sum } from "@/lib/money";
 import { monthPeriod, trailingMonths } from "@/lib/period";
 import { loadUsdKhrRate } from "@/lib/rates/repository";
 
@@ -65,6 +66,39 @@ export default async function ReportsPage() {
     running -= monthly[index].flow.net.minor;
   }
 
+  /*
+   * Which currency the money was actually spent in.
+   *
+   * Worth its own card in a dual-currency economy, and it is a question no other
+   * screen answers: every other total deliberately converts into one currency,
+   * which hides the split. Someone who thinks they mostly spend dollars but is
+   * actually 60% riel is budgeting against the wrong mental model.
+   *
+   * Reuses summarizeCashFlow per currency rather than summing by hand, so transfers
+   * are excluded and the conversion is the same tested path as everywhere else.
+   */
+  const spendByCurrency = CURRENCIES.map((code) => ({
+    code,
+    spent: summarizeCashFlow(
+      transactions.filter((transaction) => transaction.currency === code),
+      displayCurrency,
+      rate,
+    ).expense,
+  }));
+
+  const spendTotal = sum(
+    spendByCurrency.map((entry) => entry.spent),
+    displayCurrency,
+  );
+
+  // Share as a plain ratio, resolved once here rather than dividing minor units
+  // inside the markup. Same shape as `CategoryTotal.share`, so the rendering below
+  // does percentages on a ratio and never does arithmetic on money.
+  const currencyShares = spendByCurrency.map((entry) => ({
+    ...entry,
+    share: isZero(spendTotal) ? 0 : entry.spent.minor / spendTotal.minor,
+  }));
+
   const busiest = monthly.reduce(
     (worst, entry) => (entry.flow.expense.minor > worst.flow.expense.minor ? entry : worst),
     monthly[0],
@@ -82,27 +116,27 @@ export default async function ReportsPage() {
       <div className="grid grid-cols-2 gap-3">
         <Card className="p-4">
           <div className="flex items-start justify-between gap-2">
-            <span className="text-ink-muted text-xs font-semibold tracking-wide uppercase">
+            <span className="text-label-caps text-ink-muted uppercase">
               Income
             </span>
             <ArrowUpRight size={16} className="text-inflow" aria-hidden="true" />
           </div>
           <MoneyAmount
             amount={cashFlow.income}
-            className="text-inflow mt-2 block text-xl font-bold"
+            className="text-inflow text-numeric-lg mt-2 block"
           />
         </Card>
 
         <Card className="p-4">
           <div className="flex items-start justify-between gap-2">
-            <span className="text-ink-muted text-xs font-semibold tracking-wide uppercase">
+            <span className="text-label-caps text-ink-muted uppercase">
               Expense
             </span>
             <ArrowDownRight size={16} className="text-outflow" aria-hidden="true" />
           </div>
           <MoneyAmount
             amount={cashFlow.expense}
-            className="text-outflow mt-2 block text-xl font-bold"
+            className="text-outflow text-numeric-lg mt-2 block"
           />
         </Card>
       </div>
@@ -125,7 +159,7 @@ export default async function ReportsPage() {
           <CardTitle>Month by month</CardTitle>
         </CardHeader>
         <CardBody>
-          <ul className="divide-border-subtle/70 divide-y">
+          <ul className="divide-surface-variant divide-y">
             {[...monthly].reverse().map((entry) => (
               <li
                 key={entry.month.label}
@@ -161,6 +195,57 @@ export default async function ReportsPage() {
       </Card>
 
       <CategoryBreakdown totals={categoryTotals} categories={categories} />
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Spending by currency</CardTitle>
+        </CardHeader>
+        <CardBody className="space-y-3">
+          {isZero(spendTotal) ? (
+            <p className="text-ink-faint text-body-md">
+              Nothing spent in this window yet.
+            </p>
+          ) : (
+            <>
+              <div
+                className="bg-surface-variant flex h-2 overflow-hidden rounded-full"
+                role="img"
+                aria-label={`Share of spending by currency, in ${displayCurrency}`}
+              >
+                {currencyShares.map((entry) => (
+                  <div
+                    key={entry.code}
+                    className={entry.code === "USD" ? "bg-usd" : "bg-khr"}
+                    style={{ width: `${entry.share * 100}%` }}
+                  />
+                ))}
+              </div>
+
+              <ul className="divide-surface-variant divide-y">
+                {currencyShares.map((entry) => (
+                  <li
+                    key={entry.code}
+                    className="flex items-center justify-between gap-3 py-2"
+                  >
+                    <CurrencyBadge currency={entry.code} />
+                    <span className="flex items-center gap-3">
+                      <MoneyAmount amount={entry.spent} className="text-numeric-md" />
+                      <span className="text-ink-faint w-9 text-right text-xs">
+                        {Math.round(entry.share * 100)}%
+                      </span>
+                    </span>
+                  </li>
+                ))}
+              </ul>
+
+              <p className="text-ink-faint text-xs">
+                Both totals converted to {displayCurrency} so they can be compared.
+                Transfers between your own accounts are excluded.
+              </p>
+            </>
+          )}
+        </CardBody>
+      </Card>
     </div>
   );
 }

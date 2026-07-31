@@ -4,7 +4,7 @@ import Link from "next/link";
 import { BudgetRowActions } from "@/components/budget-row-actions";
 import { MoneyAmount } from "@/components/money-amount";
 import { buttonVariants } from "@/components/ui/button";
-import { Card, CardBody, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { isDemoMode } from "@/lib/auth";
 import { listBudgets } from "@/lib/data/budgets";
 import { categoryLookup } from "@/lib/data/reference";
@@ -13,6 +13,7 @@ import { readDisplayCurrency } from "@/lib/display-currency";
 import { summarizeBudgets, totalRemaining } from "@/lib/domain/budgets";
 import { trailingMonths } from "@/lib/period";
 import { loadUsdKhrRate } from "@/lib/rates/repository";
+import { CHART_COLORS } from "@/lib/theme";
 import { cn } from "@/lib/utils";
 
 /**
@@ -27,7 +28,9 @@ import { cn } from "@/lib/utils";
 
 const TONE = {
   under: { bar: "bg-inflow", label: "text-ink-muted" },
-  warning: { bar: "bg-amber-500", label: "text-amber-600" },
+  // The shared warning token rather than a one-off amber, so a budget nearing its
+  // limit and a stale exchange rate speak with the same colour.
+  warning: { bar: "bg-warning", label: "text-warning" },
   over: { bar: "bg-outflow", label: "text-outflow" },
 } as const;
 
@@ -52,15 +55,26 @@ export default async function BudgetsPage() {
 
   return (
     <div className="space-y-4">
-      <header>
+      {/*
+        One summary figure, explicitly labelled as a conversion.
 
-        {progress.length > 0 ? (
-          <p className="text-ink-muted text-sm">
-            <MoneyAmount amount={remaining} className="font-semibold" /> left across
-            your category budgets
+        The design mockup put "$445.00" and "480,000៛" together under a single
+        "Total Spent" heading with one progress ring, which sums two currencies into
+        a number that means nothing. Budgets here can be set in either currency, so
+        a combined total only exists once converted, and the label has to say so.
+      */}
+      {progress.length > 0 ? (
+        <Card className="p-4">
+          <div className="flex items-baseline justify-between gap-2">
+            <span className="text-label-caps text-ink-muted uppercase">Left to spend</span>
+            <span className="text-ink-faint text-xs">in {displayCurrency}</span>
+          </div>
+          <MoneyAmount amount={remaining} colorBySign className="text-headline-lg mt-1 block" />
+          <p className="text-body-md text-ink-muted">
+            across {progress.length} budget{progress.length === 1 ? "" : "s"}
           </p>
-        ) : null}
-      </header>
+        </Card>
+      ) : null}
 
       {editable ? (
         <Link
@@ -92,14 +106,33 @@ export default async function BudgetsPage() {
                 ? categories[entry.budget.categoryId]?.name ?? "Category"
                 : "Everything");
 
+            // The category's own colour, so a budget is recognisable by the same
+            // swatch the transaction rows and the spending breakdown use. An
+            // overall cap has no category, so it takes the brand colour.
+            const swatch = entry.budget.categoryId
+              ? categories[entry.budget.categoryId]?.color ?? CHART_COLORS.brand
+              : CHART_COLORS.brand;
+
             return (
               <li key={entry.budget.id}>
-                <Card>
-                  <CardHeader className="flex items-start justify-between gap-2">
-                    <div className="min-w-0">
-                      <CardTitle className="normal-case">
-                        <span className="text-ink text-sm font-semibold">{name}</span>
-                      </CardTitle>
+                <Card
+                  className={cn(
+                    // An overspent budget is tinted, not just given a red bar, so
+                    // it is findable while scrolling past a list of them.
+                    entry.status === "over" && "border-outflow/30 bg-outflow-soft/40",
+                  )}
+                >
+                  <CardHeader className="flex items-start gap-3">
+                    <span
+                      aria-hidden="true"
+                      className="mt-0.5 size-9 shrink-0 rounded-full"
+                      style={{
+                        backgroundColor: `${swatch}1f`,
+                        border: `1px solid ${swatch}40`,
+                      }}
+                    />
+                    <div className="min-w-0 flex-1">
+                      <p className="text-numeric-md text-ink truncate">{name}</p>
                       <p className="text-ink-faint mt-0.5 text-xs capitalize">
                         {entry.budget.period}
                         {entry.budget.categoryId === null ? " · overall cap" : null}
@@ -126,7 +159,9 @@ export default async function BudgetsPage() {
                     </div>
 
                     <div
-                      className="bg-surface-muted h-2 w-full overflow-hidden rounded-full"
+                      // surface-variant, not surface-muted: the page colour is now
+                      // almost white, so the old track was invisible on a card.
+                      className="bg-surface-variant h-2 w-full overflow-hidden rounded-full"
                       role="progressbar"
                       aria-valuenow={Math.round(entry.fraction * 100)}
                       aria-valuemin={0}
