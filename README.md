@@ -116,10 +116,7 @@ Two rules worth knowing before adding a query or a policy, both enforced in CI:
 ## Connecting Supabase
 
 1. Create a project at [supabase.com](https://supabase.com).
-2. Copy `.env.example` to `.env.local` and fill in the URL and anon key.
-3. Apply the migrations in order, `0001` through `0009`.
-4. Nothing else. The pages read through `src/lib/data/`, which returns your own
-   ledger once a session exists and demo data when it does not.
+
 
 Row Level Security is enabled on every user-facing table and is the actual access
 boundary — the anon key grants nothing without a session. Verify the policies
