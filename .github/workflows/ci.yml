@@ -1,0 +1,164 @@
+name: CI
+
+# Every push and every pull request. The money-safety scanner is the reason this
+# file exists: the README already described it as a CI gate, but nothing ran it, so
+# the invariants the project cares most about were unenforced.
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# Cancel a superseded run rather than paying for both.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          # Next.js 16 requires Node 20.9 or newer.
+          node-version: 22
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      # Ordered cheapest-and-most-specific first, so a type error is reported in
+      # seconds rather than after a full build.
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Test
+        run: npm test
+
+      # Exits non-zero on any high-confidence finding. Scans both application code
+      # and the migrations, since a float money column is a schema problem.
+      - name: Money safety
+        run: node .claude/skills/luy-manager-money/scripts/check-money-safety.mjs src supabase
+
+      - name: Build
+        run: npm run build
+
+  migrations:
+    # Applies every migration to a real Postgres, in order, from an empty database.
+    # A migration that only works against an already-migrated database is a
+    # migration that will fail on the next fresh environment.
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: luy
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Stand in for the Supabase-managed schema
+        # The migrations reference auth.users and auth.uid(), which Supabase owns.
+        # Recreating the minimum here is what lets them be checked without a project.
+        env:
+          PGPASSWORD: postgres
+        run: |
+          psql -h localhost -U postgres -d luy -v ON_ERROR_STOP=1 <<'SQL'
+          create schema if not exists auth;
+          create extension if not exists "pgcrypto";
+          create table auth.users (
+            id uuid primary key default gen_random_uuid(),
+            email text,
+            raw_user_meta_data jsonb default '{}'::jsonb
+          );
+          create or replace function auth.uid() returns uuid language sql stable as $fn$
+            select nullif(current_setting('request.jwt.claim.sub', true), '')::uuid;
+          $fn$;
+          do $b$ begin
+            if not exists (select 1 from pg_roles where rolname='anon') then create role anon nologin; end if;
+            if not exists (select 1 from pg_roles where rolname='authenticated') then create role authenticated nologin; end if;
+            if not exists (select 1 from pg_roles where rolname='service_role') then create role service_role nologin bypassrls; end if;
+          end $b$;
+          grant usage on schema auth to anon, authenticated, service_role;
+          grant execute on function auth.uid() to anon, authenticated, service_role;
+          SQL
+
+      - name: Apply migrations in order
+        env:
+          PGPASSWORD: postgres
+        run: |
+          for file in supabase/migrations/*.sql; do
+            echo "--- $file"
+            psql -h localhost -U postgres -d luy --single-transaction -v ON_ERROR_STOP=1 -q -f "$file"
+          done
+
+      - name: Check RLS is enabled on every user-facing table
+        # A table added without RLS is readable by anyone holding the anon key. This
+        # catches that at review time rather than after data is in it.
+        env:
+          PGPASSWORD: postgres
+        run: |
+          psql -h localhost -U postgres -d luy -v ON_ERROR_STOP=1 -tA <<'SQL'
+          do $$
+          declare
+            unprotected text;
+          begin
+            select string_agg(c.relname, ', ')
+              into unprotected
+            from pg_class c
+            join pg_namespace n on n.oid = c.relnamespace
+            where n.nspname = 'public'
+              and c.relkind = 'r'
+              and not c.relrowsecurity;
+
+            if unprotected is not null then
+              raise exception 'Tables without row level security: %', unprotected;
+            end if;
+
+            raise notice 'Row level security is enabled on every table in public.';
+          end $$;
+          SQL
+
+      - name: Check no policy re-evaluates auth.uid() per row
+        # The InitPlan optimisation from migration 0006. A new policy written the
+        # obvious way would silently reintroduce a per-row function call.
+        env:
+          PGPASSWORD: postgres
+        run: |
+          psql -h localhost -U postgres -d luy -v ON_ERROR_STOP=1 -tA <<'SQL'
+          do $$
+          declare
+            bare text;
+          begin
+            select string_agg(format('%s.%s', tablename, policyname), ', ')
+              into bare
+            from pg_policies
+            where schemaname = 'public'
+              and (
+                (qual is not null and qual like '%auth.uid()%' and qual not like '%( SELECT auth.uid()%')
+                or (with_check is not null and with_check like '%auth.uid()%' and with_check not like '%( SELECT auth.uid()%')
+              );
+
+            if bare is not null then
+              raise exception
+                'Policies calling auth.uid() per row (wrap as (select auth.uid())): %', bare;
+            end if;
+
+            raise notice 'Every policy evaluates auth.uid() once per statement.';
+          end $$;
+          SQL

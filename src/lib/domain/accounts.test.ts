@@ -10,13 +10,25 @@ const rate = exchangeRate(4100, "USD", "KHR", new Date("2026-01-01"));
 function balance(
   overrides: Partial<AccountBalance> & Pick<AccountBalance, "currentBalance" | "currency" | "type">,
 ): AccountBalance {
+  const isActive = overrides.isActive ?? true;
+  const includeInNetWorth = overrides.includeInNetWorth ?? true;
+
   return {
     accountId: crypto.randomUUID(),
+    userId: "user-1",
     name: "Account",
-    includeInNetWorth: true,
+    institution: null,
+    icon: null,
+    color: null,
+    sortOrder: 0,
     transactionCount: 0,
     lastActivityAt: null,
     ...overrides,
+    isActive,
+    includeInNetWorth,
+    // Derived in the view, mirrored here so the tests exercise the same rule
+    // rather than letting a caller set an inconsistent combination.
+    countsTowardNetWorth: isActive && includeInNetWorth,
   } as AccountBalance;
 }
 
@@ -87,6 +99,24 @@ describe("summarizeNetWorth", () => {
       balance({ currentBalance: 1_000_000, currency: "USD", type: "bank", includeInNetWorth: false }),
     ];
     expect(summarizeNetWorth(withExcluded, "USD", rate).netWorth.minor).toBe(980_000);
+  });
+
+  it("leaves a closed account out of the total, even when it is flagged for inclusion", () => {
+    // A closed account keeps its balance and history, but counting it would
+    // report money the user no longer considers theirs to spend.
+    const withClosed = [
+      ...balances,
+      balance({ currentBalance: 1_000_000, currency: "USD", type: "bank", isActive: false }),
+    ];
+    expect(summarizeNetWorth(withClosed, "USD", rate).netWorth.minor).toBe(980_000);
+  });
+
+  it("keeps a closed account out of the cash figure too", () => {
+    const withClosed = [
+      balance({ currentBalance: 25_000, currency: "USD", type: "cash" }),
+      balance({ currentBalance: 90_000, currency: "USD", type: "cash", isActive: false }),
+    ];
+    expect(summarizeNetWorth(withClosed, "USD", rate).cash.minor).toBe(25_000);
   });
 
   it("can report in riel", () => {

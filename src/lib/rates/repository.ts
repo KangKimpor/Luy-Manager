@@ -200,3 +200,60 @@ export function describeFreshness(snapshot: RateSnapshot): string {
   if (snapshot.ageDays === 1) return "updated yesterday";
   return `${snapshot.ageDays} days old`;
 }
+
+export interface RateHistoryEntry {
+  asOf: string;
+  /** The globally published figure, when there is one for that day. */
+  publishedRate: number | null;
+  /** The user's own override, when they recorded one. */
+  yourRate: number | null;
+  /** What a conversion on that date actually used. */
+  effectiveRate: number;
+  isOverride: boolean;
+}
+
+/**
+ * Recent rates, published alongside the user's own.
+ *
+ * Reads the `exchange_rate_history` view from migration 0008, which resolves which
+ * rate was actually in force per day. Showing the effective figure rather than only
+ * the published one matters: a user who records their money changer's rate is
+ * converting at that, and a history that showed only the mid-market line would not
+ * match any of their own numbers.
+ */
+export async function listRateHistory(days = 14): Promise<RateHistoryEntry[]> {
+  if (!isSupabaseConfigured()) return [];
+
+  const supabase = await createClient();
+
+  const { data, error } = await supabase
+    .from("exchange_rate_history")
+    .select("as_of, base_currency, quote_currency, published_rate, your_rate, effective_rate, is_override")
+    .eq("base_currency", "USD")
+    .eq("quote_currency", "KHR")
+    .order("as_of", { ascending: false })
+    .limit(days);
+
+  if (error || !data) return [];
+
+  const entries: RateHistoryEntry[] = [];
+  for (const row of data as Array<Record<string, unknown>>) {
+    // numeric arrives as a string; a row that cannot be read is skipped rather than
+    // taking the settings page down over a display-only list.
+    const effective = Number(row.effective_rate);
+    if (!Number.isFinite(effective) || effective <= 0) continue;
+
+    const published = row.published_rate === null ? null : Number(row.published_rate);
+    const yours = row.your_rate === null ? null : Number(row.your_rate);
+
+    entries.push({
+      asOf: String(row.as_of),
+      publishedRate: published !== null && Number.isFinite(published) ? published : null,
+      yourRate: yours !== null && Number.isFinite(yours) ? yours : null,
+      effectiveRate: effective,
+      isOverride: row.is_override === true,
+    });
+  }
+
+  return entries;
+}

@@ -6,19 +6,26 @@ currencies. Full product spec in
 
 ## Status
 
-Phase 1 foundation. The app runs against demo data; Supabase is scaffolded but
-not yet connected.
+Phase 1 complete and most of Phase 2. The app persists to Supabase when
+configured and falls back to demo data when it is not, so a fresh clone still
+runs with no setup.
 
 | Area | State |
 | --- | --- |
-| Currency engine (USD/KHR) | Done, 172 tests |
-| Database schema + RLS | Written, applies cleanly to Postgres 16; not yet on a live project |
-| Mobile shell, dashboard, quick-add | Rendering from demo data |
-| Transfers, incl. cross-currency | Form and domain logic done; insert stubbed with Supabase |
-| Daily exchange rate sync | Provider chain, writer and cron endpoint done; needs a project to write to |
-| Reporting currency toggle (USD/KHR) | Done |
-| Auth | Not started |
-| Telegram bot, budgets, reports | Phase 2 |
+| Currency engine (USD/KHR) | Done, 255 tests |
+| Database schema + RLS | 8 migrations, all 17 PRD tables, verified against Postgres 16 |
+| Authentication | Google OAuth + email magic link, session refresh in `proxy.ts` |
+| Accounts | Create, edit, close, reopen, delete — from the institution presets |
+| Transactions | Add, edit, soft-delete, restore; filtered and paged ledger |
+| Transfers, incl. cross-currency | Done, both legs in one statement |
+| Mixed-currency payments | Done — one purchase paid in dollars *and* riel |
+| Split transactions | Done, parts always sum to the total |
+| Daily exchange rate sync | Done, plus manual per-user overrides and rate history |
+| Budgets | Done — per category or one overall cap |
+| Reports | Done — 12-month cash flow, category split, net worth trend |
+| Offline | Service worker caching the shell only, never ledger data |
+| Telegram bot | Phase 2, blocked on PRD decision 6 |
+| AI insights, OCR, forecasting | Phase 3 |
 
 ## Getting started
 
@@ -39,6 +46,9 @@ The app runs without any configuration, reading from `src/lib/demo-data.ts`.
 | `npm run test:watch` | Tests in watch mode |
 | `npm run typecheck` | `tsc --noEmit` |
 | `npm run lint` | ESLint |
+
+Tests run as two projects: `logic` (`*.test.ts`, node) and `components`
+(`*.test.tsx`, jsdom). Target one with `npx vitest --run --project components`.
 
 ## How money is handled
 
@@ -77,28 +87,39 @@ Consequences worth knowing before you touch `src/lib/money/`:
 
 ```
 src/
+  proxy.ts           Session refresh and the coarse signed-in check
   app/
-    actions/         Server actions (reporting-currency preference)
+    actions/         Server actions: transactions, accounts, budgets, rates, auth
     api/rates/       Daily exchange rate refresh endpoint
-    ...              Routes: dashboard, accounts, add, budgets, reports
-  components/        UI, dashboard widgets, shared keypad, transfer form
+    ...              Routes: dashboard, accounts, add, transactions, budgets,
+                     reports, settings, login
+  components/        UI, dashboard widgets, shared keypad, forms
   lib/
     money/           Currency, Money arithmetic, exchange rates — pure, no IO
-    domain/          Accounts, transactions, transfers: types + aggregation
+    domain/          Accounts, transactions, transfers, budgets: types + aggregation
+    data/            Reads. The snake_case/camelCase boundary lives in mappers.ts
     rates/           Fetching, storing and reading the daily rate — does IO
     supabase/        Browser, server and service-role clients
-    demo-data.ts     Stand-in data until Supabase is connected
+    auth.ts          getUser / requireUser
+    demo-data.ts     Stand-in data when Supabase is not configured
 supabase/migrations/ Schema and seed SQL
 docs/                PRD
 ```
+
+Two rules worth knowing before adding a query or a policy, both enforced in CI:
+
+- **Every table in `public` must have RLS enabled.** A table added without it is
+  readable by anyone holding the anon key.
+- **Policies must call `(select auth.uid())`, not `auth.uid()`.** The bare form is
+  re-evaluated once per row; the subquery form is evaluated once per statement.
 
 ## Connecting Supabase
 
 1. Create a project at [supabase.com](https://supabase.com).
 2. Copy `.env.example` to `.env.local` and fill in the URL and anon key.
-3. Apply the migrations in order, `0001` through `0005`.
-4. Replace the `DEMO_*` imports in the page components with queries. The
-   aggregation functions take plain rows, so nothing else changes.
+3. Apply the migrations in order, `0001` through `0008`.
+4. Nothing else. The pages read through `src/lib/data/`, which returns your own
+   ledger once a session exists and demo data when it does not.
 
 Row Level Security is enabled on every user-facing table and is the actual access
 boundary — the anon key grants nothing without a session. Verify the policies

@@ -30,10 +30,13 @@ export function AddEntry({
   accounts,
   categories,
   rate = DEFAULT_RATE,
+  readOnly = false,
 }: {
   accounts: readonly AccountBalance[];
   categories: readonly Category[];
   rate?: ExchangeRate;
+  /** Demo mode: the forms render but cannot persist. */
+  readOnly?: boolean;
 }) {
   const [mode, setMode] = useState<Mode>("expense");
 
@@ -61,7 +64,7 @@ export function AddEntry({
       </div>
 
       {mode === "transfer" ? (
-        <TransferForm accounts={accounts} rate={rate} />
+        <TransferForm accounts={accounts} rate={rate} readOnly={readOnly} />
       ) : (
         // Keyed by mode so switching between expense and income resets the form.
         // Categories differ per type, and a category carried across would no
@@ -71,6 +74,8 @@ export function AddEntry({
           type={mode}
           accounts={accounts}
           categories={categories}
+          rate={rate}
+          readOnly={readOnly}
         />
       )}
     </div>
