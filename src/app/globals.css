@@ -1,0 +1,89 @@
+@import "tailwindcss";
+
+/*
+ * Design tokens.
+ *
+ * Plays the role app_theme.dart plays in the Flutter templates referenced in
+ * PRD Section 14: colour and elevation defined once, consumed everywhere. Tailwind
+ * v4 takes its config from CSS, so @theme is the config.
+ */
+
+@theme {
+  /* Surfaces, light mode. */
+  --color-surface: #ffffff;
+  --color-surface-muted: #f5f6f8;
+  --color-surface-raised: #ffffff;
+  --color-border-subtle: #e6e8ec;
+
+  /* Text. */
+  --color-ink: #10141c;
+  --color-ink-muted: #6b7280;
+  --color-ink-faint: #9aa1ad;
+
+  /* Brand. Deep indigo reads as financial software without being corporate. */
+  --color-brand: #4c5fd5;
+  --color-brand-strong: #3b4bb8;
+  --color-brand-soft: #eef0fc;
+
+  /* Semantic money colours. Income green, expense red. */
+  --color-inflow: #16a34a;
+  --color-inflow-soft: #e7f6ec;
+  --color-outflow: #e0324b;
+  --color-outflow-soft: #fdeaed;
+
+  /* Currency accents, so USD and KHR are distinguishable at a glance. */
+  --color-usd: #2f855a;
+  --color-khr: #c2410c;
+
+  /* Card shadow, matching the soft elevation of the reference templates. */
+  --shadow-card: 0 2px 8px rgb(16 20 28 / 0.06), 0 1px 2px rgb(16 20 28 / 0.04);
+  --shadow-fab: 0 6px 20px rgb(76 95 213 / 0.35);
+
+  --radius-card: 1rem;
+  --radius-pill: 999px;
+
+  /* Height of the fixed bottom navigation, referenced by page padding. */
+  --spacing-navbar: 4.5rem;
+}
+
+@layer base {
+  :root {
+    color-scheme: light;
+  }
+
+  html {
+    /* Stops iOS Safari zooming when a numeric keypad opens on the amount field. */
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    background-color: var(--color-surface-muted);
+    color: var(--color-ink);
+  }
+
+  /*
+   * Respect a user's reduced-motion preference. The reference templates lean on
+   * animation, so honouring this is not optional for accessibility.
+   */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+
+  /* Visible focus for keyboard users, on every interactive element. */
+  :focus-visible {
+    outline: 2px solid var(--color-brand);
+    outline-offset: 2px;
+  }
+}
+
+/* Tabular figures keep decimal points aligned in amount columns. */
+@utility tabular {
+  font-variant-numeric: tabular-nums;
+}

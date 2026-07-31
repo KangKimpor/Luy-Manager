@@ -1,0 +1,19 @@
+# Normalise line endings to LF in the repository.
+#
+# Set from the initial commit deliberately: introducing this later rewrites every
+# file in one churn commit. Vercel builds on Linux, so LF in the repo keeps CI
+# diffs and local diffs identical regardless of who checked out on Windows.
+* text=auto eol=lf
+
+# Binary files must not be touched.
+*.ico binary
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.webp binary
+*.woff binary
+*.woff2 binary
+
+# Generated: collapse in diffs and exclude from language statistics.
+package-lock.json -diff linguist-generated
