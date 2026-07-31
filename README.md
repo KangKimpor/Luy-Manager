@@ -13,7 +13,7 @@ runs with no setup.
 | Area | State |
 | --- | --- |
 | Currency engine (USD/KHR) | Done, 255 tests |
-| Database schema + RLS | 8 migrations, all 17 PRD tables, verified against Postgres 16 |
+| Database schema + RLS | 9 migrations, all 17 PRD tables, verified against Postgres 16 |
 | Authentication | Google OAuth + email magic link, session refresh in `proxy.ts` |
 | Accounts | Create, edit, close, reopen, delete — from the institution presets |
 | Transactions | Add, edit, soft-delete, restore; filtered and paged ledger |
@@ -116,30 +116,7 @@ Two rules worth knowing before adding a query or a policy, both enforced in CI:
 ## Connecting Supabase
 
 1. Create a project at [supabase.com](https://supabase.com).
-2. Copy `.env.example` to `.env.local` and fill it in.
-3. Run `npm run connect`.
 
-That applies every migration in order, then verifies the result:
-
-| Step | What it checks |
-| --- | --- |
-| Environment | Names each missing variable, and refuses to continue if a `service_role` key has been put in a `NEXT_PUBLIC_` variable — that would ship it to the browser |
-| Migrations | Applies `0001`–`0008`, one transaction each; safe to re-run |
-| Schema guards | RLS on every table, and no policy calling `auth.uid()` per row |
-| Live API | Asks the deployed REST API, **as an anonymous caller**, whether it will hand over accounts, transactions, budgets, profiles or audit logs. It must not |
-
-That last step is the one worth having. RLS is the only thing between a public anon
-key and every row in the database, and "we enabled RLS" is a statement about
-intent — this checks what the deployed API actually returns. Use
-`npm run connect:check` to re-verify without touching the schema.
-
-Nothing else is needed. The pages read through `src/lib/data/`, which returns your
-own ledger once a session exists and demo data when it does not.
-
-You will also need a redirect URL configured in Supabase under Authentication >
-URL Configuration: `http://localhost:3000/auth/callback` for development, and your
-deployed origin for production. Without it the OAuth round trip completes and then
-refuses to come back.
 
 Row Level Security is enabled on every user-facing table and is the actual access
 boundary — the anon key grants nothing without a session. Verify the policies
