@@ -20,6 +20,9 @@
 # production
 /build
 
+# Packaged skill archives. Regenerable from .claude/skills; see README.
+/dist
+
 # misc
 .DS_Store
 *.pem

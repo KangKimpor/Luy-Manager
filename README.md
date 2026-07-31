@@ -86,6 +86,28 @@ Row Level Security is enabled on every user-facing table and is the actual acces
 boundary — the anon key grants nothing without a session. Verify the policies
 against a real project before putting live data in.
 
+## Claude skill
+
+`.claude/skills/multi-currency-money/` packages the money-handling rules above as
+a [Claude Agent Skill](https://claude.com/docs/skills/how-to). Claude Code picks
+it up automatically in this repo. It also carries a working scanner:
+
+```bash
+node .claude/skills/multi-currency-money/scripts/check-money-safety.mjs src supabase
+```
+
+Exits non-zero on a high-confidence finding, so it works as a CI gate.
+
+To use it on claude.ai, zip the skill directory and upload it under
+Settings > Capabilities:
+
+```powershell
+Compress-Archive -Path .claude/skills/multi-currency-money -DestinationPath dist/multi-currency-money.zip
+```
+
+The archive root must be the `multi-currency-money/` directory itself, not its
+loose contents.
+
 ## Attribution
 
 UI design adapted from [Best-Flutter-UI-Templates](https://github.com/mitesh77/Best-Flutter-UI-Templates)

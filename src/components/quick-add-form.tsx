@@ -156,25 +156,31 @@ export function QuickAddForm({ accounts, categories }: QuickAddFormProps) {
             </output>
 
             <div className="flex gap-1" role="group" aria-label="Currency">
-              {CURRENCIES.map((code) => (
-                <button
-                  key={code}
-                  type="button"
-                  aria-pressed={currency === code}
-                  onClick={() => {
-                    setCurrency(code);
-                    if (code === "KHR") setRaw((current) => current.split(".")[0]);
-                  }}
-                  className={cn(
-                    "rounded-pill min-h-9 px-3 text-xs font-bold transition-colors",
-                    currency === code
-                      ? "bg-brand text-white"
-                      : "bg-surface-muted text-ink-muted",
-                  )}
-                >
-                  {code}
-                </button>
-              ))}
+              {CURRENCIES.map((code) => {
+                const target = accounts.find((account) => account.currency === code);
+                return (
+                  <button
+                    key={code}
+                    type="button"
+                    aria-pressed={currency === code}
+                    // Switching currency switches account. An account is
+                    // single-currency, so setting the currency alone would build
+                    // a row the database rejects. Disabled when no account holds
+                    // this currency, rather than allowing an unsavable state.
+                    disabled={!target}
+                    onClick={() => target && selectAccount(target)}
+                    className={cn(
+                      "rounded-pill min-h-9 px-3 text-xs font-bold transition-colors",
+                      currency === code
+                        ? "bg-brand text-white"
+                        : "bg-surface-muted text-ink-muted",
+                      !target && "opacity-30",
+                    )}
+                  >
+                    {code}
+                  </button>
+                );
+              })}
             </div>
           </div>
         </CardBody>
