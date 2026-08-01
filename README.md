@@ -1,4 +1,4 @@
-# Luy Manager — Cambodia Personal Finance
+# Luy Manager: Cambodia Personal Finance
 
 A personal finance app built for Cambodia, where USD and KHR are both everyday
 currencies. Full product spec in
@@ -12,19 +12,19 @@ runs with no setup.
 
 | Area | State |
 | --- | --- |
-| Currency engine (USD/KHR) | Done, 255 tests |
+| Currency engine (USD/KHR) | Done, 328 tests |
 | Database schema + RLS | 9 migrations, all 17 PRD tables, verified against Postgres 16 |
 | Authentication | Google OAuth + email magic link, session refresh in `proxy.ts` |
-| Accounts | Create, edit, close, reopen, delete — from the institution presets |
+| Accounts | Create, edit, close, reopen and delete, from the institution presets |
 | Transactions | Add, edit, soft-delete, restore; filtered and paged ledger |
 | Transfers, incl. cross-currency | Done, both legs in one statement |
-| Mixed-currency payments | Done — one purchase paid in dollars *and* riel |
+| Mixed-currency payments | Done. One purchase paid in dollars *and* riel |
 | Split transactions | Done, parts always sum to the total |
 | Daily exchange rate sync | Done, plus manual per-user overrides and rate history |
-| Budgets | Done — per category or one overall cap |
-| Reports | Done — 12-month cash flow, category split, net worth trend |
+| Budgets | Done. Per category, or one overall cap |
+| Reports | Done. 12-month cash flow, category split, net worth trend |
 | Offline | Service worker caching the shell only, never ledger data |
-| Telegram bot | Phase 2, blocked on PRD decision 6 |
+| Telegram bot | Done. PRD decision 6 resolved as a rules parser, with a confidence threshold |
 | AI insights, OCR, forecasting | Phase 3 |
 
 ## Getting started
@@ -35,6 +35,9 @@ npm run dev
 ```
 
 The app runs without any configuration, reading from `src/lib/demo-data.ts`.
+
+To connect your own database, deploy it, or set up the bot, see
+[`docs/SETUP.md`](docs/SETUP.md).
 
 ## Commands
 
@@ -52,8 +55,8 @@ Tests run as two projects: `logic` (`*.test.ts`, node) and `components`
 
 ## How money is handled
 
-Every amount is an **integer in minor units** — US cents, whole riel — and never
-a float. `0.1 + 0.2 !== 0.3` in IEEE-754, and a ledger that drifts by a cent per
+Every amount is an **integer in minor units** (US cents, whole riel) and never a
+float. `0.1 + 0.2 !== 0.3` in IEEE-754, and a ledger that drifts by a cent per
 operation cannot be reconciled. Conversion to a decimal string happens only at
 the display boundary.
 
@@ -80,7 +83,7 @@ Consequences worth knowing before you touch `src/lib/money/`:
   counting them would inflate both totals with money that never entered or left
   the user's control.
 - **A missing rate is never a silent 1.0.** Fetched rates are range-checked, and
-  every sync attempt is recorded — including failures and the age of the figure
+  every sync attempt is recorded, including failures and the age of the figure
   still being served.
 
 ## Layout
@@ -95,10 +98,10 @@ src/
                      reports, settings, login
   components/        UI, dashboard widgets, shared keypad, forms
   lib/
-    money/           Currency, Money arithmetic, exchange rates — pure, no IO
+    money/           Currency, Money arithmetic, exchange rates. Pure, no IO
     domain/          Accounts, transactions, transfers, budgets: types + aggregation
     data/            Reads. The snake_case/camelCase boundary lives in mappers.ts
-    rates/           Fetching, storing and reading the daily rate — does IO
+    rates/           Fetching, storing and reading the daily rate. Does IO
     supabase/        Browser, server and service-role clients
     auth.ts          getUser / requireUser
     demo-data.ts     Stand-in data when Supabase is not configured
@@ -115,12 +118,24 @@ Two rules worth knowing before adding a query or a policy, both enforced in CI:
 
 ## Connecting Supabase
 
-1. Create a project at [supabase.com](https://supabase.com).
+Full walkthrough in [`docs/SETUP.md`](docs/SETUP.md), covering local setup,
+deployment, sign-in and the Telegram bot. The short version:
 
+1. Create a project at [supabase.com](https://supabase.com).
+2. Copy `.env.example` to `.env.local` and fill in the project URL, the
+   publishable key and the secret key.
+3. Apply `supabase/migrations/0001` through `0009`, in order. `npm run connect`
+   does it for you given `SUPABASE_DB_URL` and `psql`; otherwise paste each file
+   into the SQL editor.
+4. `npm run connect:check` to verify, then restart the dev server.
+
+Nothing else. The pages read through `src/lib/data/`, which returns your own
+ledger once a session exists and demo data when it does not.
 
 Row Level Security is enabled on every user-facing table and is the actual access
-boundary — the anon key grants nothing without a session. Verify the policies
-against a real project before putting live data in.
+boundary: the publishable key grants nothing without a session. `connect:check`
+proves it against the live project by asking, as an anonymous caller, whether the
+API will hand over any rows.
 
 ## Daily exchange rate
 
