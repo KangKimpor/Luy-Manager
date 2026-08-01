@@ -1,8 +1,8 @@
 /**
  * The snake_case to camelCase boundary.
  *
- * `domain/types.ts` states the convention — snake_case in SQL, camelCase in
- * TypeScript, converted once at the data-access edge — and this is where it
+ * `domain/types.ts` states the convention (snake_case in SQL, camelCase in
+ * TypeScript, converted once at the data-access edge), and this is where it
  * actually happens. Everything above this file handles camelCase domain objects
  * and never sees a database row.
  *
@@ -415,7 +415,7 @@ export function toNotification(row: Row): Notification {
  * Map a list, dropping rows that cannot be mapped.
  *
  * One malformed row must not blank an entire dashboard, but it must not pass
- * silently either — a dropped row is logged so the cause is findable rather than
+ * silently either: a dropped row is logged so the cause is findable rather than
  * showing up later as a total that does not add up.
  */
 export function mapRows<T>(
@@ -431,7 +431,7 @@ export function mapRows<T>(
       mapped.push(map(row));
     } catch (error) {
       console.error(
-        `${context}: skipped an unmappable row —`,
+        `${context}: skipped an unmappable row:`,
         error instanceof Error ? error.message : error,
       );
     }

@@ -1,8 +1,8 @@
 /**
  * Exchange rates and conversion.
  *
- * PRD Section 7. A rate is always stored in one canonical direction — how many
- * KHR to one USD — because storing both directions invites the two from
+ * PRD Section 7. A rate is always stored in one canonical direction (how many
+ * KHR to one USD) because storing both directions invites the two from
  * drifting out of sync and disagreeing about the same moment in time. The
  * inverse is derived on demand.
  */

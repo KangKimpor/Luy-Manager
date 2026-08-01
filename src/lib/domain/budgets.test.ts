@@ -225,7 +225,7 @@ describe("spentForBudget", () => {
       now,
     );
 
-    // 41,000៛ at 4,100 is $10.00, so 1000 cents — not 41,000.
+    // 41,000៛ at 4,100 is $10.00, so 1000 cents, not 41,000.
     expect(spent.minor).toBe(1_000);
     expect(formatMoney(spent)).toBe("$10.00");
   });

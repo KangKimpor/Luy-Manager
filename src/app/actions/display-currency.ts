@@ -11,8 +11,8 @@ import {
 /**
  * Switch the currency totals are reported in.
  *
- * Setting a cookie has to happen in a server function — a server component render
- * cannot write response headers — so the toggle in the UI calls this.
+ * Setting a cookie has to happen in a server function, because a server component
+ * render cannot write response headers. The toggle in the UI calls this.
  *
  * No explicit revalidation follows. Next.js re-renders the current page and its
  * layouts after a server function sets a cookie, and the pages that read this

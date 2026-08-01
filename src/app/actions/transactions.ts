@@ -178,7 +178,7 @@ export async function createTransaction(
         return {
           transaction_id: transactionId,
           // Left null on purpose. A tender naming an account would have to debit
-          // it, and the account_balances view sums transactions only — so pointing
+          // it, and the account_balances view sums transactions only, so pointing
           // at an account here would show money leaving a balance that never
           // moved. These rows record the denominations, not a second debit.
           account_id: null,
@@ -342,8 +342,8 @@ export async function updateTransaction(
  * `deleted_at` rather than a real delete: the balance view already excludes
  * deleted rows, and a mis-tap that permanently destroys a record is a worse
  * outcome than a row that lingers. Deleting one leg of a transfer takes both,
- * because migration 0004 refuses a half-deleted pair — correctly, since one leg
- * alone would debit an account and credit nothing.
+ * because migration 0004 refuses a half-deleted pair (correctly, since one leg
+ * alone would debit an account and credit nothing).
  */
 export async function deleteTransaction(id: string): Promise<ActionResult<undefined>> {
   try {

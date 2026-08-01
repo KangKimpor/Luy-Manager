@@ -6,7 +6,7 @@
  * budget is currently in, and how much of it has been spent.
  *
  * The window matters more than it looks. A monthly budget is not "this calendar
- * month" — it repeats from whatever day the user set it up, because someone paid on
+ * month": it repeats from whatever day the user set it up, because someone paid on
  * the 15th thinks in 15th-to-14th months. Getting that wrong silently compares
  * spending against the wrong period and reports a number that is simply untrue.
  *

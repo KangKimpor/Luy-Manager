@@ -8,8 +8,8 @@
  * Held in a cookie rather than client state for two reasons. It survives a
  * reload and applies across pages, so the dashboard and the accounts page never
  * disagree about which currency the totals are in. And because the server reads
- * it during render, the aggregation stays where it already is — in server
- * components calling pure functions — instead of moving the whole ledger to the
+ * it during render, the aggregation stays where it already is (in server
+ * components calling pure functions) instead of moving the whole ledger to the
  * browser to be re-totalled there.
  *
  * `profiles.base_currency` already exists in migration 0001 and is the eventual

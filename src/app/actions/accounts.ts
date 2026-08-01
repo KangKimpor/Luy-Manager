@@ -111,7 +111,7 @@ export interface UpdateAccountInput extends AccountInput {
  *
  * Currency is deliberately not updatable. Every transaction on the account is
  * denominated in it, so changing it would either be rejected by the
- * currency-matching trigger or, worse, silently reinterpret every stored amount —
+ * currency-matching trigger or, worse, silently reinterpret every stored amount:
  * 1,240,000 riel becoming $12,400. Someone who needs a different currency creates
  * a second account, which is how the banks model it anyway.
  */
@@ -232,7 +232,7 @@ export async function deleteAccount(id: string): Promise<ActionResult<undefined>
         ok: false,
         error:
           `That account has ${count} transaction${count === 1 ? "" : "s"} recorded ` +
-          `against it, so deleting it would leave them orphaned. Close it instead — ` +
+          `against it, so deleting it would leave them orphaned. Close it instead: ` +
           `it keeps the history and stops counting toward your net worth.`,
       };
     }

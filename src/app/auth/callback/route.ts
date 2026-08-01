@@ -7,7 +7,7 @@ import { isSupabaseConfigured } from "@/lib/supabase/env";
  * Completes an OAuth or magic-link sign-in.
  *
  * Supabase sends the browser back here with a one-time `code`. Exchanging it for
- * a session is a write — it sets auth cookies — so it has to happen in a route
+ * a session is a write (it sets auth cookies), so it has to happen in a route
  * handler rather than during a page render, which cannot set headers.
  *
  * PRD Section 17 decision 4 settled on Supabase Auth, and Section 3 asks for

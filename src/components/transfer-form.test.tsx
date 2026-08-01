@@ -10,7 +10,7 @@ import { exchangeRate } from "@/lib/money";
  * The transfer form is the most logic-dense component in the app: it plans a
  * cross-currency transfer, previews what will arrive, lets the user override it, and
  * reports the rate they actually got. All of that was covered only at the domain
- * layer, so these tests are about the wiring — that the right figures reach the
+ * layer, so these tests are about the wiring: that the right figures reach the
  * screen and the right arguments reach the server action.
  */
 
@@ -115,7 +115,7 @@ describe("cross-currency preview", () => {
 
     await typeAmount(user, "100");
 
-    // $100 at 4,100 is 410,000៛ — not 41,000,000. KHR has no subunit.
+    // $100 at 4,100 is 410,000៛, not 41,000,000. KHR has no subunit.
     expect(screen.getByText("410,000៛")).toBeDefined();
     expect(screen.getByText(/4,100៛ per \$1/)).toBeDefined();
   });

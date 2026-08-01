@@ -55,7 +55,7 @@ async function telegramConnectState(): Promise<TelegramState> {
  * The rate section is the substantial part. `references/currency-data.md` argues
  * that for a personal-finance product manual entry is often the *most* accurate
  * source, because the rate that matters is the one your own bank or money changer
- * applied — not the published mid-market figure. Migration 0001 supported personal
+ * applied, not the published mid-market figure. Migration 0001 supported personal
  * overrides from the start and the reader already prefers them; this is where one
  * gets written.
  */

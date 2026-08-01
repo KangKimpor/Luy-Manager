@@ -10,7 +10,7 @@ import { exchangeRate } from "@/lib/money";
  *
  * The property that matters is that the total is *derived* from the tenders rather
  * than entered separately, so it cannot disagree with what was handed over. These
- * tests pin that, and pin the scale gap — the arithmetic most likely to be wrong by
+ * tests pin that, and pin the scale gap: the arithmetic most likely to be wrong by
  * a factor of 100.
  */
 
@@ -27,7 +27,7 @@ describe("tenderTotal", () => {
       rate,
     );
 
-    // $3 plus 20,000៛ (=$4.88 at 4,100) is $7.88 — 788 cents.
+    // $3 plus 20,000៛ (=$4.88 at 4,100) is $7.88, which is 788 cents.
     expect(total?.minor).toBe(788);
     expect(total?.currency).toBe("USD");
   });
@@ -179,7 +179,7 @@ describe("TenderEditor", () => {
       />,
     );
 
-    expect(screen.getByText("—")).toBeInTheDocument();
+    expect(screen.getByText("-")).toBeInTheDocument();
     expect(screen.queryByText("$0.00")).toBeNull();
   });
 

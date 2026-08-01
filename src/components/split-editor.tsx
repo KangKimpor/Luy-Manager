@@ -23,7 +23,7 @@ import {
  *
  * The figures typed here are treated as *weights*, not final amounts. `$10.00`
  * split three ways as 3.33 / 3.33 / 3.33 loses a cent, and the lost cent has to go
- * somewhere explicit — so the entered values are redistributed with the money
+ * somewhere explicit, so the entered values are redistributed with the money
  * layer's largest-remainder split, which sums back to the parent exactly. The
  * preview shows what will actually be stored, including the redistribution.
  */

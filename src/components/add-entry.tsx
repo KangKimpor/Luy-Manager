@@ -12,8 +12,8 @@ import { cn } from "@/lib/utils";
  * Chooses what kind of entry is being made.
  *
  * Expense, Income and Transfer sit in one segmented control because they are the
- * same decision, made once. Transfer is a genuinely different form — two accounts
- * and a conversion instead of one account and a category — so it gets its own
+ * same decision, made once. Transfer is a genuinely different form (two accounts
+ * and a conversion instead of one account and a category), so it gets its own
  * component rather than a pile of conditionals inside the transaction form. What
  * they share, the keypad and amount rules, is shared as `amount-keypad`.
  */

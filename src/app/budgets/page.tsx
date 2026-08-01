@@ -21,8 +21,8 @@ import { cn } from "@/lib/utils";
  *
  * Each budget's window comes from its own anchor day rather than the calendar
  * month, so a budget set up on the 15th runs 15th to 14th. That means the
- * transactions loaded here have to span more than the current month — a budget
- * anchored mid-month reaches back into the previous one — hence a trailing window
+ * transactions loaded here have to span more than the current month (a budget
+ * anchored mid-month reaches back into the previous one), hence a trailing window
  * rather than `monthPeriod`.
  */
 

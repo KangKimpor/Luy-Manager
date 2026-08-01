@@ -38,7 +38,7 @@ import { cn } from "@/lib/utils";
  * shape users ask for it in: "Transfer $100 ABA to Wing". Because most Cambodian
  * banks hold separate USD and KHR accounts rather than one multi-currency account,
  * a transfer between two of a person's own accounts is routinely also a currency
- * exchange — which is the everyday way someone turns dollars into riel or back.
+ * exchange, which is the everyday way someone turns dollars into riel or back.
  *
  * Two things this form takes seriously:
  *
@@ -92,7 +92,7 @@ export function TransferForm({
   /**
    * The plan, or the reason there isn't one.
    *
-   * `planTransfer` throws on anything the database would refuse — same account
+   * `planTransfer` throws on anything the database would refuse: same account
    * both sides, an amount in the wrong currency, a zero transfer. Catching here
    * turns those into a message instead of a crashed render, and means the
    * invariants live in the domain layer rather than being restated in the UI.
@@ -180,7 +180,7 @@ export function TransferForm({
     setSaveError(null);
 
     // The action re-plans server-side from the accounts it reads itself, then
-    // inserts both legs in a single statement — migration 0004 defers its balance
+    // inserts both legs in a single statement: migration 0004 defers its balance
     // check to COMMIT precisely so the pair lands together, and a half-written
     // transfer would debit one account and credit nothing.
     const result = await createTransfer({
@@ -292,7 +292,7 @@ export function TransferForm({
                 onClick={useSuggestedCashAmount}
                 className="text-brand text-left text-xs font-medium underline"
               >
-                Round to {formatMoney(plan.cashStepSuggestion)} — the smallest note
+                Round to {formatMoney(plan.cashStepSuggestion)}: the smallest note
                 in circulation is 100៛
               </button>
             ) : null}

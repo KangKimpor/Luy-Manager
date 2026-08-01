@@ -22,9 +22,9 @@ import { loadUsdKhrRate } from "@/lib/rates/repository";
  * same window, and net worth over time.
  *
  * Net worth here is reconstructed backwards from today's balances rather than
- * summed forwards from zero. Opening balances predate the ledger — an account
+ * summed forwards from zero. Opening balances predate the ledger (an account
  * created with $1,842.50 already in it has no transactions explaining where that
- * came from — so a forward sum would start every account at nothing and understate
+ * came from), so a forward sum would start every account at nothing and understate
  * every historical figure. Working back from a known present is the only version
  * that ends at the right number.
  */

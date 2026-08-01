@@ -9,8 +9,8 @@ import { cn } from "@/lib/utils";
 /**
  * Switches the currency totals are reported in (PRD Section 7).
  *
- * Optimistic rather than awaited. The answer is already known locally — the user
- * picked one of two options — so waiting for the server round trip before moving
+ * Optimistic rather than awaited. The answer is already known locally (the user
+ * picked one of two options), so waiting for the server round trip before moving
  * the selection would make a free choice feel like a submission. The server
  * re-render then arrives with the recomputed figures underneath.
  *

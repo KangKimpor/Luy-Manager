@@ -16,7 +16,7 @@ import { type CurrencyCode, formatMoney, money } from "@/lib/money";
  *
  * The chart is handed integer minor units and formats them through the money layer
  * at the axis and tooltip. Recharts works in plain numbers, so the alternative
- * would be passing it major-unit floats — which for riel would mean dividing by one
+ * would be passing it major-unit floats, which for riel would mean dividing by one
  * and for dollars by a hundred, and then trusting a chart library with rounding.
  * Keeping minor units all the way through means the only conversion is the one
  * `formatMoney` does for display.

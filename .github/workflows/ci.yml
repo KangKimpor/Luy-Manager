@@ -38,6 +38,10 @@ jobs:
       - name: Lint
         run: npm run lint
 
+      # House style: no em dashes or en dashes in the app, including its comments.
+      - name: Dash style
+        run: npm run check:dashes
+
       - name: Test
         run: npm test
 

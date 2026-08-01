@@ -10,7 +10,7 @@ import { isDemoMode } from "@/lib/auth";
  * Two routes in, for different reasons. Google OAuth is one tap and the option
  * most people will take. A magic link exists because it needs no password and no
  * Google account, which matters where a shared or feature-phone-adjacent setup is
- * common — and because it is the only way to sign in during local development
+ * common, and because it is the only way to sign in during local development
  * without configuring an OAuth client.
  */
 export default async function LoginPage(props: {

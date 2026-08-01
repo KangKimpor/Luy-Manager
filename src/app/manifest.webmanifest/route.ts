@@ -9,7 +9,7 @@
 export function GET() {
   return Response.json(
     {
-      name: "Luy Manager — Cambodia Personal Finance",
+      name: "Luy Manager: Cambodia Personal Finance",
       short_name: "Luy Manager",
       description:
         "Track USD and KHR side by side. Accounts, budgets and spending built for Cambodia.",

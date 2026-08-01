@@ -11,7 +11,7 @@ import { deleteAccount, setAccountActive } from "@/app/actions/accounts";
  * Per-account edit, close and delete.
  *
  * Close is offered before delete, and delete is only offered for an account with no
- * history — `transactions.account_id` is `on delete restrict`, so the database would
+ * history: `transactions.account_id` is `on delete restrict`, so the database would
  * refuse anyway, and "close it instead" is almost always what the user actually
  * wants. Closing keeps the balance and the history and stops the account counting
  * toward net worth.

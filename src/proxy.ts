@@ -20,8 +20,8 @@ import { isSupabaseConfigured } from "@/lib/supabase/env";
  *      rendering happens.
  *
  * The signed-in check here is deliberately coarse. Row Level Security is the real
- * boundary, and `requireUser()` in the data layer is what actually guards data —
- * this only avoids rendering a page that is certain to be empty. Next's own
+ * boundary, and `requireUser()` in the data layer is what actually guards data.
+ * This only avoids rendering a page that is certain to be empty. Next's own
  * guidance is the same: treat a proxy check as optimistic, never as the
  * authorization decision.
  */

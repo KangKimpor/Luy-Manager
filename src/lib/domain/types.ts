@@ -72,8 +72,8 @@ export interface AccountBalance {
   /**
    * `isActive AND includeInNetWorth`, derived in the view.
    *
-   * The two flags answer different questions — closed, versus deliberately
-   * excluded — but both must keep an account out of the total. Combining them at
+   * The two flags answer different questions (closed, versus deliberately
+   * excluded), but both must keep an account out of the total. Combining them at
    * the source means a caller cannot include a closed account by checking only
    * whichever flag it remembered.
    */

@@ -10,6 +10,7 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest --run",
     "test:watch": "vitest",
+    "check:dashes": "node scripts/check-dashes.mjs",
     "connect": "node scripts/connect-supabase.mjs",
     "connect:check": "node scripts/connect-supabase.mjs --check"
   },
