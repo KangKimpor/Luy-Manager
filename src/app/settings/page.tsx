@@ -1,14 +1,53 @@
-import { LogOut, User } from "lucide-react";
+import { Check, LogOut, Send, User } from "lucide-react";
 
 import { signOut } from "@/app/actions/auth";
 import { CurrencyToggle } from "@/components/currency-toggle";
 import { ManualRateForm } from "@/components/manual-rate-form";
 import { MoneyAmount } from "@/components/money-amount";
+import { buttonVariants } from "@/components/ui/button";
 import { Card, CardBody, CardHeader, CardTitle } from "@/components/ui/card";
 import { getUser, isDemoMode } from "@/lib/auth";
+import { getProfile } from "@/lib/data/reference";
 import { readDisplayCurrency } from "@/lib/display-currency";
 import { formatMoney, fromMajor } from "@/lib/money";
 import { describeFreshness, listRateHistory, loadUsdKhrRate } from "@/lib/rates/repository";
+import { botUsername, isTelegramConfigured, requireTelegramEnv } from "@/lib/telegram/env";
+import { connectUrl, createLinkToken } from "@/lib/telegram/link";
+
+interface TelegramState {
+  /** Whether this deployment has a bot at all. */
+  available: boolean;
+  connected: boolean;
+  /** A fresh one-tap deep link, when there is a signed-in user left to connect. */
+  url: string | null;
+}
+
+/**
+ * What to show in the Telegram card.
+ *
+ * Three states worth distinguishing, because the fix differs for each: the bot is
+ * not configured on this deployment (an operator problem), the account is already
+ * linked (nothing to do), or there is a link to hand out.
+ */
+async function telegramConnectState(): Promise<TelegramState> {
+  const username = botUsername();
+  if (!isTelegramConfigured() || !username) {
+    return { available: false, connected: false, url: null };
+  }
+
+  const profile = await getProfile();
+  if (!profile) return { available: true, connected: false, url: null };
+  if (profile.telegramChatId !== null) {
+    return { available: true, connected: true, url: null };
+  }
+
+  const { webhookSecret } = requireTelegramEnv();
+  return {
+    available: true,
+    connected: false,
+    url: connectUrl(username, createLinkToken(profile.id, webhookSecret)),
+  };
+}
 
 /**
  * Settings: who you are, what currency you report in, and which rate you use.
@@ -29,6 +68,7 @@ export default async function SettingsPage() {
   ]);
 
   const demo = isDemoMode();
+  const telegram = await telegramConnectState();
 
   return (
     <div className="space-y-4">
@@ -92,6 +132,63 @@ export default async function SettingsPage() {
             </p>
           ) : (
             <ManualRateForm currentRate={snapshot.rate.rate} />
+          )}
+        </CardBody>
+      </Card>
+
+      {/*
+        Telegram, PRD Section 9.
+        The token is minted here, server side, on each render. It is short lived by
+        design, so a page left open overnight yields a stale link and the bot says so
+        rather than failing silently.
+      */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Telegram bot</CardTitle>
+        </CardHeader>
+        <CardBody className="space-y-3">
+          {!telegram.available ? (
+            <p className="text-ink-muted text-body-md">
+              Not set up on this deployment. It needs{" "}
+              <code className="text-ink text-xs">TELEGRAM_BOT_TOKEN</code>,{" "}
+              <code className="text-ink text-xs">TELEGRAM_WEBHOOK_SECRET</code> and{" "}
+              <code className="text-ink text-xs">NEXT_PUBLIC_TELEGRAM_BOT_USERNAME</code>.
+            </p>
+          ) : telegram.connected ? (
+            <>
+              <p className="text-inflow text-numeric-md flex items-center gap-2">
+                <Check size={16} aria-hidden="true" />
+                Connected
+              </p>
+              <p className="text-ink-muted text-body-md">
+                Message the bot to log money without opening the app. Try{" "}
+                <code className="text-ink text-xs">Spent $5 coffee</code> or{" "}
+                <code className="text-ink text-xs">Summary today</code>.
+              </p>
+            </>
+          ) : telegram.url ? (
+            <>
+              <p className="text-ink-muted text-body-md">
+                Log money by messaging the bot. Connect this account, then send it{" "}
+                <code className="text-ink text-xs">Spent $5 coffee</code>.
+              </p>
+              <a
+                href={telegram.url}
+                target="_blank"
+                rel="noreferrer noopener"
+                className={buttonVariants({ size: "full" })}
+              >
+                <Send size={16} aria-hidden="true" />
+                Connect Telegram
+              </a>
+              <p className="text-ink-faint text-xs">
+                The link is valid for 15 minutes. Reload this page for a fresh one.
+              </p>
+            </>
+          ) : (
+            <p className="text-ink-muted text-body-md">
+              Sign in to connect Telegram to your account.
+            </p>
           )}
         </CardBody>
       </Card>

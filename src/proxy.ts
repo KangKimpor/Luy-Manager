@@ -33,6 +33,17 @@ const PUBLIC_PREFIXES = [
   "/auth",
   // Guarded by CRON_SECRET instead; a session would make no sense for a cron job.
   "/api/rates/refresh",
+  /*
+   * The Telegram webhook. Telegram is not a browser: it holds no cookie and has no
+   * session, so without this exemption every delivery is answered with a 307 to
+   * /login. Telegram treats that as a failure, retries, gets another redirect, and
+   * eventually disables the webhook. The bot would look silently broken while every
+   * component behind it worked.
+   *
+   * Authenticated instead by the X-Telegram-Bot-Api-Secret-Token header, checked in
+   * the route before the body is read.
+   */
+  "/api/telegram/webhook",
   "/manifest.webmanifest",
 ];
 
