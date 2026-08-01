@@ -356,10 +356,10 @@ every `.from(` and confirming each has a `user_id` filter.
 
 ## Reference files
 
-- `references/message-grammar.md` — the supported grammar, currency markers,
-  and the ambiguity rules.
-- `references/review-checklist.md` — line-by-line audit for a webhook handler.
-- `scripts/telegram-webhook.mjs` — register, inspect and delete the webhook.
+- `references/message-grammar.md`: the supported grammar, currency markers, and
+  the ambiguity rules.
+- `references/review-checklist.md`: line-by-line audit for a webhook handler.
+- `scripts/telegram-webhook.mjs`: register, inspect and delete the webhook.
   Run: `node scripts/telegram-webhook.mjs status`
 
 ## Anti-patterns
