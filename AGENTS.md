@@ -19,6 +19,10 @@ Two more skills cover the parts where a mistake is expensive and invisible:
 | `luy-manager-money` | Touching any amount, currency, split, or exchange rate |
 | `luy-manager-telegram` | Touching the bot, or any webhook that writes without a session |
 
+To hand this context to Claude somewhere outside the repository, `npm run
+skill:bundle` joins all three into one uploadable skill in `dist/`. It is
+generated, so edit the sources here and rebuild; never edit the output.
+
 The short version, if you read nothing else:
 
 - Money is integer minor units paired with a currency. KHR has **zero** decimals.

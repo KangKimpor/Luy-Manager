@@ -11,7 +11,9 @@
     "test": "vitest --run",
     "test:watch": "vitest",
     "connect": "node scripts/connect-supabase.mjs",
-    "connect:check": "node scripts/connect-supabase.mjs --check"
+    "connect:check": "node scripts/connect-supabase.mjs --check",
+    "skill:bundle": "node scripts/build-skill-bundle.mjs",
+    "skill:check": "node scripts/build-skill-bundle.mjs --check"
   },
   "dependencies": {
     "@supabase/ssr": "0.12.4",
