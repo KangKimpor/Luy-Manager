@@ -17,8 +17,12 @@ export function GET() {
       scope: "/",
       display: "standalone",
       orientation: "portrait",
-      background_color: "#f5f6f8",
-      theme_color: "#4c5fd5",
+      // Kept in step with --color-surface-muted and --color-brand in globals.css,
+      // and with the themeColor in layout.tsx. These drifted once already when the
+      // palette changed: the installed app kept painting its title bar the old
+      // indigo while the browser used the new one.
+      background_color: "#f9f9ff",
+      theme_color: "#3145bb",
       categories: ["finance", "productivity"],
       icons: [
         {
