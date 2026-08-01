@@ -14,7 +14,7 @@ import type { ActionResult } from "./transactions";
  *
  * `references/currency-data.md` makes the case plainly: for a personal-finance
  * product, manual entry is often the *most* accurate source, because the rate that
- * matters is the one the user's own bank or money changer actually applied — not
+ * matters is the one the user's own bank or money changer actually applied, not
  * the published mid-market figure.
  *
  * The schema has supported this since migration 0001: a row in `exchange_rates`
@@ -72,7 +72,7 @@ export async function setManualRate(
         ok: false,
         error:
           `${rate.toLocaleString("en-US")} riel per dollar is outside the plausible ` +
-          `${PLAUSIBLE_USD_KHR.min.toLocaleString("en-US")}–` +
+          `${PLAUSIBLE_USD_KHR.min.toLocaleString("en-US")} to ` +
           `${PLAUSIBLE_USD_KHR.max.toLocaleString("en-US")} range. Check the digits.`,
       };
     }
@@ -83,7 +83,7 @@ export async function setManualRate(
     // Written through an RPC, not `.upsert()`. `exchange_rates_user_key` is a
     // partial unique index (`where user_id is not null`) and Postgres will not
     // infer a partial index as an ON CONFLICT target unless the statement repeats
-    // the predicate — which PostgREST's column-list `on_conflict` cannot express.
+    // the predicate, which PostgREST's column-list `on_conflict` cannot express.
     // It fails with 42P10 even though every row sent satisfies the predicate.
     // Same trap as the global writer in migration 0005; see 0008.
     //

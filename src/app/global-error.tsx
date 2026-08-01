@@ -6,7 +6,7 @@ import { useEffect } from "react";
  * The last resort: a failure in the root layout itself.
  *
  * This replaces the entire document, so it has to render its own `<html>` and
- * `<body>` and cannot rely on the app's fonts, styles or components — the failure
+ * `<body>` and cannot rely on the app's fonts, styles or components: the failure
  * may well be in whatever provides them. Everything here is inline on purpose.
  */
 export default function GlobalError({

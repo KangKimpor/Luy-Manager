@@ -22,7 +22,7 @@ export default async function EditTransactionPage(props: {
   if (!transaction) notFound();
 
   // A transfer leg has a counterpart that must stay balanced, so it cannot be
-  // amended as a standalone transaction — migration 0004 would refuse the commit.
+  // amended as a standalone transaction: migration 0004 would refuse the commit.
   // Sent back rather than shown a form that cannot save.
   if (transaction.type === "transfer") redirect("/transactions");
 

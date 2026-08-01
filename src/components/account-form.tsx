@@ -16,13 +16,13 @@ import { cn } from "@/lib/utils";
 /**
  * Create or edit one account (PRD Section 6).
  *
- * Starts from the presets in the domain layer — ABA, ACLEDA, Wing, TrueMoney, cash
- * in each currency — because typing an institution name and picking a colour by
+ * Starts from the presets in the domain layer (ABA, ACLEDA, Wing, TrueMoney, cash
+ * in each currency) because typing an institution name and picking a colour by
  * hand is the most tedious part of setting up a finance app, and these are the
  * institutions a Cambodian user actually holds money with.
  *
  * Currency is fixed once the account exists. Every transaction on it is denominated
- * in that currency, so changing it would reinterpret every stored amount —
+ * in that currency, so changing it would reinterpret every stored amount:
  * 1,240,000 riel silently becoming $12,400. Banks model this the same way: separate
  * USD and KHR accounts rather than one that switches.
  */
@@ -204,7 +204,7 @@ export function AccountForm({ account }: { account?: Account }) {
             </div>
             {editing ? (
               <p className="text-ink-faint mt-1.5 text-xs">
-                An account&apos;s currency cannot change — every transaction on it is
+                An account&apos;s currency cannot change: every transaction on it is
                 recorded in {currency}. Create a separate account for the other
                 currency, which is how the banks do it too.
               </p>
@@ -264,7 +264,7 @@ export function AccountForm({ account }: { account?: Account }) {
 /**
  * Render stored minor units back into an editable major-unit string.
  *
- * Display only, and only to prefill the input — the value the user then edits is
+ * Display only, and only to prefill the input: the value the user then edits is
  * re-parsed by the money layer on submit rather than being trusted as a number.
  */
 function formatMinorForInput(minor: number, currency: CurrencyCode): string {

@@ -15,7 +15,7 @@ import { cn } from "@/lib/utils";
 /**
  * One ledger row, with edit and delete.
  *
- * Deleting is a soft delete, and deleting either leg of a transfer takes both —
+ * Deleting is a soft delete, and deleting either leg of a transfer takes both:
  * migration 0004 refuses a half-deleted pair, correctly, since one leg alone would
  * debit an account and credit nothing. The row says so before it happens, because
  * "delete this" quietly removing a second row elsewhere would be a surprise.

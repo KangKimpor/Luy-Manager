@@ -9,8 +9,8 @@ import { Card, CardBody } from "@/components/ui/card";
 /**
  * What the user sees when a page fails to render.
  *
- * A finance app needs this more than most. Without a boundary, one malformed row —
- * an amount the mapper refuses, a currency the union does not cover — replaces the
+ * A finance app needs this more than most. Without a boundary, one malformed row
+ * (an amount the mapper refuses, a currency the union does not cover) replaces the
  * whole screen with a stack trace. Worse, the alternative temptation is to swallow
  * the error and render zeros, which is not "we could not load this" but a specific
  * and wrong claim about someone's money.

@@ -16,8 +16,8 @@ import { monthFromParam, monthParam } from "@/lib/period";
  *
  * The dashboard's recent list is a `slice(0, 8)` of one month. This is the view for
  * finding a specific transaction, so the filtering and paging happen in the
- * database — on the `(user_id, occurred_at desc) where deleted_at is null` index
- * from migration 0001 — rather than by fetching a whole history and cutting it down
+ * database (on the `(user_id, occurred_at desc) where deleted_at is null` index
+ * from migration 0001) rather than by fetching a whole history and cutting it down
  * in the browser.
  *
  * Every filter lives in the URL. That makes a filtered view shareable and

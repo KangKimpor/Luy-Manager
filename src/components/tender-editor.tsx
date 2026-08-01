@@ -67,7 +67,7 @@ export function tenderTotal(
     return mixedTotal({ tenders: amounts }, target, rate);
   } catch {
     // Half-typed input is normal here, so an unparseable value is not an error
-    // worth surfacing — it just means there is no total yet.
+    // worth surfacing: it just means there is no total yet.
     return null;
   }
 }
@@ -110,7 +110,7 @@ export function TenderEditor({
             Paid with
           </p>
           <p className="text-ink-faint mt-0.5 text-xs">
-            Two currencies for one purchase — $3 and 2,400៛ for a $3.60 bill.
+            Two currencies for one purchase: $3 and 2,400៛ for a $3.60 bill.
           </p>
         </div>
 
@@ -185,7 +185,7 @@ export function TenderEditor({
               <CurrencyBadge currency={targetCurrency} />
             </span>
           ) : (
-            <span className="text-ink-faint text-sm">—</span>
+            <span className="text-ink-faint text-sm">-</span>
           )}
         </div>
 

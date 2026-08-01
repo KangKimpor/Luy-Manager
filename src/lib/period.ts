@@ -3,7 +3,7 @@
  *
  * All local-time, never UTC. Cambodia is UTC+7, so deriving a month boundary from
  * `toISOString()` would put the first seven hours of every month in the previous
- * one — a coffee bought at 8am on the 1st would land in last month's total. The
+ * one: a coffee bought at 8am on the 1st would land in last month's total. The
  * same reason `toIsoDate` in the domain layer avoids `toISOString`.
  */
 

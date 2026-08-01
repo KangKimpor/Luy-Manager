@@ -119,7 +119,7 @@ export async function syncUsdKhrRate(options: SyncOptions = {}): Promise<RateSyn
 
   // Written through an RPC rather than `.upsert()`. The global uniqueness index
   // is partial (`where user_id is null`), and Postgres only infers a partial
-  // index as an ON CONFLICT target when the statement repeats that predicate —
+  // index as an ON CONFLICT target when the statement repeats that predicate,
   // something PostgREST's `on_conflict` column list cannot express. Going through
   // `upsert_global_exchange_rate` (migration 0005) also returns whether the day's
   // rate was new or corrected, without a second round trip.

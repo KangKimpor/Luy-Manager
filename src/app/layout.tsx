@@ -32,7 +32,7 @@ const khmer = Noto_Sans_Khmer({
 });
 
 export const metadata: Metadata = {
-  title: "Luy Manager — Cambodia Personal Finance",
+  title: "Luy Manager: Cambodia Personal Finance",
   description:
     "Track USD and KHR side by side. Accounts, budgets and spending built for Cambodia.",
   manifest: "/manifest.webmanifest",

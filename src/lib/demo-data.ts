@@ -271,7 +271,7 @@ export const DEMO_TRANSACTIONS: Transaction[] = [
 
   // A cross-currency transfer: $100 out of the USD bank account, 410,000៛ into
   // the riel e-wallet. Neither leg is an expense, so both are excluded from the
-  // cash flow and category totals — the money never left the user's control.
+  // cash flow and category totals: the money never left the user's control.
   ...transferPair(
     "tg-0001",
     { id: "t-25", accountId: "acc-aba-usd", amount: 10_000, currency: "USD" },
@@ -307,7 +307,7 @@ export const DEMO_BUDGETS: Budget[] = [
     userId: "demo",
     categoryId: "cat-restaurant",
     name: null,
-    amount: 15_000, // $150 — actual is ~$110, comfortably under
+    amount: 15_000, // $150 budget, actual is ~$110, comfortably under
     currency: "USD",
     period: "monthly",
     startsOn: "2026-07-01",
@@ -321,7 +321,7 @@ export const DEMO_BUDGETS: Budget[] = [
     userId: "demo",
     categoryId: "cat-coffee",
     name: null,
-    amount: 2_000, // $20 — actual is ~$18, past the 80% warning
+    amount: 2_000, // $20 budget, actual is ~$18, past the 80% warning
     currency: "USD",
     period: "monthly",
     startsOn: "2026-07-01",
@@ -335,7 +335,7 @@ export const DEMO_BUDGETS: Budget[] = [
     userId: "demo",
     categoryId: "cat-groceries",
     name: null,
-    amount: 5_000, // $50 — actual is ~$70, overspent
+    amount: 5_000, // $50 budget, actual is ~$70, overspent
     currency: "USD",
     period: "monthly",
     startsOn: "2026-07-01",

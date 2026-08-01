@@ -21,7 +21,7 @@ import { cn } from "@/lib/utils";
  *
  * The account may be changed, but only to one holding the same currency. An account
  * is single-currency and the amount is denominated in it, so moving a transaction
- * between currencies would silently reinterpret the figure — 12,000 riel becoming
+ * between currencies would silently reinterpret the figure: 12,000 riel becoming
  * $120.
  */
 

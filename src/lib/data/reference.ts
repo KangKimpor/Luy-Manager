@@ -1,8 +1,8 @@
 /**
  * Reference data: categories, profile and settings.
  *
- * Grouped together because they share a lifecycle — seeded on signup, changed
- * rarely, read on almost every page — and because that makes them the natural
+ * Grouped together because they share a lifecycle (seeded on signup, changed
+ * rarely, read on almost every page), and because that makes them the natural
  * candidates for React's per-render `cache`.
  */
 

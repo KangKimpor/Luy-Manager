@@ -5,7 +5,7 @@
  * call them, so every input is parsed rather than trusted. `zod` was already a
  * dependency and unused; this is what it was for.
  *
- * Amounts are validated as major-unit strings — what a person types — and turned
+ * Amounts are validated as major-unit strings (what a person types) and turned
  * into `Money` by the money layer, never by a schema. Keeping the conversion in
  * one place is the whole reason `fromMajor` and `parseAmount` exist, and a
  * `z.coerce.number()` on a money field would quietly reintroduce float parsing.
@@ -78,7 +78,7 @@ export const transactionInputSchema = z.object({
   location: optionalTextSchema,
   /**
    * The individual currencies handed over for one payment (PRD Section 7).
-   * Optional, and when present it must reconcile to the transaction amount —
+   * Optional, and when present it must reconcile to the transaction amount,
    * checked in the action, since that needs the exchange rate.
    */
   tenders: z

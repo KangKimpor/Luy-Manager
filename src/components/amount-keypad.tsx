@@ -16,8 +16,8 @@ import { cn } from "@/lib/utils";
  * and no way to produce a value that needs validating.
  *
  * The keying rules live in the pure functions below rather than in component
- * state, because they are currency rules — riel has no subunit, dollars stop at
- * two places — and rules about money belong somewhere they can be tested.
+ * state, because they are currency rules (riel has no subunit, dollars stop at
+ * two places), and rules about money belong somewhere they can be tested.
  */
 
 export const KEYPAD_KEYS = [

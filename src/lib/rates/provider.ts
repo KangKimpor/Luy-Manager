@@ -10,7 +10,7 @@
  * with no API, and the host rejects programmatic requests outright (HTTP 403).
  * Scraping it would be a silent single point of failure. So the primary source
  * is a keyless commercial aggregator with a second, independent aggregator
- * behind it, and manual entry always remains available as an override — which
+ * behind it, and manual entry always remains available as an override, which
  * for a personal-finance product is often the truest figure anyway, because the
  * rate that matters is the one the user's own bank applied.
  *
