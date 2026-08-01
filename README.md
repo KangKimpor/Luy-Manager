@@ -147,11 +147,21 @@ curl -H "Authorization: Bearer $CRON_SECRET" http://localhost:3000/api/rates/ref
 A non-2xx means the sync failed; the response body names every provider tried and
 states which rate users are still being served, and how old it is.
 
-## Claude skill
+## Claude skills
 
-`.claude/skills/luy-manager-money/` packages the money-handling rules above as
-a [Claude Agent Skill](https://claude.com/docs/skills/how-to). Claude Code picks
-it up automatically in this repo. It also carries a working scanner:
+Three [Claude Agent Skills](https://claude.com/docs/skills/how-to) live in
+`.claude/skills/`, picked up automatically in this repo:
+
+| Skill | Read when |
+| --- | --- |
+| `luy-manager-project` | Working anywhere in this repository. Layer boundaries, migration and RLS workflow, design tokens, CI gates, plus `references/codebase-map.md` |
+| `luy-manager-money` | Touching any amount, currency, split or exchange rate |
+| `luy-manager-telegram` | Touching the bot, or any webhook that writes without a session |
+
+`multi-currency-money/` is a copy of the money skill under its earlier name,
+differing only in its frontmatter. Edit one and the other silently disagrees.
+
+The money skill carries a working scanner:
 
 ```bash
 node .claude/skills/luy-manager-money/scripts/check-money-safety.mjs src supabase
@@ -159,15 +169,31 @@ node .claude/skills/luy-manager-money/scripts/check-money-safety.mjs src supabas
 
 Exits non-zero on a high-confidence finding, so it works as a CI gate.
 
-To use it on claude.ai, zip the skill directory and upload it under
-Settings > Capabilities:
+### Uploading to claude.ai
 
-```powershell
-Compress-Archive -Path .claude/skills/luy-manager-money -DestinationPath dist/luy-manager-money.zip
+claude.ai takes one skill per upload and truncates the description at 200
+characters. All three descriptions here are longer than that, because the Agent
+Skills specification allows 1024 and a clone reads them from disk where the limit
+does not apply. Uploading a skill directory as-is therefore costs you the tail of
+the description, which is the part that says when to use it.
+
+So build the bundle instead. It joins all three skills, and the reference files
+they cite, into one skill with a 197-character description:
+
+```bash
+npm run skill:bundle
 ```
 
-The archive root must be the `luy-manager-money/` directory itself, not its
-loose contents.
+That writes `dist/luy-manager/` and `dist/luy-manager.zip`. Upload the zip under
+Settings > Capabilities. The archive root is the `luy-manager/` directory itself,
+which is what the uploader expects, and `npm run skill:check` validates the
+sources without writing anything.
+
+`dist/` is gitignored: the bundle is generated, so the skills under
+`.claude/skills/` stay the only copy anyone edits. The build fails rather than
+emitting a broken skill if a source renames a reference, if two sources collide,
+if a link would point outside the upload, or if the description grows past 200
+characters or stops being valid YAML.
 
 ## Attribution
 
