@@ -1,12 +1,7 @@
-"use client";
-
-import { ArrowRightLeft, Pencil, Send, Trash2, Undo2 } from "lucide-react";
-import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
+import { ArrowRightLeft, Send } from "lucide-react";
 
 import { CurrencyBadge, MoneyAmount } from "@/components/money-amount";
-import { deleteTransaction, restoreTransaction } from "@/app/actions/transactions";
+import { TransactionRowActions } from "@/components/transaction-row-actions";
 import type { AccountBalance, Category, Transaction } from "@/lib/domain/types";
 import { money } from "@/lib/money";
 import { CHART_COLORS } from "@/lib/theme";
@@ -67,39 +62,14 @@ export function TransactionRow({
   /** Renders the restore affordance instead of delete. */
   deleted?: boolean;
 }) {
-  const router = useRouter();
-  const [pending, startTransition] = useTransition();
-  const [error, setError] = useState<string | null>(null);
-
   const category = transaction.categoryId ? categories[transaction.categoryId] : undefined;
   const account = accounts[transaction.accountId];
   const amount = money(transaction.amount, transaction.currency);
   const route = transferRoute(transaction, transactions, accounts);
   const isTransfer = route !== null;
 
-  function remove() {
-    const message = isTransfer
-      ? "Delete this transfer? Both legs will be removed, since one alone would leave an account short."
-      : "Delete this transaction?";
-    if (!window.confirm(message)) return;
-
-    startTransition(async () => {
-      const result = await deleteTransaction(transaction.id);
-      if (!result.ok) setError(result.error);
-      else router.refresh();
-    });
-  }
-
-  function restore() {
-    startTransition(async () => {
-      const result = await restoreTransaction(transaction.id);
-      if (!result.ok) setError(result.error);
-      else router.refresh();
-    });
-  }
-
   return (
-    <li className={cn("flex items-center gap-3 py-2.5", pending && "opacity-50")}>
+    <li className="flex items-center gap-3 py-2.5">
       <span
         aria-hidden="true"
         className={cn(
@@ -135,11 +105,6 @@ export function TransactionRow({
             <Send size={11} aria-label="Added via Telegram" className="text-brand" />
           ) : null}
         </p>
-        {error ? (
-          <p role="alert" className="text-outflow mt-0.5 text-xs">
-            {error}
-          </p>
-        ) : null}
       </div>
 
       <div className="flex shrink-0 flex-col items-end gap-0.5">
@@ -155,42 +120,11 @@ export function TransactionRow({
       </div>
 
       {editable ? (
-        <div className="flex shrink-0 items-center gap-0.5">
-          {deleted ? (
-            <button
-              type="button"
-              onClick={restore}
-              disabled={pending}
-              aria-label="Restore this transaction"
-              className="text-ink-faint hover:text-inflow flex size-8 items-center justify-center disabled:opacity-40"
-            >
-              <Undo2 size={14} aria-hidden="true" />
-            </button>
-          ) : (
-            <>
-              {/* A transfer leg cannot be edited as a plain transaction: its
-                  counterpart would stop balancing. Delete and re-enter instead. */}
-              {isTransfer ? null : (
-                <Link
-                  href={`/transactions/${transaction.id}/edit`}
-                  aria-label="Edit this transaction"
-                  className="text-ink-faint hover:text-ink flex size-8 items-center justify-center"
-                >
-                  <Pencil size={14} aria-hidden="true" />
-                </Link>
-              )}
-              <button
-                type="button"
-                onClick={remove}
-                disabled={pending}
-                aria-label="Delete this transaction"
-                className="text-ink-faint hover:text-outflow flex size-8 items-center justify-center disabled:opacity-40"
-              >
-                <Trash2 size={14} aria-hidden="true" />
-              </button>
-            </>
-          )}
-        </div>
+        <TransactionRowActions
+          transactionId={transaction.id}
+          isTransfer={isTransfer}
+          deleted={deleted}
+        />
       ) : null}
     </li>
   );

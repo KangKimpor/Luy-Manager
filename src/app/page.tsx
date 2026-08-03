@@ -2,7 +2,7 @@ import Link from "next/link";
 
 import { CurrencyToggle } from "@/components/currency-toggle";
 import { BudgetSummaryCard } from "@/components/dashboard/budget-summary-card";
-import { CashFlowChart } from "@/components/dashboard/cash-flow-chart";
+import { DeferredCashFlowChart } from "@/components/dashboard/deferred-cash-flow-chart";
 import { CategoryBreakdown } from "@/components/dashboard/category-breakdown";
 import { SummaryCards } from "@/components/dashboard/summary-cards";
 import { MonthStepper } from "@/components/month-stepper";
@@ -106,7 +106,7 @@ export default async function DashboardPage(props: {
         <BudgetSummaryCard progress={budgetProgress} categories={categories} />
       ) : null}
 
-      <CashFlowChart series={series} currency={displayCurrency} />
+      <DeferredCashFlowChart series={series} currency={displayCurrency} />
 
       <CategoryBreakdown totals={categoryTotals} categories={categories} />
 
