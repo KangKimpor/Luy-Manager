@@ -3,7 +3,7 @@ import { ArrowDownRight, ArrowUpRight } from "lucide-react";
 import { CurrencyToggle } from "@/components/currency-toggle";
 import { CategoryBreakdown } from "@/components/dashboard/category-breakdown";
 import { CurrencyBadge, MoneyAmount } from "@/components/money-amount";
-import { NetWorthTrend } from "@/components/reports/net-worth-trend";
+import { DeferredNetWorthTrend } from "@/components/reports/deferred-net-worth-trend";
 import { Card, CardBody, CardHeader, CardTitle } from "@/components/ui/card";
 import { listAccountBalances } from "@/lib/data/accounts";
 import { categoryLookup } from "@/lib/data/reference";
@@ -146,7 +146,7 @@ export default async function ReportsPage() {
           <CardTitle>Net worth over time</CardTitle>
         </CardHeader>
         <CardBody>
-          <NetWorthTrend points={trend} currency={displayCurrency} />
+          <DeferredNetWorthTrend points={trend} currency={displayCurrency} />
           <p className="text-ink-faint mt-2 text-xs">
             Reconstructed backwards from today&apos;s balances, so it ends at the
             figure on your accounts page.

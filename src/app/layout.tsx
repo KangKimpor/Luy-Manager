@@ -1,5 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Inter, Noto_Sans_Khmer } from "next/font/google";
+import { Analytics } from "@vercel/analytics/next";
+import { SpeedInsights } from "@vercel/speed-insights/next";
 
 import { BottomNav } from "@/components/bottom-nav";
 import { ServiceWorkerRegistration } from "@/components/service-worker";
@@ -87,6 +89,8 @@ export default function RootLayout({
 
         <BottomNav />
         <ServiceWorkerRegistration />
+        <Analytics />
+        <SpeedInsights />
       </body>
     </html>
   );
