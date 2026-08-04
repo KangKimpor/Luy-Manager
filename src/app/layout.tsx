@@ -39,6 +39,15 @@ export const metadata: Metadata = {
     "Track USD and KHR side by side. Accounts, budgets and spending built for Cambodia.",
   manifest: "/manifest.webmanifest",
   appleWebApp: { capable: true, statusBarStyle: "default", title: "Luy Manager" },
+  icons: {
+    // Falls back to /favicon.ico automatically; this adds the sizes iOS and
+    // desktop bookmark bars actually ask for.
+    icon: [
+      { url: "/icons/icon-192.png", sizes: "192x192", type: "image/png" },
+      { url: "/icons/icon-512.png", sizes: "512x512", type: "image/png" },
+    ],
+    apple: "/icons/apple-touch-icon.png",
+  },
 };
 
 export const viewport: Viewport = {

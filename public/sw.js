@@ -26,7 +26,12 @@ const VERSION = "luy-v1";
 const SHELL_CACHE = `${VERSION}-shell`;
 
 /** Kept minimal on purpose: anything listed here must exist or install fails. */
-const SHELL_ASSETS = ["/icon.svg", "/manifest.webmanifest"];
+const SHELL_ASSETS = [
+  "/icon.svg",
+  "/icons/icon-192.png",
+  "/icons/icon-512.png",
+  "/manifest.webmanifest",
+];
 
 /** Shown when a navigation cannot reach the network. Declared before the
  * listeners that use it, so reading top to bottom works. */
