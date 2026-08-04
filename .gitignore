@@ -13,6 +13,13 @@
 # testing
 /coverage
 
+# android (TWA wrapper) — keystore is a secret, build output is regeneratable
+android/*.keystore
+android/*.apk
+android/*.aab
+android/.bubblewrap/
+android/app/
+
 # next.js
 /.next/
 /out/

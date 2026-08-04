@@ -1,0 +1,55 @@
+{
+  "packageId": "com.luymanager.app",
+  "host": "luy-manager.vercel.app",
+  "name": "Luy Manager: Cambodia Personal Finance",
+  "launcherName": "Luy Manager",
+  "display": "standalone",
+  "themeColor": "#3145bb",
+  "navigationColor": "#3145bb",
+  "navigationColorDark": "#3145bb",
+  "navigationDividerColor": "#3145bb",
+  "backgroundColor": "#f9f9ff",
+  "enableNotifications": false,
+  "startUrl": "/",
+  "iconUrl": "https://luy-manager.vercel.app/icons/icon-512.png",
+  "maskableIconUrl": "https://luy-manager.vercel.app/icons/icon-maskable-512.png",
+  "monochromeIconUrl": "",
+  "shortcuts": [
+    {
+      "name": "Add transaction",
+      "shortName": "Add",
+      "url": "/add",
+      "chosenIconUrl": "https://luy-manager.vercel.app/icons/icon-192.png"
+    }
+  ],
+  "orientation": "portrait",
+  "fallbackType": "customtabs",
+  "features": {},
+  "alphaDependencies": {
+    "enabled": false
+  },
+  "enableSiteSettingsShortcut": true,
+  "isChromeOSOnly": false,
+  "isMetaQuest": false,
+  "fullScopeUrl": "/",
+  "minSdkVersion": 21,
+  "shareTarget": {
+    "action": "",
+    "method": "GET",
+    "enctype": "application/x-www-form-urlencoded",
+    "params": {
+      "title": "",
+      "text": "",
+      "url": ""
+    }
+  },
+  "generatorApp": "cli",
+  "webManifestUrl": "https://luy-manager.vercel.app/manifest.webmanifest",
+  "splashScreenFadeOutDuration": 300,
+  "signingKey": {
+    "path": "./android.keystore",
+    "alias": "android"
+  },
+  "appVersionName": "1.0.0",
+  "appVersionCode": 1
+}
