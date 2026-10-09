@@ -173,9 +173,6 @@ Three [Claude Agent Skills](https://claude.com/docs/skills/how-to) live in
 | `luy-manager-money` | Touching any amount, currency, split or exchange rate |
 | `luy-manager-telegram` | Touching the bot, or any webhook that writes without a session |
 
-`multi-currency-money/` is a copy of the money skill under its earlier name,
-differing only in its frontmatter. Edit one and the other silently disagrees.
-
 The money skill carries a working scanner:
 
 ```bash

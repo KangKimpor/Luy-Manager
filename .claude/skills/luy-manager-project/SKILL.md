@@ -217,7 +217,7 @@ node .claude/skills/luy-manager-money/scripts/check-money-safety.mjs src supabas
 npm run build
 ```
 
-The money scanner **baseline is 7 findings: 0 high, 1 medium, 6 low.** Exit code
+The money scanner **baseline is 6 findings: 0 high, 0 medium, 6 low.** Exit code
 is 0 unless something high appears, so compare the count. If you added one, fix it
 rather than accepting a new baseline. The usual cause is arithmetic on `.minor`
 inside JSX; resolve a share to a plain ratio first, the way `CategoryTotal.share`

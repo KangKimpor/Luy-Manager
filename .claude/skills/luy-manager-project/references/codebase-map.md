@@ -139,7 +139,7 @@ delivery into a redirect to `/login`.
 **Forms:** `account-form.tsx`, `budget-form.tsx`, `manual-rate-form.tsx`,
 `login-form.tsx`.
 
-**Charts:** `dashboard/cash-flow-chart.tsx`, `dashboard/category-breakdown.tsx`,
+**Charts:** `dashboard/category-breakdown.tsx`,
 `dashboard/summary-cards.tsx`, `dashboard/budget-summary-card.tsx`,
 `reports/net-worth-trend.tsx`.
 
@@ -180,11 +180,3 @@ jsdom (`*.test.tsx`), rendering:
 | `luy-manager-project` | Working anywhere in this repository |
 | `luy-manager-money` | Touching an amount, currency, split or rate |
 | `luy-manager-telegram` | Touching the bot or any webhook |
-| `multi-currency-money` | Nothing. See below |
-
-`multi-currency-money/` is a byte-for-byte copy of `luy-manager-money/` except for
-the `name` in its frontmatter, and both were added in the same commit. CI and the
-README reference only `luy-manager-money`, so this is almost certainly a leftover
-from renaming the skill. Verified by checksum, not assumed. Edit one and the other
-silently disagrees, so if you touch the money skill, either update both or delete
-this copy.

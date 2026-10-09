@@ -32,5 +32,5 @@ The short version, if you read nothing else:
 - Never edit an applied migration. Add the next numbered file.
 - Colours come from the tokens in `src/app/globals.css`, never a hex literal.
 - Before pushing: `npm run typecheck && npm run lint && npm test && npm run build`,
-  plus the money scanner. Its baseline is 7 findings, 0 high.
+  plus the money scanner. Its baseline is 6 findings, 0 high, 0 medium.
 - No em dashes or en dashes, anywhere.

@@ -5,11 +5,8 @@
 // split across three skills plus the product spec. This script joins them into
 // dist/luy-manager/ and zips it, so the upload is one file.
 //
-// It generates rather than duplicates on purpose. .claude/skills/multi-currency-money
-// is a hand copy of the money skill that now has to be kept in sync by memory, and the
-// README warns that editing one silently disagrees with the other. A fourth copy of the
-// same prose would repeat that at four times the size. The sources stay the single
-// truth; this output is disposable and gitignored.
+// Generating the bundle keeps each rule in one source skill, so fixes cannot drift
+// between hand-maintained copies. This output is disposable and gitignored.
 //
 // Usage: node scripts/build-skill-bundle.mjs [--check]
 //   --check validates the sources and the composition without writing anything.
