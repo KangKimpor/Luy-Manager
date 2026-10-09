@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { requireUserId } from "@/lib/auth";
 import { dataContext } from "@/lib/data/client";
 import { isZero } from "@/lib/money";
+import { cambodiaDate } from "@/lib/period";
 import { budgetInputSchema, firstIssue, parseMoney, uuidSchema } from "@/lib/validation";
 
 import type { ActionResult } from "./transactions";
@@ -68,7 +69,7 @@ export async function createBudget(
         amount: amount.minor,
         currency: parsed.data.currency,
         period: parsed.data.period,
-        starts_on: parsed.data.startsOn ?? new Date().toISOString().slice(0, 10),
+        starts_on: parsed.data.startsOn ?? cambodiaDate(),
         rollover: parsed.data.rollover ?? false,
         alert_threshold: parsed.data.alertThreshold ?? 0.8,
       })

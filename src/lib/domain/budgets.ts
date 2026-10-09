@@ -25,6 +25,7 @@ import {
 
 import { amountInBase } from "./transactions";
 import type { Budget, BudgetPeriod, Transaction } from "./types";
+import { cambodiaDateParts, cambodiaMidnight } from "@/lib/period";
 
 export interface DateWindow {
   from: Date;
@@ -42,13 +43,14 @@ const MONTHS_PER_PERIOD: Record<Exclude<BudgetPeriod, "weekly">, number> = {
 };
 
 function startOfDay(date: Date): Date {
-  return new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  const { year, month, day } = cambodiaDateParts(date);
+  return cambodiaMidnight(year, month, day);
 }
 
-/** Parse a YYYY-MM-DD as a local date, not UTC, so the window does not shift. */
+/** A budget date starts at midnight in Cambodia, regardless of deployment zone. */
 function parseIsoDate(iso: string): Date {
   const [year, month, day] = iso.split("-").map(Number);
-  return new Date(year, (month ?? 1) - 1, day ?? 1);
+  return cambodiaMidnight(year, (month ?? 1) - 1, day ?? 1);
 }
 
 /**
@@ -59,19 +61,10 @@ function parseIsoDate(iso: string): Date {
  * few days. Clamping to the 28th keeps the anchor stable.
  */
 function addMonthsClamped(date: Date, months: number): Date {
-  const targetMonth = date.getMonth() + months;
-  const candidate = new Date(date.getFullYear(), targetMonth, 1);
-  const daysInTarget = new Date(
-    candidate.getFullYear(),
-    candidate.getMonth() + 1,
-    0,
-  ).getDate();
-
-  return new Date(
-    candidate.getFullYear(),
-    candidate.getMonth(),
-    Math.min(date.getDate(), daysInTarget),
-  );
+  const anchor = cambodiaDateParts(date);
+  const candidate = cambodiaDateParts(cambodiaMidnight(anchor.year, anchor.month + months, 1));
+  const daysInTarget = cambodiaDateParts(cambodiaMidnight(candidate.year, candidate.month + 1, 0)).day;
+  return cambodiaMidnight(candidate.year, candidate.month, Math.min(anchor.day, daysInTarget));
 }
 
 function addPeriods(anchor: Date, period: BudgetPeriod, count: number): Date {
@@ -121,9 +114,9 @@ function estimateElapsedMonthPeriods(
   today: Date,
   period: Exclude<BudgetPeriod, "weekly">,
 ): number {
-  const months =
-    (today.getFullYear() - anchor.getFullYear()) * 12 +
-    (today.getMonth() - anchor.getMonth());
+  const first = cambodiaDateParts(anchor);
+  const current = cambodiaDateParts(today);
+  const months = (current.year - first.year) * 12 + (current.month - first.month);
 
   return Math.max(0, Math.floor(months / MONTHS_PER_PERIOD[period]));
 }

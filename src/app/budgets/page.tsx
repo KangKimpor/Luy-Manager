@@ -1,4 +1,4 @@
-import { Plus } from "lucide-react";
+import { Plus, Target } from "lucide-react";
 import Link from "next/link";
 
 import { BudgetRowActions } from "@/components/budget-row-actions";
@@ -11,6 +11,7 @@ import { categoryLookup } from "@/lib/data/reference";
 import { listTransactionsInRange } from "@/lib/data/transactions";
 import { readDisplayCurrency } from "@/lib/display-currency";
 import { summarizeBudgets, totalRemaining } from "@/lib/domain/budgets";
+import { absolute } from "@/lib/money";
 import { trailingMonths } from "@/lib/period";
 import { loadUsdKhrRate } from "@/lib/rates/repository";
 import { CHART_COLORS } from "@/lib/theme";
@@ -35,11 +36,9 @@ const TONE = {
 } as const;
 
 export default async function BudgetsPage() {
-  // Two months covers any anchor day for weekly, monthly and quarterly windows
-  // that overlap today. A quarterly or yearly budget's full window is longer, but
-  // only spending inside the current window counts and `spentForBudget` filters to
-  // it, so this is a bound on what needs loading, not on what is measured.
-  const window = trailingMonths(4);
+  // Annual budgets can begin in the previous year's calendar month. A thirteen
+  // month bound includes the full period, including a mid-month anchor day.
+  const window = trailingMonths(13);
 
   const [displayCurrency, { rate }, budgets, transactions, categories] = await Promise.all([
     readDisplayCurrency(),
@@ -52,9 +51,11 @@ export default async function BudgetsPage() {
   const progress = summarizeBudgets(budgets, transactions, rate);
   const remaining = totalRemaining(progress, displayCurrency, rate);
   const editable = !isDemoMode();
+  const categoryBudgetCount = progress.filter((entry) => entry.budget.categoryId !== null).length;
 
   return (
-    <div className="mx-auto max-w-4xl space-y-6">
+    <div className="page-enter mx-auto max-w-4xl space-y-5 sm:space-y-6">
+      <p className="text-sm leading-relaxed text-ink-muted">Give your spending a little direction.</p>
       {/*
         One summary figure, explicitly labelled as a conversion.
 
@@ -63,15 +64,15 @@ export default async function BudgetsPage() {
         a number that means nothing. Budgets here can be set in either currency, so
         a combined total only exists once converted, and the label has to say so.
       */}
-      {progress.length > 0 ? (
-        <Card className="p-4">
-          <div className="flex items-baseline justify-between gap-2">
-            <span className="text-sm font-medium text-ink-muted">Left to spend</span>
-            <span className="text-ink-faint text-xs">in {displayCurrency}</span>
+      {categoryBudgetCount > 0 ? (
+        <Card className="hero-orbit border-0 bg-ink p-6 text-surface sm:p-8">
+          <div className="relative flex items-center justify-between gap-2">
+            <span className="text-sm text-surface/70">Left in category budgets</span>
+            <Target size={20} aria-hidden="true" className="text-surface/60" />
           </div>
-          <MoneyAmount amount={remaining} colorBySign className="text-headline-lg mt-1 block" />
-          <p className="text-body-md text-ink-muted">
-            Converted total across {progress.length} budget{progress.length === 1 ? "" : "s"}
+          <MoneyAmount amount={remaining} className="relative mt-3 block text-[clamp(1.9rem,7.5vw,3rem)] leading-tight font-semibold tracking-tight" />
+          <p className="relative mt-3 text-xs text-surface/60">
+            {categoryBudgetCount} category budget{categoryBudgetCount === 1 ? "" : "s"}, converted to {displayCurrency}
           </p>
         </Card>
       ) : null}
@@ -79,7 +80,7 @@ export default async function BudgetsPage() {
       {editable ? (
         <Link
           href="/budgets/new"
-          className={buttonVariants({ variant: "secondary", size: "full" })}
+          className={cn(buttonVariants({ variant: "secondary", size: "full" }), "card-interactive")}
         >
           <Plus size={16} aria-hidden="true" />
           Add a budget
@@ -88,15 +89,16 @@ export default async function BudgetsPage() {
 
       {progress.length === 0 ? (
         <Card>
-          <CardBody className="space-y-2 text-center">
-            <p className="text-ink text-sm font-semibold">No budgets yet</p>
+          <CardBody className="space-y-3 py-8 text-center">
+            <span className="mx-auto flex size-12 items-center justify-center rounded-2xl bg-brand-soft text-brand"><Target size={22} aria-hidden="true" /></span>
+            <p className="text-sm font-semibold text-ink">Make room for what matters</p>
             <p className="text-ink-muted text-sm">
               Set a spending limit for a category or for everything.
             </p>
           </CardBody>
         </Card>
       ) : (
-        <ul className="grid gap-4 lg:grid-cols-2">
+        <ul className="stagger-children grid gap-4 lg:grid-cols-2">
           {progress.map((entry) => {
             const tone = TONE[entry.status];
             const name =
@@ -124,14 +126,14 @@ export default async function BudgetsPage() {
                   <CardHeader className="flex items-start gap-3">
                     <span
                       aria-hidden="true"
-                      className="mt-0.5 size-9 shrink-0 rounded-full"
+                      className="mt-0.5 flex size-10 shrink-0 items-center justify-center rounded-2xl"
                       style={{
                         backgroundColor: `${swatch}1f`,
-                        border: `1px solid ${swatch}40`,
+                        color: swatch,
                       }}
-                    />
+                    ><Target size={20} /></span>
                     <div className="min-w-0 flex-1">
-                      <p className="text-numeric-md text-ink truncate">{name}</p>
+                      <p className="truncate text-sm font-semibold text-ink">{name}</p>
                       <p className="text-ink-faint mt-0.5 text-xs capitalize">
                         {entry.budget.period}
                         {entry.budget.categoryId === null ? " · overall cap" : null}
@@ -143,16 +145,10 @@ export default async function BudgetsPage() {
                     ) : null}
                   </CardHeader>
 
-                  <CardBody className="space-y-2">
+                  <CardBody className="space-y-3">
                     <div className="flex items-baseline justify-between gap-2">
-                      <span className="tabular text-lg font-semibold">
-                        <MoneyAmount amount={entry.remaining} />
-                        <span className="text-ink-faint text-sm font-normal">
-                          {" "}
-                          remaining
-                        </span>
-                      </span>
-                      <span className={cn("text-xs font-semibold", tone.label)}>
+                      <div className="min-w-0"><MoneyAmount amount={absolute(entry.remaining)} className={cn("block text-xl font-semibold tracking-tight", entry.status === "over" && "text-outflow")} /><span className="mt-1 block text-xs text-ink-faint">{entry.status === "over" ? "over budget" : "left to spend"}</span></div>
+                      <span className={cn("shrink-0 rounded-full bg-surface-container px-2.5 py-1 text-xs font-semibold", tone.label)}>
                         {Math.round(entry.fraction * 100)}%
                       </span>
                     </div>
@@ -169,14 +165,14 @@ export default async function BudgetsPage() {
                       aria-label={`${name} budget`}
                     >
                       <div
-                        className={cn("h-full rounded-full transition-[width] duration-300", tone.bar)}
+                        className={cn("progress-fill h-full rounded-full", tone.bar)}
                         // Capped so an overspend cannot render wider than its track,
                         // while the percentage beside it still tells the truth.
                         style={{ width: `${Math.min(100, Math.round(entry.fraction * 100))}%` }}
                       />
                     </div>
 
-                    <p className="text-ink-muted text-xs">
+                    <p className="text-xs leading-relaxed text-ink-muted">
                       <MoneyAmount amount={entry.spent} /> of <MoneyAmount amount={entry.limit} /> spent
                       {" · "}
                       {entry.daysRemaining === 0

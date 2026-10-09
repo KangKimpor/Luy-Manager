@@ -7,11 +7,8 @@
  * PRD Section 14: colour, type and elevation defined once, consumed everywhere.
  * Tailwind v4 takes its config from CSS, so @theme is the config.
  *
- * Values come from the Stitch design pass, which derived a Material 3 style
- * palette from the original brand indigo. The token *names* here stay semantic
- * rather than Material's role names (`primary`, `on-surface-variant`), because
- * every existing component already reads `brand`, `ink` and `inflow`, and a
- * rename would touch every file without changing a pixel.
+ * Warm neutral surfaces and deep teal keep balances, actions and money direction
+ * distinct. Semantic names let every screen share the same palette.
  */
 
 @theme {
@@ -39,41 +36,40 @@
    * a white page from reading as one undifferentiated sheet.
    */
   --color-surface: #ffffff;
-  --color-surface-muted: #f6f7f9;
+  --color-surface-muted: #f4f7f5;
   --color-surface-raised: #ffffff;
-  --color-surface-container-low: #f1f3f7;
-  --color-surface-container: #eceef3;
-  --color-surface-container-high: #e5e8ef;
-  --color-surface-variant: #e5e7eb;
+  --color-surface-container-low: #eef3f0;
+  --color-surface-container: #e9efeb;
+  --color-surface-container-high: #dce7e1;
+  --color-surface-variant: #dfe8e4;
 
-  --color-border-subtle: #d1d5df;
-  --color-outline: #697386;
+  --color-border-subtle: #c7d6d0;
+  --color-outline: #687d80;
 
   /* Text. */
-  --color-ink: #172033;
-  --color-ink-muted: #4b5568;
-  --color-ink-faint: #697386;
+  --color-ink: #142c32;
+  --color-ink-muted: #53686c;
+  --color-ink-faint: #687d80;
 
-  /* Brand. Deep indigo reads as financial software without being corporate. */
-  --color-brand: #3145bb;
-  --color-brand-strong: #2338af;
-  --color-brand-container: #4055c8;
-  --color-brand-soft: #eef0fc;
-  --color-brand-fixed: #dee0ff;
+  --color-brand: #087f78;
+  --color-brand-strong: #086660;
+  --color-brand-container: #0b9488;
+  --color-brand-soft: #e3f3ee;
+  --color-brand-fixed: #bce5d7;
 
   /* Semantic money colours. Income green, expense red. */
-  --color-inflow: #006e2d;
-  --color-inflow-soft: #e5f6ed;
-  --color-outflow: #ba1a1a;
-  --color-outflow-soft: #ffdad6;
+  --color-inflow: #187448;
+  --color-inflow-soft: #e7f5ec;
+  --color-outflow: #bb493c;
+  --color-outflow-soft: #fcece8;
 
   /*
    * Warning, for the one state that is neither good nor an error: a budget
    * nearing its limit, and an exchange rate old enough that every converted
    * total on screen is quietly wrong.
    */
-  --color-warning: #8a5000;
-  --color-warning-soft: #ffeeda;
+  --color-warning: #8b5a14;
+  --color-warning-soft: #faf0dc;
 
   /*
    * Currency accents.
@@ -83,10 +79,10 @@
    * look like a gain. Blue for USD and warm orange for KHR keeps "which currency"
    * and "which direction" as two separate visual questions.
    */
-  --color-usd: #2338af;
-  --color-usd-soft: #eef0fc;
-  --color-khr: #a3480a;
-  --color-khr-soft: #fdeee2;
+  --color-usd: #386a92;
+  --color-usd-soft: #eaf2fa;
+  --color-khr: #946126;
+  --color-khr-soft: #faf0dd;
 
   /*
    * Type scale.
@@ -128,10 +124,10 @@
   --text-label-caps--font-weight: 600;
 
   /* Elevation. One soft level for cards, plus a lifted level for the centre action. */
-  --shadow-card: 0 2px 8px rgb(16 20 28 / 0.025);
-  --shadow-header: 0 1px 8px rgb(0 0 0 / 0.04);
-  --shadow-nav: 0 -1px 8px rgb(0 0 0 / 0.04);
-  --shadow-fab: 0 4px 12px rgb(76 95 213 / 0.4);
+  --shadow-card: 0 4px 20px rgb(20 44 50 / 0.035);
+  --shadow-header: 0 1px 12px rgb(20 44 50 / 0.03);
+  --shadow-nav: 0 -4px 24px rgb(20 44 50 / 0.06);
+  --shadow-fab: 0 6px 18px rgb(8 127 120 / 0.27);
 
   --radius-card: 1.5rem;
   --radius-panel: 1.5rem;
@@ -150,11 +146,14 @@
   html {
     /* Stops iOS Safari zooming when a numeric keypad opens on the amount field. */
     -webkit-text-size-adjust: 100%;
+    scroll-padding-top: calc(var(--spacing-appbar) + env(safe-area-inset-top, 0px) + 1rem);
   }
 
   body {
     background-color: var(--color-surface-muted);
     color: var(--color-ink);
+    min-height: 100svh;
+    overflow-x: clip;
   }
 
   /*
@@ -216,6 +215,7 @@
     transition: border-color 150ms, box-shadow 150ms;
   }
   input:focus, select:focus, textarea:focus { border-color: var(--color-brand); }
+  input, select, textarea { scroll-margin-block: 7rem; }
   button:not(:disabled):active { transform: scale(0.97); }
   button { transition-duration: 150ms; }
   summary { list-style: none; }
@@ -232,4 +232,53 @@ body:has(.login-page) .app-main {
   margin-inline: auto;
   max-width: 30rem;
   padding-top: 3rem !important;
+}
+
+/* Transform and opacity keep motion off the layout path on mobile Safari. */
+.page-enter { animation: page-in 360ms cubic-bezier(0.2, 0.7, 0.2, 1) both; }
+.stagger-children > * { animation: item-in 420ms cubic-bezier(0.2, 0.7, 0.2, 1) backwards; }
+.stagger-children > :nth-child(2) { animation-delay: 45ms; }
+.stagger-children > :nth-child(3) { animation-delay: 90ms; }
+.stagger-children > :nth-child(4) { animation-delay: 135ms; }
+.stagger-children > :nth-child(5) { animation-delay: 180ms; }
+.stagger-children > :nth-child(n+6) { animation-delay: 220ms; }
+.card-interactive { transition: transform 200ms ease, box-shadow 200ms ease, border-color 200ms ease; }
+.card-interactive:active { transform: scale(0.985); }
+.progress-fill { transform-origin: left; animation: progress-in 650ms cubic-bezier(0.2, 0.7, 0.2, 1) both; }
+.nav-icon { transition: transform 220ms cubic-bezier(0.2, 0.7, 0.2, 1), background-color 220ms ease; }
+[aria-current="page"] .nav-icon { animation: nav-in 300ms ease-out; }
+.form-enter { animation: item-in 240ms ease-out backwards; }
+details[open] > :not(summary) { animation: item-in 220ms ease-out; }
+details summary svg { transition: transform 200ms ease; }
+details[open] summary svg { transform: rotate(180deg); }
+.hero-orbit { position: relative; isolation: isolate; overflow: hidden; }
+.hero-orbit::before, .hero-orbit::after {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  width: 19rem;
+  height: 19rem;
+  border-radius: 50%;
+  pointer-events: none;
+  border: 1px solid color-mix(in srgb, var(--color-brand-fixed) 15%, transparent);
+  right: -8rem;
+  top: -9rem;
+  animation: orbit-drift 10s ease-in-out 2;
+}
+.hero-orbit::after { right: -4rem; top: -5rem; animation-delay: -3s; }
+.skeleton { background: var(--color-surface-container); animation: skeleton-fade 1.4s ease-in-out infinite alternate; }
+@media (hover: hover) and (pointer: fine) {
+  .card-interactive:hover { transform: translateY(-3px); box-shadow: 0 10px 28px rgb(20 44 50 / 0.07); border-color: var(--color-border-subtle); }
+}
+@keyframes page-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes item-in { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes nav-in { 50% { transform: translateY(-3px) scale(1.08); } }
+@keyframes progress-in { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+@keyframes orbit-drift { 50% { transform: translate(-12px, 12px); } }
+@keyframes skeleton-fade { to { opacity: 0.45; } }
+
+@media (max-width: 639px) {
+  /* Unlayered so text-sm utilities cannot bring Safari's focus zoom back. */
+  input:not([type="checkbox"]):not([type="radio"]), select, textarea { font-size: 16px; }
+  .app-main { padding-bottom: calc(var(--spacing-navbar) + env(safe-area-inset-bottom, 0px) + 1.75rem); }
 }

@@ -7,6 +7,7 @@ import { BottomNav } from "@/components/bottom-nav";
 import { ServiceWorkerRegistration } from "@/components/service-worker";
 import { SiteHeader } from "@/components/site-header";
 import { Sidebar } from "@/components/sidebar";
+import { APP_COLORS } from "@/lib/theme";
 
 import "./globals.css";
 
@@ -52,7 +53,7 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: "#3145bb",
+  themeColor: APP_COLORS.background,
   width: "device-width",
   initialScale: 1,
   // Not locking maximumScale: preventing pinch-zoom fails WCAG 1.4.4, and a
@@ -90,7 +91,7 @@ export default function RootLayout({
         */}
         <main
           id="main"
-          className="app-main mx-auto max-w-xl px-5 pb-28 lg:mr-0 lg:ml-60 lg:max-w-none lg:px-10 lg:pb-12 xl:px-14"
+          className="app-main mx-auto min-w-0 max-w-xl px-5 pb-28 lg:mr-0 lg:ml-60 lg:max-w-none lg:px-10 lg:pb-12 xl:px-14"
           style={{
             paddingTop: "calc(var(--spacing-appbar) + env(safe-area-inset-top, 0px) + 1rem)",
           }}

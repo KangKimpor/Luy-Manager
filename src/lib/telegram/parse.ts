@@ -1,4 +1,4 @@
-import { fromMajor, type CurrencyCode, type Money } from "@/lib/money";
+import { parseAmount, type CurrencyCode, type Money } from "@/lib/money";
 
 /**
  * Message parsing for the Telegram bot, PRD Section 9.
@@ -77,6 +77,10 @@ export interface RecordIntent {
   amount: Money;
   /** The words left after removing the verb and the figure, e.g. "coffee". */
   descriptor: string;
+  /** An explicit "from ABA" or "in Cash" must never fall back to another account. */
+  accountHint?: string;
+  /** Frozen only when offering a confirmation, never accepted from message text. */
+  resolvedAccountId?: string;
   confidence: number;
 }
 
@@ -85,6 +89,10 @@ export interface TransferIntent {
   amount: Money;
   fromHint: string;
   toHint: string;
+  /** The actual amount received, for a bank conversion that differs from the quote. */
+  receivedAmount?: Money;
+  resolvedFromId?: string;
+  resolvedToId?: string;
   confidence: number;
 }
 
@@ -96,6 +104,10 @@ export type TelegramIntent =
   | { kind: "confirm"; confidence: number }
   | { kind: "cancel"; confidence: number }
   | { kind: "budget"; confidence: number }
+  | { kind: "accounts"; confidence: number }
+  | { kind: "recent"; confidence: number }
+  | { kind: "rate"; confidence: number }
+  | { kind: "guide"; operation: RecordType | "transfer"; confidence: number }
   | { kind: "summary"; window: "today" | "month"; confidence: number }
   | { kind: "link"; token: string; confidence: number }
   | { kind: "help"; confidence: number }
@@ -134,7 +146,7 @@ function unitFromMarker(marker: string): CurrencyCode {
 }
 
 /** A number with optional thousands separators and up to two decimal places. */
-const NUMBER = /(\d[\d,]*(?:\.\d{1,2})?)/;
+const NUMBER = /((?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d{1,2})?)(?![\d.,])/;
 
 interface AmountMatch {
   amount: Money;
@@ -152,6 +164,11 @@ interface AmountMatch {
  */
 export function extractAmount(text: string): AmountMatch | null {
   const lower = text.toLowerCase();
+
+  // A partial match in "-5", "$5.999" or "5,00" would silently change the
+  // amount. Refuse the entire message rather than extract its valid-looking tail.
+  if (/(?:-\s*\$?\s*\d|\$\s*-\s*\d)/.test(lower)) return null;
+  if (/\d\.\d{3,}|\d,\d{1,2}(?!\d)|\d\.(?!\d)/.test(lower)) return null;
 
   // "$5", "$ 5.25"
   const dollarPrefixed = lower.match(new RegExp(`\\$\\s*${NUMBER.source}`));
@@ -183,12 +200,16 @@ export function extractAmount(text: string): AmountMatch | null {
     consumed: string,
     inferredUnit: boolean,
   ): AmountMatch | null {
-    const major = Number(raw.replace(/,/g, ""));
-    if (!Number.isFinite(major) || major <= 0) return null;
-
-    // fromMajor crosses the minor-unit scale gap and rounds half away from zero,
-    // so "$5" becomes 500 and "12000 riel" becomes 12000, not 1200000.
-    return { amount: fromMajor(major, unit), consumed, inferredUnit };
+    // Riel has no fractional minor unit. Rounding a decimal here would save an
+    // amount the user did not type, so ask them to use a whole riel figure.
+    if (unit === "KHR" && /\.\d*[1-9]/.test(raw)) return null;
+    try {
+      const amount = parseAmount(raw, unit);
+      if (amount.minor <= 0) return null;
+      return { amount, consumed, inferredUnit };
+    } catch {
+      return null;
+    }
   }
 }
 
@@ -211,7 +232,10 @@ function describeRemainder(text: string, consumed: string, verb: RegExp): string
  * which is what makes this exhaustively testable.
  */
 export function parseMessage(input: string): TelegramIntent {
-  const text = input.trim().replace(/\s+/g, " ");
+  const text = input.trim().replace(/\s+/g, " ").replace(
+    /^\/(expense|income|refund|transfer|summary|report|budgets?|accounts?|balance|recent|transactions|rate|undo|cancel|confirm)(?:@\w+)?\b/i,
+    "$1",
+  );
   if (text === "") return { kind: "unknown", text: "", confidence: 1 };
 
   const lower = text.toLowerCase();
@@ -221,7 +245,7 @@ export function parseMessage(input: string): TelegramIntent {
   const start = text.match(/^\/start(?:@\w+)?\s+(\S+)$/i);
   if (start) return { kind: "link", token: start[1], confidence: 1 };
 
-  if (/^\/?(start|help)(@\w+)?$/i.test(lower) || /^\/?what can you do\??$/i.test(lower)) {
+  if (/^\/?(start|help|menu)(@\w+)?$/i.test(lower) || /^\/?what can you do\??$/i.test(lower)) {
     return { kind: "help", confidence: 1 };
   }
 
@@ -231,16 +255,27 @@ export function parseMessage(input: string): TelegramIntent {
     return { kind: "undo", confidence: 1 };
   }
 
-  if (/^(y|yes|yep|yeah|confirm|ok|okay|save|correct)\b/.test(lower)) {
+  if (/^(y|yes|yep|yeah|confirm|ok|okay|save|correct)[.!]?$/i.test(lower)) {
     return { kind: "confirm", confidence: 1 };
   }
 
-  if (/^(n|no|nope|cancel|stop|discard|wrong)\b/.test(lower)) {
+  if (/^(n|no|nope|cancel|stop|discard|wrong)[.!]?$/i.test(lower)) {
     return { kind: "cancel", confidence: 1 };
   }
 
   if (/^\/?(show )?budgets?\b/.test(lower)) {
     return { kind: "budget", confidence: 1 };
+  }
+
+  if (/^(?:show )?(accounts?|balances?)$/.test(lower)) {
+    return { kind: "accounts", confidence: 1 };
+  }
+  if (/^(?:show )?(recent|transactions|history|last transactions)$/.test(lower)) {
+    return { kind: "recent", confidence: 1 };
+  }
+  if (/^(?:exchange )?rate$/.test(lower)) return { kind: "rate", confidence: 1 };
+  if (/^(expense|income|refund|transfer)$/.test(lower)) {
+    return { kind: "guide", operation: lower as RecordType | "transfer", confidence: 1 };
   }
 
   const summary = lower.match(/^\/?(summary|report)\b\s*(today|month|monthly|this month)?/);
@@ -261,17 +296,27 @@ export function parseMessage(input: string): TelegramIntent {
   if (TRANSFER_VERBS.test(lower)) {
     if (!/\bto\b/.test(lower)) return { kind: "unknown", text, confidence: 1 };
 
-    const found = extractAmount(text);
+    const fragments = text.split(/\s+(?:received|receiving|receive)\s+/i);
+    if (fragments.length > 2) return { kind: "unknown", text, confidence: 1 };
+    const [sentText, receivedText] = fragments;
+    const received = receivedText ? extractAmount(receivedText) : null;
+    if (receivedText !== undefined && (!received || received.inferredUnit || receivedText.toLowerCase().trim() !== received.consumed)) {
+      return { kind: "unknown", text, confidence: 1 };
+    }
+    const found = extractAmount(sentText);
     if (!found) return { kind: "unknown", text, confidence: 1 };
 
-    const remainder = text
+    const remainder = sentText
       .toLowerCase()
       .replace(found.consumed, " ")
       .replace(TRANSFER_VERBS, " ")
       .replace(/\s+/g, " ")
       .trim();
 
-    const [fromHint = "", toHint = ""] = remainder.split(/\bto\b/).map((part) => part.trim());
+    const hints = remainder.split(/\bto\b/).map((part) => part.trim());
+    const [rawFrom = "", toHint = ""] = hints;
+    const fromHint = rawFrom.replace(/^from\s+/, "");
+    if (hints.length !== 2) return { kind: "unknown", text, confidence: 1 };
     if (fromHint === "" || toHint === "") {
       return { kind: "unknown", text, confidence: 1 };
     }
@@ -279,11 +324,19 @@ export function parseMessage(input: string): TelegramIntent {
     let confidence = 1;
     if (found.inferredUnit) confidence -= PENALTY_UNIT_GUESS;
 
-    return { kind: "transfer", amount: found.amount, fromHint, toHint, confidence };
+    return { kind: "transfer", amount: found.amount, fromHint, toHint, ...(received ? { receivedAmount: received.amount } : {}), confidence };
   }
 
-  const found = extractAmount(text);
+  const accountMatch = text.match(/\s+(?:from|using|in)\s+(.+)$/i);
+  const recordText = accountMatch ? text.slice(0, accountMatch.index) : text;
+  const recordLower = recordText.toLowerCase();
+  const found = extractAmount(recordText);
   if (!found) return { kind: "unknown", text, confidence: 1 };
+
+  // A message with two figures is not one transaction. Do not quietly save the
+  // first half, while allowing numbers embedded in merchant names such as Nham24.
+  const remainingText = recordLower.replace(found.consumed, " ");
+  if (/(?:^|\s)(?:\$\s*)?\d/.test(remainingText)) return { kind: "unknown", text, confidence: 1 };
 
   // Direction. Refund is checked before income because a refund *is* an inflow but
   // the app models it as its own type, and the more specific reading should win.
@@ -291,13 +344,13 @@ export function parseMessage(input: string): TelegramIntent {
   let verb: RegExp;
   let stated = true;
 
-  if (REFUND_VERBS.test(lower)) {
+  if (REFUND_VERBS.test(recordLower)) {
     type = "refund";
     verb = REFUND_VERBS;
-  } else if (INCOME_VERBS.test(lower)) {
+  } else if (INCOME_VERBS.test(recordLower)) {
     type = "income";
     verb = INCOME_VERBS;
-  } else if (EXPENSE_VERBS.test(lower)) {
+  } else if (EXPENSE_VERBS.test(recordLower)) {
     type = "expense";
     verb = EXPENSE_VERBS;
   } else {
@@ -308,7 +361,7 @@ export function parseMessage(input: string): TelegramIntent {
     stated = false;
   }
 
-  const descriptor = describeRemainder(text, found.consumed, verb);
+  const descriptor = describeRemainder(recordText, found.consumed, verb);
 
   let confidence = 1;
   if (found.inferredUnit) confidence -= PENALTY_UNIT_GUESS;
@@ -321,6 +374,7 @@ export function parseMessage(input: string): TelegramIntent {
     type,
     amount: found.amount,
     descriptor,
+    ...(accountMatch ? { accountHint: accountMatch[1].trim().toLowerCase() } : {}),
     // Clamp so a pile of penalties cannot go negative and read as certainty.
     confidence: Math.max(0, confidence),
   };

@@ -1,3 +1,5 @@
+import { APP_COLORS } from "@/lib/theme";
+
 /**
  * PWA manifest, served from a route handler so the values stay in TypeScript
  * rather than a separate static JSON file that can drift from the app metadata.
@@ -26,8 +28,8 @@ export function GET() {
       // and with the themeColor in layout.tsx. These drifted once already when the
       // palette changed: the installed app kept painting its title bar the old
       // indigo while the browser used the new one.
-      background_color: "#f9f9ff",
-      theme_color: "#3145bb",
+      background_color: APP_COLORS.background,
+      theme_color: APP_COLORS.brand,
       categories: ["finance", "productivity"],
       // Both a scalable "any" icon and PNG rasters: Android's install criteria
       // (and Bubblewrap, which builds the TWA) check for a PNG at 192 and 512,
@@ -69,7 +71,10 @@ export function GET() {
       ],
     },
     {
-      headers: { "Content-Type": "application/manifest+json" },
+      headers: {
+        "Content-Type": "application/manifest+json",
+        "Cache-Control": "public, max-age=0, must-revalidate",
+      },
     },
   );
 }

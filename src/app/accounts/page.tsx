@@ -100,24 +100,27 @@ export default async function AccountsPage() {
   }).filter((group) => group.accounts.length > 0);
 
   return (
-    <div className="mx-auto max-w-4xl space-y-6">
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <p className="text-label-caps text-ink-muted uppercase">Net worth</p>
-          <MoneyAmount amount={summary.netWorth} className="text-headline-lg text-ink block" />
-          {/* ASCII "~": U+2248 is not in any subset this app ships and tofus. */}
-          <p className="text-body-md text-ink-faint">
-            ~ <MoneyAmount amount={equivalent} />
-          </p>
-        </div>
-
-        <CurrencyToggle current={displayCurrency} className="mt-1 shrink-0" />
+    <div className="page-enter mx-auto max-w-4xl space-y-5 sm:space-y-6">
+      <div className="flex items-center justify-between gap-3">
+        <p className="text-sm text-ink-muted">Every account, one clear picture.</p>
+        <CurrencyToggle current={displayCurrency} className="shrink-0" />
       </div>
+
+      <Card className="hero-orbit border-0 bg-ink p-6 text-surface sm:p-8">
+        <p className="relative text-sm text-surface/70">Total net worth</p>
+        <MoneyAmount amount={summary.netWorth} className="relative mt-3 block text-[clamp(1.9rem,7.5vw,3rem)] leading-tight font-semibold tracking-tight" />
+        <p className="relative mt-2 text-sm text-surface/60">~ <MoneyAmount amount={equivalent} /> equivalent</p>
+        <div className="relative mt-6 grid grid-cols-2 gap-4 border-t border-surface/15 pt-4">
+          <div><p className="text-xs text-surface/60">Cash available</p><MoneyAmount amount={summary.cash} className="mt-1 block text-sm font-semibold" /></div>
+          <div><p className="text-xs text-surface/60">Liabilities</p><MoneyAmount amount={summary.liabilities} className="mt-1 block text-sm font-semibold" /></div>
+        </div>
+        <p className="relative mt-4 text-[11px] text-surface/55">Included balances converted to {displayCurrency}</p>
+      </Card>
 
       {accounts.length === 0 ? (
         <Card>
-          <CardBody className="space-y-3 pt-4 text-center">
-            <span className="bg-brand-soft text-brand mx-auto flex size-12 items-center justify-center rounded-full">
+          <CardBody className="space-y-3 py-8 text-center">
+            <span className="mx-auto flex size-12 items-center justify-center rounded-2xl bg-brand-soft text-brand">
               <Wallet size={22} aria-hidden="true" />
             </span>
             <p className="text-ink text-numeric-md">No accounts yet</p>
@@ -134,7 +137,7 @@ export default async function AccountsPage() {
       ) : (
         <Link
           href="/accounts/new"
-          className={buttonVariants({ variant: "secondary", size: "full" })}
+          className={cn(buttonVariants({ variant: "secondary", size: "full" }), "card-interactive")}
         >
           <Plus size={16} aria-hidden="true" />
           Add an account
@@ -145,16 +148,16 @@ export default async function AccountsPage() {
         const Icon = GROUP_ICONS[group.type];
 
         return (
-          <section key={group.type} className="space-y-2">
+          <section key={group.type} className="page-enter space-y-3">
             {/*
               Group heading sits outside the card, so the card holds only rows and
               the eye can run down a single column of balances uninterrupted.
             */}
             <div className="flex items-baseline justify-between gap-2 px-1">
-              <h2 className="text-label-caps text-ink-muted uppercase">
+              <h2 className="text-sm font-semibold text-ink-muted">
                 {ACCOUNT_TYPE_LABELS[group.type]}
               </h2>
-              <span className="text-numeric-md text-ink">
+              <span className="text-sm font-semibold text-ink">
                 {group.isMixed ? <span className="text-ink-faint">~ </span> : null}
                 <MoneyAmount
                   amount={group.subtotal}
@@ -164,28 +167,28 @@ export default async function AccountsPage() {
             </div>
 
             <Card className="overflow-hidden">
-              <ul className="divide-surface-variant divide-y">
+              <ul className="stagger-children divide-y divide-surface-variant">
                 {group.accounts.map((account) => (
-                  <li key={account.accountId} className="flex flex-wrap items-center gap-3 px-5 py-5">
+                  <li key={account.accountId} className="grid grid-cols-[2.5rem_minmax(0,1fr)_auto] items-center gap-x-3 gap-y-2 px-4 py-5 sm:px-5">
                     <span
                       className={cn(
-                        "flex size-10 shrink-0 items-center justify-center rounded-full",
+                        "flex size-10 shrink-0 items-center justify-center rounded-2xl",
                         tintFor(account.type),
                       )}
                     >
                       <Icon size={20} aria-hidden="true" />
                     </span>
 
-                    <div className="min-w-0 flex-1">
+                    <div className="min-w-0">
                       <p
                         className={cn(
-                          "text-numeric-md truncate",
+                          "truncate text-sm font-semibold",
                           account.isActive ? "text-ink" : "text-ink-faint line-through",
                         )}
                       >
                         {account.name}
                       </p>
-                      <p className="text-ink-faint text-xs">
+                      <p className="mt-1 truncate text-[11px] text-ink-faint">
                         {account.institution ?? ACCOUNT_TYPE_LABELS[account.type]}
                         {!account.isActive ? " · closed" : null}
                         {account.isActive && !account.includeInNetWorth
@@ -194,25 +197,24 @@ export default async function AccountsPage() {
                       </p>
                     </div>
 
-                    <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
-                      <div className="flex flex-col items-end gap-1">
+                    <div className="flex flex-col items-end gap-1">
                         <MoneyAmount
                           amount={balanceOf(account)}
                           colorBySign={account.type === "credit_card"}
-                          className="text-numeric-md"
+                          className="whitespace-nowrap text-sm font-semibold tracking-tight"
                         />
                         <CurrencyBadge currency={account.currency} />
-                      </div>
-
+                    </div>
                       {isDemoMode() ? null : (
+                        <div className="col-span-2 col-start-2 flex justify-end">
                         <AccountRowActions
                           accountId={account.accountId}
                           name={account.name}
                           isActive={account.isActive}
                           transactionCount={account.transactionCount}
                         />
+                        </div>
                       )}
-                    </div>
                   </li>
                 ))}
               </ul>

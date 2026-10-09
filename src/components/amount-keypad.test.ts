@@ -7,6 +7,10 @@ import {
 } from "./amount-keypad";
 
 describe("pressAmountKey", () => {
+  it("refuses a digit that would make minor units unsafe instead of crashing the form", () => {
+    expect(pressAmountKey("90071992547409", "9", "USD")).toBe("90071992547409");
+    expect(pressAmountKey("900719925474099", "9", "KHR")).toBe("900719925474099");
+  });
   it("appends digits", () => {
     expect(pressAmountKey("", "1", "USD")).toBe("1");
     expect(pressAmountKey("1", "2", "USD")).toBe("12");
@@ -63,6 +67,9 @@ describe("truncateForCurrency", () => {
 });
 
 describe("parseKeypadAmount", () => {
+  it("keeps the form usable if an oversized draft reaches the display", () => {
+    expect(parseKeypadAmount("999999999999999999", "USD").minor).toBe(0);
+  });
   it("reads dollars into cents", () => {
     expect(parseKeypadAmount("5.25", "USD").minor).toBe(525);
   });

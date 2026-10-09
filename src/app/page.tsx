@@ -1,7 +1,9 @@
+import { ArrowRightLeft, ArrowUpRight, ChartNoAxesCombined, Plus, Wallet } from "lucide-react";
 import Link from "next/link";
 
 import { CurrencyToggle } from "@/components/currency-toggle";
 import { BudgetSummaryCard } from "@/components/dashboard/budget-summary-card";
+import { CategoryBreakdown } from "@/components/dashboard/category-breakdown";
 import { SummaryCards } from "@/components/dashboard/summary-cards";
 import { MonthStepper } from "@/components/month-stepper";
 import { RateStrip } from "@/components/rate-strip";
@@ -15,9 +17,10 @@ import { otherCurrency, readDisplayCurrency } from "@/lib/display-currency";
 import { summarizeNetWorth } from "@/lib/domain/accounts";
 import { summarizeBudgets } from "@/lib/domain/budgets";
 import {
+  spendingByCategory,
   summarizeCashFlow,
 } from "@/lib/domain/transactions";
-import { monthFromParam, monthParam, shiftMonth } from "@/lib/period";
+import { monthFromParam, monthParam, shiftMonth, trailingMonths } from "@/lib/period";
 import { loadUsdKhrRate } from "@/lib/rates/repository";
 
 /**
@@ -36,8 +39,9 @@ export default async function DashboardPage(props: {
 }) {
   const { month } = await props.searchParams;
   const period = monthFromParam(month);
+  const budgetWindow = trailingMonths(13);
 
-  const [displayCurrency, snapshot, accounts, transactions, categories, budgets] =
+  const [displayCurrency, snapshot, accounts, transactions, categories, budgets, budgetTransactions, lookup] =
     await Promise.all([
       readDisplayCurrency(),
       loadUsdKhrRate(),
@@ -45,10 +49,11 @@ export default async function DashboardPage(props: {
       listTransactionsInRange(period.from, period.to),
       categoryLookup(),
       listBudgets(),
+      listTransactionsInRange(budgetWindow.from, budgetWindow.to),
+      accountLookup(),
     ]);
 
   const { rate } = snapshot;
-  const lookup = await accountLookup();
 
   const netWorth = summarizeNetWorth(accounts, displayCurrency, rate);
   const cashFlow = summarizeCashFlow(transactions, displayCurrency, rate);
@@ -64,16 +69,20 @@ export default async function DashboardPage(props: {
     rate,
   ).netWorth;
 
-  const budgetProgress = summarizeBudgets(budgets, transactions, rate);
+  // Budget windows are independent of the dashboard month filter. Include a full
+  // annual window even when an anchor day begins in the previous calendar month.
+  const budgetProgress = summarizeBudgets(budgets, budgetTransactions, rate);
+  const categoryTotals = spendingByCategory(transactions, displayCurrency, rate);
 
   const previous = shiftMonth(period, -1);
   const next = shiftMonth(period, 1);
 
   return (
-    <div className="space-y-6">
+    <div className="page-enter space-y-5 sm:space-y-6">
       {isDemoMode() ? (
-        <p className="bg-brand-soft text-brand rounded-card px-3 py-2 text-xs font-medium">
-          You&apos;re exploring sample data.
+        <p className="flex items-center gap-2 rounded-2xl border border-brand/10 bg-brand-soft px-4 py-3 text-xs font-medium text-brand">
+          <span aria-hidden="true" className="size-1.5 shrink-0 rounded-full bg-brand" />
+          Sample data. Connect your account to make it yours.
         </p>
       ) : null}
 
@@ -83,18 +92,31 @@ export default async function DashboardPage(props: {
         netWorthEquivalent={netWorthEquivalent}
         periodLabel={period.label}
       />
-      <div className="grid items-start gap-3 lg:grid-cols-2">
+      <div className="stagger-children grid grid-cols-3 gap-3" aria-label="Quick actions">
+        {[
+          { href: "/add?type=expense", label: "Add expense", icon: Plus },
+          { href: "/add?type=transfer", label: "Transfer", icon: ArrowRightLeft },
+          { href: "/accounts", label: "Accounts", icon: Wallet },
+        ].map(({ href, label, icon: Icon }) => (
+          <Link key={href} href={href} className="card-interactive flex min-h-20 flex-col items-center justify-center gap-2 rounded-card border border-surface-variant bg-surface px-2 py-4 text-center text-xs font-semibold text-ink shadow-card sm:flex-row sm:text-sm">
+            <Icon size={19} className="text-brand" aria-hidden="true" />{label}
+          </Link>
+        ))}
+      </div>
+      <div className="grid items-center gap-3 lg:grid-cols-2">
         <MonthStepper label={period.label} prevHref={`/?month=${monthParam(previous)}`} nextHref={`/?month=${monthParam(next)}`} />
         <RateStrip snapshot={snapshot}><CurrencyToggle current={displayCurrency} /></RateStrip>
       </div>
-      <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
+      <div className="stagger-children grid items-start gap-5 lg:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)]">
         <TransactionList transactions={transactions} categories={categories} accounts={lookup} limit={5} />
-        <div className="space-y-6">
+        <div className="space-y-5">
           {budgetProgress.length > 0 ? <BudgetSummaryCard progress={budgetProgress} categories={categories} limit={3} /> : null}
-          <Link href="/reports" className="bg-surface border-surface-variant hover:border-brand/30 block rounded-card border p-5 transition-colors">
-            <span className="text-ink block font-semibold">See the bigger picture</span>
-            <span className="text-ink-muted mt-1 block text-sm">Spending, categories and your balance over time.</span>
-            <span className="text-brand mt-4 block text-sm font-semibold">View reports</span>
+          <CategoryBreakdown totals={categoryTotals} categories={categories} limit={4} />
+          <Link href="/reports" className="card-interactive group block rounded-card border border-brand/10 bg-brand-soft p-5">
+            <span className="mb-4 flex size-10 items-center justify-center rounded-2xl bg-surface text-brand"><ChartNoAxesCombined size={20} aria-hidden="true" /></span>
+            <span className="block font-semibold text-ink">A little clarity goes a long way.</span>
+            <span className="mt-1.5 block text-sm leading-relaxed text-ink-muted">See how your spending and balance change over time.</span>
+            <span className="mt-4 flex items-center gap-2 text-sm font-semibold text-brand">Explore reports <ArrowUpRight size={16} aria-hidden="true" className="transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5" /></span>
           </Link>
         </div>
       </div>

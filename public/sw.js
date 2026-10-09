@@ -1,155 +1,104 @@
-/**
- * Service worker: making the app usable on a bad connection.
- *
- * PRD Section 1 lists offline capability, and PRD Section 15's five-second entry
- * budget is unmeetable on the mobile data this app will actually run on if every
- * tap waits for a round trip.
- *
- * Two deliberate decisions:
- *
- *   1. Ledger data is NEVER served from cache. A cached balance is a wrong balance,
- *      and there is no visual difference between "your net worth is $11,225" and
- *      "your net worth was $11,225 last Tuesday". Only the shell — scripts, styles,
- *      icons, the manifest — is cached. If the network is down, the app loads and
- *      says it cannot reach your data, rather than showing figures it cannot vouch
- *      for.
- *
- *   2. Auth responses are never cached, at any cost. They carry Set-Cookie headers,
- *      and a cached one would hand one person's session to whoever asked next.
- *
- * Plain JavaScript in `public/` rather than a build-time plugin: it is small enough
- * to read in one sitting, and a caching strategy for a finance app is something you
- * want to be able to read.
- */
+/* Only versioned application assets are cached. Ledger, auth, API and RSC
+ * responses always use the network, including when the app is installed. */
+const CACHE_PREFIX = "luy-";
+const ASSET_CACHE = "luy-v2-assets";
+const MAX_ASSETS = 48;
 
-const VERSION = "luy-v1";
-const SHELL_CACHE = `${VERSION}-shell`;
-
-/** Kept minimal on purpose: anything listed here must exist or install fails. */
-const SHELL_ASSETS = [
-  "/icon.svg",
-  "/icons/icon-192.png",
-  "/icons/icon-512.png",
-  "/manifest.webmanifest",
-];
-
-/** Shown when a navigation cannot reach the network. Declared before the
- * listeners that use it, so reading top to bottom works. */
 const OFFLINE_PAGE = `<!doctype html>
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Offline — Luy Manager</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Offline | Luy Manager</title>
   <style>
+    :root { --surface: #f4f7f5; --ink: #142c32; --brand: #087f78; }
+    * { box-sizing: border-box; }
     body {
-      margin: 0; min-height: 100vh; display: flex; align-items: center;
-      justify-content: center; padding: 1.5rem; text-align: center;
+      margin: 0; min-height: 100vh; min-height: 100dvh; display: grid;
+      place-items: center; padding: 1.5rem; text-align: center;
       font-family: system-ui, -apple-system, sans-serif;
-      background: #f5f6f8; color: #1a1d23;
+      background: var(--surface); color: var(--ink);
     }
-    h1 { font-size: 1.125rem; margin: 0 0 .5rem; }
-    p { font-size: .875rem; color: #5b6472; margin: 0 0 1.25rem; max-width: 22rem; }
-    button {
-      min-height: 2.75rem; padding: 0 1.25rem; border: none; border-radius: .75rem;
-      background: #4c5fd5; color: #fff; font-size: .875rem; font-weight: 600;
+    h1 { font-size: 1.5rem; margin: 0 0 .75rem; }
+    p { font-size: 1rem; line-height: 1.6; margin: 0 0 1.5rem; max-width: 23rem; }
+    a {
+      display: inline-flex; align-items: center; min-height: 3rem;
+      padding: 0 1.5rem; border-radius: 1rem; text-decoration: none;
+      background: var(--brand); color: white; font-size: 1rem; font-weight: 600;
     }
   </style>
 </head>
 <body>
-  <div>
-    <h1>You are offline</h1>
-    <p>
-      Your figures are not shown rather than shown out of date &mdash; a stale
-      balance is worse than none. Reconnect and reload.
-    </p>
-    <button onclick="location.reload()">Try again</button>
-  </div>
+  <main>
+    <h1>Ready when you reconnect</h1>
+    <p>Connect to the internet to load your latest balances and save entries.</p>
+    <a href="/">Try again</a>
+  </main>
 </body>
 </html>`;
 
 self.addEventListener("install", (event) => {
-  event.waitUntil(
-    caches
-      .open(SHELL_CACHE)
-      // Individually, so one missing asset does not abort the whole install.
-      .then((cache) => Promise.allSettled(SHELL_ASSETS.map((asset) => cache.add(asset))))
-      .then(() => self.skipWaiting()),
-  );
+  // No eager downloads compete with the app's first paint. New workers take
+  // control without reloading pages, so an update never discards an entry draft.
+  event.waitUntil(self.skipWaiting());
 });
 
 self.addEventListener("activate", (event) => {
   event.waitUntil(
-    caches
-      .keys()
-      .then((keys) =>
-        Promise.all(
-          keys.filter((key) => !key.startsWith(VERSION)).map((key) => caches.delete(key)),
-        ),
-      )
+    caches.keys()
+      .then((keys) => Promise.all(keys
+        .filter((key) => key.startsWith(CACHE_PREFIX) && key !== ASSET_CACHE)
+        .map((key) => caches.delete(key))))
+      .catch(() => undefined)
       .then(() => self.clients.claim()),
   );
 });
 
-/** Paths whose responses must never be stored, whatever the headers say. */
-function isSensitive(url) {
-  return (
-    url.pathname.startsWith("/auth") ||
-    url.pathname.startsWith("/login") ||
-    url.pathname.startsWith("/api/")
-  );
-}
+async function cachedAsset(request, event) {
+  let cache;
+  try {
+    cache = await caches.open(ASSET_CACHE);
+    const cached = await cache.match(request);
+    if (cached) return cached;
+  } catch {
+    // Safari can refuse persistent storage. Asset delivery must still work.
+  }
 
-/**
- * Build-hashed static assets. Safe to cache indefinitely because the filename
- * changes when the content does.
- */
-function isImmutableAsset(url) {
-  return url.pathname.startsWith("/_next/static/");
+  const response = await fetch(request);
+  const contentType = response.headers.get("Content-Type") ?? "";
+  if (cache && response.ok && !response.redirected && !contentType.includes("text/html")) {
+    const copy = response.clone();
+    // Keep cache writes alive through worker suspension, and cap storage across
+    // releases because old build hashes otherwise accumulate on installed PWAs.
+    event.waitUntil(cache.put(request, copy).then(async () => {
+      const keys = await cache.keys();
+      await Promise.all(keys.slice(0, Math.max(0, keys.length - MAX_ASSETS))
+        .map((key) => cache.delete(key)));
+    }).catch(() => undefined));
+  }
+  return response;
 }
 
 self.addEventListener("fetch", (event) => {
   const { request } = event;
-
-  // Only GET is cacheable, and a server action is a POST, so this also leaves every
-  // mutation strictly online.
   if (request.method !== "GET") return;
-
   const url = new URL(request.url);
-
-  // Third-party requests, including Supabase itself, are left entirely alone.
   if (url.origin !== self.location.origin) return;
 
-  if (isSensitive(url)) return;
-
-  if (isImmutableAsset(url)) {
-    event.respondWith(
-      caches.match(request).then(
-        (cached) =>
-          cached ??
-          fetch(request).then((response) => {
-            if (response.ok) {
-              const copy = response.clone();
-              caches.open(SHELL_CACHE).then((cache) => cache.put(request, copy));
-            }
-            return response;
-          }),
-      ),
-    );
+  if (url.pathname.startsWith("/_next/static/")) {
+    event.respondWith(cachedAsset(request, event));
     return;
   }
 
-  // Navigations: network first, and on failure the offline notice — never a stale
-  // page, because a stale page in this app means stale figures.
+  // Pass auth and API requests directly through, including their navigations.
+  if (/^\/(auth|login|api)(\/|$)/.test(url.pathname)) return;
   if (request.mode === "navigate") {
-    event.respondWith(
-      fetch(request).catch(
-        () =>
-          new Response(OFFLINE_PAGE, {
-            status: 503,
-            headers: { "Content-Type": "text/html; charset=utf-8" },
-          }),
-      ),
-    );
+    event.respondWith(fetch(request).catch(() => new Response(OFFLINE_PAGE, {
+      status: 503,
+      headers: {
+        "Content-Type": "text/html; charset=utf-8",
+        "Cache-Control": "no-store",
+      },
+    })));
   }
 });

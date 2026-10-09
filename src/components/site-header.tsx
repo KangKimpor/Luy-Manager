@@ -1,7 +1,6 @@
 "use client";
 
-import { ArrowLeft, Settings } from "lucide-react";
-import Image from "next/image";
+import { ArrowLeft, Settings, Wallet } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 
@@ -67,37 +66,33 @@ export function SiteHeader() {
   const { title, isRoot } = resolved;
 
   return (
-    <header className="bg-surface-muted/95 pt-safe fixed inset-x-0 top-0 z-40 lg:left-60">
+    <header className="bg-surface-muted pt-safe fixed inset-x-0 top-0 z-40 lg:left-60">
       <div className="mx-auto flex h-appbar max-w-xl items-center justify-between gap-3 px-5 lg:max-w-none lg:px-10 xl:px-14">
         <div className="flex min-w-0 items-center gap-3">
           {isRoot ? (
-            <Image
-              src="/icon.svg"
-              alt=""
-              width={28}
-              height={28}
-              className="size-7 shrink-0 lg:hidden"
-              priority
-            />
+            <span className="bg-brand text-surface flex size-10 shrink-0 items-center justify-center rounded-2xl shadow-fab lg:hidden"><Wallet size={21} aria-hidden="true" /></span>
           ) : (
             <button
               type="button"
               onClick={() => window.history.length > 1 ? router.back() : router.push("/")}
               aria-label="Go back"
-              className="text-ink-muted hover:bg-surface-container -ml-2 flex size-10 shrink-0 items-center justify-center rounded-full transition-colors"
+              className="text-ink-muted hover:bg-surface-container -ml-2 flex size-11 shrink-0 items-center justify-center rounded-2xl transition-colors"
             >
               <ArrowLeft size={20} aria-hidden="true" />
             </button>
           )}
 
-          <h1 className="text-headline-md text-ink truncate tracking-tight lg:text-2xl">{title}</h1>
+          <div className="min-w-0">
+            <p className="text-ink-faint mb-0.5 text-[10px] font-semibold tracking-[0.15em] uppercase">Luy Manager</p>
+            <h1 className="text-headline-md text-ink truncate tracking-tight lg:text-2xl">{title}</h1>
+          </div>
         </div>
 
         {isRoot ? (
           <Link
             href="/settings"
             aria-label="Settings"
-            className="bg-surface text-ink-muted border-surface-variant hover:text-brand flex size-11 shrink-0 items-center justify-center rounded-2xl border transition-transform active:scale-95"
+            className="card-interactive bg-surface text-ink-muted border-surface-variant hover:text-brand flex size-11 shrink-0 items-center justify-center rounded-2xl border"
           >
             <Settings size={19} aria-hidden="true" />
           </Link>

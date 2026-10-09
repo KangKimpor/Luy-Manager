@@ -1,5 +1,6 @@
 "use client";
 
+import { useSyncExternalStore } from "react";
 import {
   Area,
   AreaChart,
@@ -10,6 +11,16 @@ import {
 } from "recharts";
 
 import { type CurrencyCode, formatMoney, money } from "@/lib/money";
+
+function subscribeMotion(onChange: () => void) {
+  const preference = window.matchMedia("(prefers-reduced-motion: reduce)");
+  preference.addEventListener("change", onChange);
+  return () => preference.removeEventListener("change", onChange);
+}
+
+function prefersReducedMotion() {
+  return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+}
 
 /**
  * Net worth over the last twelve months.
@@ -28,6 +39,7 @@ export function NetWorthTrend({
   points: ReadonlyArray<{ label: string; minor: number }>;
   currency: CurrencyCode;
 }) {
+  const reducedMotion = useSyncExternalStore(subscribeMotion, prefersReducedMotion, () => true);
   if (points.length === 0) {
     return <p className="text-ink-faint py-6 text-center text-sm">Not enough history yet.</p>;
   }
@@ -40,9 +52,9 @@ export function NetWorthTrend({
   }));
 
   return (
-    <div className="h-44 w-full">
+    <div className="h-52 w-full" role="img" aria-label={`Estimated net worth over twelve months in ${currency}`}>
       <ResponsiveContainer width="100%" height="100%">
-        <AreaChart data={data} margin={{ top: 4, right: 4, bottom: 0, left: 4 }}>
+        <AreaChart accessibilityLayer data={data} margin={{ top: 12, right: 8, bottom: 0, left: 8 }}>
           <defs>
             <linearGradient id="netWorthFill" x1="0" y1="0" x2="0" y2="1">
               <stop offset="0%" stopColor="var(--color-brand)" stopOpacity={0.35} />
@@ -65,7 +77,9 @@ export function NetWorthTrend({
           />
           <Tooltip
             contentStyle={{
-              borderRadius: "0.75rem",
+              backgroundColor: "var(--color-surface)",
+              color: "var(--color-ink)",
+              borderRadius: "1rem",
               border: "1px solid var(--color-border-subtle)",
               fontSize: "0.75rem",
             }}
@@ -76,8 +90,11 @@ export function NetWorthTrend({
             type="monotone"
             dataKey="value"
             stroke="var(--color-brand)"
-            strokeWidth={2}
+            strokeWidth={2.5}
             fill="url(#netWorthFill)"
+            isAnimationActive={!reducedMotion}
+            animationDuration={700}
+            activeDot={{ r: 5, strokeWidth: 3, stroke: "var(--color-surface)" }}
           />
         </AreaChart>
       </ResponsiveContainer>

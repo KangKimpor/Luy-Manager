@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 
 import { deleteAccount, setAccountActive } from "@/app/actions/accounts";
+import { withActionFeedback } from "@/lib/action-feedback";
 
 /**
  * Per-account edit, close and delete.
@@ -33,7 +34,8 @@ export function AccountRowActions({
 
   function toggleActive() {
     startTransition(async () => {
-      const result = await setAccountActive(accountId, !isActive);
+      setError(null);
+      const result = await withActionFeedback(() => setAccountActive(accountId, !isActive), "Reload Accounts to check the change.");
       if (!result.ok) setError(result.error);
       else router.refresh();
     });
@@ -45,7 +47,8 @@ export function AccountRowActions({
     if (!window.confirm(`Delete ${name}? This cannot be undone.`)) return;
 
     startTransition(async () => {
-      const result = await deleteAccount(accountId);
+      setError(null);
+      const result = await withActionFeedback(() => deleteAccount(accountId), "Reload Accounts to check whether it was deleted.");
       if (!result.ok) setError(result.error);
       else router.refresh();
     });

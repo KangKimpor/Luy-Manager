@@ -3,6 +3,8 @@ import { isTelegramConfigured, requireTelegramEnv } from "@/lib/telegram/env";
 import { handleUpdate } from "@/lib/telegram/handle";
 import { isServiceRoleConfigured, isSupabaseConfigured } from "@/lib/supabase/env";
 
+export const runtime = "nodejs";
+
 /**
  * Telegram webhook, PRD Section 9.
  *
@@ -89,11 +91,11 @@ export async function POST(request: Request): Promise<Response> {
 
   try {
     await handleUpdate(update);
-  } catch (error) {
+  } catch {
     // handleUpdate is written not to throw. If it does anyway, swallowing it here
     // is still correct: a retry would re-run a handler that may already have
     // written to the ledger.
-    console.error("[telegram] handler threw", error);
+    console.error("[telegram] handler did not complete. Inspect the scoped message logs.");
   }
 
   return Response.json({ ok: true }, { status: 200 });

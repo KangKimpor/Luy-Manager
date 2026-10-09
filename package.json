@@ -10,11 +10,14 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest --run",
     "test:watch": "vitest",
+    "test:footprint": "node --test scripts/project-footprint.test.mjs",
     "check:dashes": "node scripts/check-dashes.mjs",
     "connect": "node scripts/connect-supabase.mjs",
     "connect:check": "node scripts/connect-supabase.mjs --check",
     "skill:bundle": "node scripts/build-skill-bundle.mjs",
-    "skill:check": "node scripts/build-skill-bundle.mjs --check"
+    "skill:check": "node scripts/build-skill-bundle.mjs --check",
+    "footprint": "node scripts/project-footprint.mjs",
+    "clean:generated": "node scripts/project-footprint.mjs --clean"
   },
   "dependencies": {
     "@supabase/ssr": "0.12.4",

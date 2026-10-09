@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { ArrowUpRight, ReceiptText } from "lucide-react";
 
 import { TransactionRow } from "@/components/transaction-row";
 import { Card, CardBody, CardHeader, CardTitle } from "@/components/ui/card";
@@ -27,18 +28,18 @@ export function TransactionList({
     .slice(0, limit);
 
   return (
-    <Card>
-      <CardHeader className="flex items-baseline justify-between gap-2">
-        <CardTitle>Recent activity</CardTitle>
-          <Link href="/transactions" className="text-brand flex min-h-11 items-center text-sm font-semibold">
-            View all
+    <Card className="overflow-hidden">
+      <CardHeader className="flex items-center justify-between gap-2">
+        <div><CardTitle>Recent activity</CardTitle><p className="mt-1 text-xs text-ink-faint">Your latest money moves</p></div>
+          <Link href="/transactions" className="card-interactive flex min-h-11 items-center gap-1 text-xs font-semibold text-brand">
+            View all <ArrowUpRight size={14} aria-hidden="true" />
           </Link>
       </CardHeader>
       <CardBody>
         {recent.length === 0 ? (
-          <div className="py-8 text-center"><p className="text-ink font-medium">A fresh start</p><p className="text-ink-muted mt-1 text-sm">Your transactions will appear here.</p><Link href="/add" className="text-brand mt-4 inline-flex min-h-11 items-center text-sm font-semibold">Add a transaction</Link></div>
+          <div className="py-8 text-center"><span className="mx-auto mb-4 flex size-12 items-center justify-center rounded-2xl bg-brand-soft text-brand"><ReceiptText size={22} aria-hidden="true" /></span><p className="font-semibold text-ink">A fresh start</p><p className="mt-1 text-sm text-ink-muted">Your transactions will appear here.</p><Link href="/add" className="card-interactive mt-4 inline-flex min-h-11 items-center text-sm font-semibold text-brand">Add a transaction</Link></div>
         ) : (
-          <ul className="divide-surface-variant divide-y">
+          <ul className="stagger-children divide-y divide-surface-variant">
             {recent.map((transaction) => (
               <TransactionRow
                 key={transaction.id}

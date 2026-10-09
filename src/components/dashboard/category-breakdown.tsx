@@ -27,13 +27,14 @@ export function CategoryBreakdown({
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Spending by category</CardTitle>
+        <CardTitle>Where it went</CardTitle>
+        <p className="mt-1 text-xs text-ink-faint">Spending by category</p>
       </CardHeader>
       <CardBody>
         {shown.length === 0 ? (
           <p className="text-ink-faint py-6 text-center text-sm">Nothing spent yet.</p>
         ) : (
-          <ul className="space-y-3">
+          <ul className="stagger-children space-y-5">
             {shown.map((entry) => {
               const category = entry.categoryId ? categories[entry.categoryId] : undefined;
               const name = category?.name ?? "Uncategorised";
@@ -42,11 +43,11 @@ export function CategoryBreakdown({
 
               return (
                 <li key={entry.categoryId ?? "none"}>
-                  <div className="mb-1 flex items-baseline justify-between gap-2 text-sm">
-                    <span className="text-ink font-medium">{name}</span>
-                    <span className="flex items-baseline gap-2">
-                      <MoneyAmount amount={entry.total} className="font-semibold" />
-                      <span className="text-ink-faint text-xs">{percent}%</span>
+                  <div className="mb-2 flex items-baseline justify-between gap-2 text-sm">
+                    <span className="min-w-0 truncate font-medium text-ink">{name}</span>
+                    <span className="flex shrink-0 items-baseline gap-2">
+                      <MoneyAmount amount={entry.total} className="text-xs font-semibold" />
+                      <span className="w-8 text-right text-[11px] text-ink-faint">{percent}%</span>
                     </span>
                   </div>
 
@@ -61,8 +62,8 @@ export function CategoryBreakdown({
                     className="bg-surface-variant h-1.5 w-full overflow-hidden rounded-full"
                   >
                     <div
-                      className="h-full rounded-full"
-                      style={{ width: `${Math.max(entry.share * 100, 2)}%`, backgroundColor: color }}
+                      className="progress-fill h-full rounded-full"
+                      style={{ width: `${Math.min(100, entry.share * 100)}%`, backgroundColor: color }}
                     />
                   </div>
                 </li>

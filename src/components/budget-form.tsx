@@ -10,6 +10,8 @@ import { createBudget } from "@/app/actions/budgets";
 import { BUDGET_PERIODS, type BudgetPeriod, type Category } from "@/lib/domain/types";
 import { CURRENCIES, type CurrencyCode } from "@/lib/money";
 import { cn } from "@/lib/utils";
+import { withActionFeedback } from "@/lib/action-feedback";
+import { cambodiaDate } from "@/lib/period";
 
 /**
  * Creating a budget.
@@ -35,7 +37,7 @@ export function BudgetForm({
   const [amount, setAmount] = useState("");
   const [currency, setCurrency] = useState<CurrencyCode>(defaultCurrency);
   const [period, setPeriod] = useState<BudgetPeriod>("monthly");
-  const [startsOn, setStartsOn] = useState(() => new Date().toISOString().slice(0, 10));
+  const [startsOn, setStartsOn] = useState(() => cambodiaDate());
   const [rollover, setRollover] = useState(false);
   const [threshold, setThreshold] = useState(80);
   const [pending, setPending] = useState(false);
@@ -49,10 +51,11 @@ export function BudgetForm({
 
   async function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
+    if (pending) return;
     setPending(true);
     setError(null);
 
-    const result = await createBudget({
+    const result = await withActionFeedback(() => createBudget({
       categoryId,
       amount: amount.trim(),
       currency,
@@ -60,7 +63,7 @@ export function BudgetForm({
       startsOn,
       rollover,
       alertThreshold: threshold / 100,
-    });
+    }), "Could not confirm the save. Check Budgets before trying again.");
 
     setPending(false);
 
@@ -73,7 +76,7 @@ export function BudgetForm({
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-3">
+    <form onSubmit={handleSubmit} className="page-enter space-y-5" aria-busy={pending}>
       <Card>
         <CardBody className="space-y-3 pt-4">
           <div>

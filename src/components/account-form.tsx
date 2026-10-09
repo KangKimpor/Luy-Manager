@@ -12,6 +12,7 @@ import { ACCOUNT_PRESETS, ACCOUNT_TYPE_LABELS } from "@/lib/domain/accounts";
 import { ACCOUNT_TYPES, type Account, type AccountType } from "@/lib/domain/types";
 import { CURRENCIES, type CurrencyCode } from "@/lib/money";
 import { cn } from "@/lib/utils";
+import { withActionFeedback } from "@/lib/action-feedback";
 
 /**
  * Create or edit one account (PRD Section 6).
@@ -58,6 +59,7 @@ export function AccountForm({ account }: { account?: Account }) {
 
   async function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
+    if (pending) return;
     setPending(true);
     setError(null);
 
@@ -72,9 +74,10 @@ export function AccountForm({ account }: { account?: Account }) {
       includeInNetWorth,
     };
 
-    const result = editing
-      ? await updateAccount({ ...input, id: account.id })
-      : await createAccount(input);
+    const result = await withActionFeedback(
+      () => editing ? updateAccount({ ...input, id: account.id }) : createAccount(input),
+      "Could not confirm the save. Check Accounts before trying again.",
+    );
 
     setPending(false);
 
@@ -87,7 +90,7 @@ export function AccountForm({ account }: { account?: Account }) {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-3">
+    <form onSubmit={handleSubmit} className="page-enter space-y-5" aria-busy={pending}>
       {!editing ? (
         <fieldset>
           <legend className="text-ink-muted mb-2 text-sm font-medium">
@@ -99,7 +102,7 @@ export function AccountForm({ account }: { account?: Account }) {
                 key={preset.label}
                 type="button"
                 onClick={() => applyPreset(preset)}
-                className="rounded-pill border-border-subtle bg-surface text-ink-muted hover:text-ink flex min-h-9 items-center gap-1.5 border px-3 text-xs font-medium transition-colors"
+                className="rounded-xl border-border-subtle bg-surface text-ink-muted hover:text-brand flex min-h-11 items-center gap-1.5 border px-3 text-xs font-medium transition-colors"
               >
                 <span
                   aria-hidden="true"

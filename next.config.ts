@@ -1,6 +1,7 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  allowedDevOrigins: ["127.0.0.1", "localhost"],
   // A package-lock in the parent directory otherwise makes Turbopack watch a
   // much broader workspace. Pinning the actual app root cuts file watching and
   // invalidation work in development and removes the production-build warning.
@@ -14,6 +15,17 @@ const nextConfig: NextConfig = {
   // Telegram bot) can lag, by at most this long.
   experimental: {
     staleTimes: { dynamic: 30, static: 60 },
+  },
+  headers() {
+    return [
+      {
+        source: "/sw.js",
+        headers: [
+          { key: "Content-Type", value: "application/javascript; charset=utf-8" },
+          { key: "Cache-Control", value: "no-cache, no-store, must-revalidate" },
+        ],
+      },
+    ];
   },
 };
 

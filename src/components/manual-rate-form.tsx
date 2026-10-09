@@ -6,6 +6,8 @@ import { useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { clearManualRate, setManualRate } from "@/app/actions/rates";
+import { withActionFeedback } from "@/lib/action-feedback";
+import { cambodiaDate } from "@/lib/period";
 
 /**
  * Recording the rate your own bank or money changer gave you.
@@ -17,7 +19,7 @@ import { clearManualRate, setManualRate } from "@/app/actions/rates";
  */
 export function ManualRateForm({ currentRate }: { currentRate: number }) {
   const router = useRouter();
-  const today = new Date().toISOString().slice(0, 10);
+  const today = cambodiaDate();
 
   const [rate, setRate] = useState("");
   const [asOf, setAsOf] = useState(today);
@@ -27,11 +29,12 @@ export function ManualRateForm({ currentRate }: { currentRate: number }) {
 
   async function save(event: React.FormEvent) {
     event.preventDefault();
+    if (pending) return;
     setPending(true);
     setError(null);
     setSaved(false);
 
-    const result = await setManualRate({ rate: rate.trim(), asOf });
+    const result = await withActionFeedback(() => setManualRate({ rate: rate.trim(), asOf }), "Could not confirm the change. Check recent exchange rates before trying again.");
     setPending(false);
 
     if (!result.ok) {
@@ -45,10 +48,11 @@ export function ManualRateForm({ currentRate }: { currentRate: number }) {
   }
 
   async function clear() {
+    if (pending) return;
     setPending(true);
     setError(null);
 
-    const result = await clearManualRate(asOf);
+    const result = await withActionFeedback(() => clearManualRate(asOf), "Could not confirm the change. Reload Settings to check the rate.");
     setPending(false);
 
     if (!result.ok) setError(result.error);
@@ -56,9 +60,9 @@ export function ManualRateForm({ currentRate }: { currentRate: number }) {
   }
 
   return (
-    <form onSubmit={save} className="space-y-3">
-      <div className="flex items-end gap-2">
-        <div className="flex-1">
+    <form onSubmit={save} className="space-y-3" aria-busy={pending}>
+      <div className="grid grid-cols-1 items-end gap-3 sm:grid-cols-2">
+        <div className="min-w-0">
           <label
             htmlFor="manual-rate"
             className="text-ink-muted mb-2 block text-xs font-semibold tracking-wide uppercase"
@@ -89,7 +93,7 @@ export function ManualRateForm({ currentRate }: { currentRate: number }) {
             value={asOf}
             max={today}
             onChange={(event) => setAsOf(event.target.value)}
-            className="border-border-subtle bg-surface rounded-card text-ink min-h-11 border px-3 text-sm"
+            className="border-border-subtle bg-surface rounded-card text-ink min-h-11 w-full min-w-0 border px-3 text-sm"
           />
         </div>
       </div>

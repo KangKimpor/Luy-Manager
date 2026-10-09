@@ -4,6 +4,7 @@ import { MoneyAmount } from "@/components/money-amount";
 import { Card, CardBody, CardHeader, CardTitle } from "@/components/ui/card";
 import type { BudgetProgress } from "@/lib/domain/budgets";
 import type { Category } from "@/lib/domain/types";
+import { absolute } from "@/lib/money";
 import { cn } from "@/lib/utils";
 
 /**
@@ -37,14 +38,14 @@ export function BudgetSummaryCard({
 
   return (
     <Card>
-      <CardHeader className="flex items-baseline justify-between gap-2">
-        <CardTitle>Budgets</CardTitle>
-        <Link href="/budgets" className="text-brand flex min-h-11 items-center text-sm font-semibold">
+      <CardHeader className="flex items-center justify-between gap-2">
+        <div><CardTitle>Keep it in balance</CardTitle><p className="mt-1 text-xs text-ink-faint">Your current budgets</p></div>
+        <Link href="/budgets" className="card-interactive flex min-h-11 items-center text-xs font-semibold text-brand">
           View all
         </Link>
       </CardHeader>
       <CardBody>
-        <ul className="space-y-3">
+        <ul className="stagger-children space-y-5">
           {shown.map((entry) => {
             const tone = TONE[entry.status];
             const name =
@@ -54,12 +55,11 @@ export function BudgetSummaryCard({
                 : "Everything");
 
             return (
-              <li key={entry.budget.id} className="space-y-1.5">
+              <li key={entry.budget.id} className="space-y-2">
                 <div className="flex items-baseline justify-between gap-2 text-sm">
                   <span className="text-ink truncate font-medium">{name}</span>
                   <span className={cn("shrink-0 tabular text-xs", tone.text)}>
-                    <MoneyAmount amount={entry.spent} /> of{" "}
-                    <MoneyAmount amount={entry.limit} />
+                    {Math.round(entry.fraction * 100)}%
                   </span>
                 </div>
 
@@ -73,7 +73,7 @@ export function BudgetSummaryCard({
                   aria-label={`${name} budget`}
                 >
                   <div
-                    className={cn("h-full rounded-full transition-[width] duration-300", tone.bar)}
+                    className={cn("progress-fill h-full rounded-full", tone.bar)}
                     // Clamped so an overspend cannot render wider than its track.
                     style={{ width: `${Math.min(100, Math.round(entry.fraction * 100))}%` }}
                   />
@@ -82,7 +82,7 @@ export function BudgetSummaryCard({
                 <p className="text-ink-faint text-xs">
                   {entry.status === "over" ? (
                     <span className="text-outflow font-medium">
-                      <MoneyAmount amount={entry.remaining} /> over
+                      <MoneyAmount amount={absolute(entry.remaining)} /> over budget
                     </span>
                   ) : (
                     <>

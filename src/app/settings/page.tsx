@@ -1,8 +1,9 @@
-import { Check, LogOut, Send, User } from "lucide-react";
+import { ArrowRightLeft, Check, LogOut, Send, User } from "lucide-react";
 
 import { signOut } from "@/app/actions/auth";
 import { CurrencyToggle } from "@/components/currency-toggle";
 import { ManualRateForm } from "@/components/manual-rate-form";
+import { TelegramStatusCheck } from "@/components/telegram-status";
 import { MoneyAmount } from "@/components/money-amount";
 import { buttonVariants } from "@/components/ui/button";
 import { Card, CardBody, CardHeader, CardTitle } from "@/components/ui/card";
@@ -60,21 +61,21 @@ async function telegramConnectState(): Promise<TelegramState> {
  * gets written.
  */
 export default async function SettingsPage() {
-  const [displayCurrency, snapshot, user, history] = await Promise.all([
+  const [displayCurrency, snapshot, user, history, telegram] = await Promise.all([
     readDisplayCurrency(),
     loadUsdKhrRate(),
     getUser(),
     listRateHistory(14),
+    telegramConnectState(),
   ]);
 
   const demo = isDemoMode();
-  const telegram = await telegramConnectState();
 
   return (
-    <div className="mx-auto max-w-2xl space-y-6">
+    <div className="page-enter stagger-children mx-auto max-w-2xl space-y-6">
       {/* Who you are. The screen name itself comes from the app bar. */}
-      <div className="flex items-center gap-3">
-        <span className="bg-brand text-surface flex size-10 shrink-0 items-center justify-center rounded-full">
+      <div className="bg-surface-container-low rounded-card flex items-center gap-3 p-5">
+        <span className="bg-brand text-surface flex size-12 shrink-0 items-center justify-center rounded-2xl">
           <User size={20} aria-hidden="true" />
         </span>
         <div className="min-w-0">
@@ -142,12 +143,12 @@ export default async function SettingsPage() {
       */}
       <Card>
         <CardHeader>
-          <CardTitle>Telegram bot</CardTitle>
+          <CardTitle><span className="flex items-center gap-2"><Send size={18} className="text-brand" aria-hidden="true" />@LuyManagerBot</span></CardTitle>
         </CardHeader>
         <CardBody className="space-y-3">
           {!telegram.available ? (
             <p className="text-ink-muted text-body-md">
-              Telegram is not available yet.
+              Connect your Telegram bot in this deployment to log money from a chat.
             </p>
           ) : telegram.connected ? (
             <>
@@ -156,16 +157,14 @@ export default async function SettingsPage() {
                 Connected
               </p>
               <p className="text-ink-muted text-body-md">
-                Message the bot to log money without opening the app. Try{" "}
-                <code className="text-ink text-xs">Spent $5 coffee</code> or{" "}
-                <code className="text-ink text-xs">Summary today</code>.
+                Your ledger is ready in Telegram. Record spending, income and transfers, or check balances and budgets.
               </p>
+              <a href={`https://t.me/${botUsername()}`} target="_blank" rel="noreferrer noopener" className={buttonVariants({ size: "full" })}><Send size={16} aria-hidden="true" />Open Telegram</a>
             </>
           ) : telegram.url ? (
             <>
               <p className="text-ink-muted text-body-md">
-                Log money by messaging the bot. Connect this account, then send it{" "}
-                <code className="text-ink text-xs">Spent $5 coffee</code>.
+                Connect this account once, then record spending and income, log transfers and check your money from Telegram.
               </p>
               <a
                 href={telegram.url}
@@ -185,6 +184,17 @@ export default async function SettingsPage() {
               Sign in to connect Telegram to your account.
             </p>
           )}
+          {telegram.available ? <TelegramStatusCheck /> : null}
+          <div className="bg-surface-muted space-y-3 rounded-2xl p-4">
+            <p className="text-ink text-xs font-semibold">A few things to try</p>
+            <ul className="text-ink-muted space-y-2 text-xs">
+              <li><code>Spent $5 coffee</code></li>
+              <li><code>Income $500 salary</code></li>
+              <li><code>Transfer $20 ABA to Cash</code></li>
+              <li><code>/accounts</code>, <code>/recent</code>, <code>/budget</code></li>
+            </ul>
+            <p className="text-ink-faint flex items-start gap-2 text-xs leading-relaxed"><ArrowRightLeft size={14} className="mt-0.5 shrink-0" aria-hidden="true" />Transfers update your ledger. Use your bank to move the money itself.</p>
+          </div>
         </CardBody>
       </Card>
 

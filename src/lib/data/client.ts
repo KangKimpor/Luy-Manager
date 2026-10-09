@@ -14,6 +14,7 @@
  */
 
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { cache } from "react";
 
 import type { Row } from "./mappers";
 
@@ -69,14 +70,16 @@ export type { Row };
  * which case they are in. Row Level Security would scope the query anyway; the
  * user id is returned because inserts have to state an owner explicitly.
  */
-export async function dataContext(): Promise<DataContext | null> {
+// Request-scoped only: parallel cards share one client without caching a user's
+// session or ledger across requests.
+export const dataContext = cache(async (): Promise<DataContext | null> => {
   if (isDemoMode()) return null;
 
   const user = await getUser();
   if (!user) return null;
 
   return { supabase: await createClient(), userId: user.id };
-}
+});
 
 /** Column lists, kept beside the mappers that consume them so the two stay in step. */
 export const ACCOUNT_BALANCE_COLUMNS =

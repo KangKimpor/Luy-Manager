@@ -17,7 +17,9 @@ import Link from "next/link";
  * Only active accounts are offered. A closed account should not accept new entries,
  * and the server action refuses one anyway, so offering it would be a dead end.
  */
-export default async function AddTransactionPage() {
+export default async function AddTransactionPage({ searchParams }: { searchParams: Promise<{ type?: string }> }) {
+  const { type } = await searchParams;
+  const initialMode = type === "income" || type === "transfer" ? type : "expense";
   const [accounts, categories, { rate }] = await Promise.all([
     listActiveAccountBalances(),
     listCategories(),
@@ -43,9 +45,11 @@ export default async function AddTransactionPage() {
   }
 
   return (
-    <div className="mx-auto max-w-2xl space-y-5">
-
+    <div className="page-enter mx-auto max-w-2xl space-y-5">
+      <p className="text-ink-muted text-sm">A few taps, and your money is up to date.</p>
       <AddEntry
+        key={initialMode}
+        initialMode={initialMode}
         accounts={accounts}
         categories={categories}
         rate={rate}

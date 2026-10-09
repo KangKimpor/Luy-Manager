@@ -4,7 +4,6 @@ import { CurrencyBadge, MoneyAmount } from "@/components/money-amount";
 import { TransactionRowActions } from "@/components/transaction-row-actions";
 import type { AccountBalance, Category, Transaction } from "@/lib/domain/types";
 import { money } from "@/lib/money";
-import { CHART_COLORS } from "@/lib/theme";
 import { cn } from "@/lib/utils";
 
 /**
@@ -21,7 +20,7 @@ import { cn } from "@/lib/utils";
  */
 
 function formatDate(iso: string): string {
-  return new Date(iso).toLocaleDateString("en-GB", { day: "numeric", month: "short" });
+  return new Date(iso).toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: "Asia/Phnom_Penh" });
 }
 
 /** "ABA USD to Wing" for either leg of a transfer. */
@@ -71,23 +70,18 @@ export function TransactionRow({
   const isTransfer = route !== null;
 
   return (
-    <li className="flex flex-wrap items-center gap-x-3 gap-y-2 py-4">
+    <li className={cn("grid grid-cols-[2.25rem_minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1 py-4", editable && "sm:grid-cols-[2.5rem_minmax(0,1fr)_auto_auto]")}>
       <span
         aria-hidden="true"
         className={cn(
-          "flex size-10 shrink-0 items-center justify-center rounded-2xl",
-          isTransfer && "text-ink-muted",
+          "flex size-9 shrink-0 items-center justify-center rounded-xl sm:size-10",
+          isTransfer ? "bg-surface-container text-ink-muted" : transaction.amount < 0 ? "bg-outflow-soft text-outflow" : "bg-inflow-soft text-inflow",
         )}
-        style={{
-          backgroundColor: isTransfer
-            ? "var(--color-surface-muted)"
-            : `${category?.color ?? CHART_COLORS.inkFaint}1f`,
-        }}
       >
-        {isTransfer ? <ArrowRightLeft size={17} /> : transaction.amount < 0 ? <ArrowUpRight size={17} className="text-ink-muted" /> : <ArrowDownLeft size={17} className="text-ink-muted" />}
+        {isTransfer ? <ArrowRightLeft size={17} /> : transaction.amount < 0 ? <ArrowUpRight size={17} /> : <ArrowDownLeft size={17} />}
       </span>
 
-      <div className="min-w-20 flex-1">
+      <div className="min-w-0">
         <p
           className={cn(
             "truncate text-sm font-semibold",
@@ -96,8 +90,8 @@ export function TransactionRow({
         >
           {transaction.notes ?? category?.name ?? (isTransfer ? "Transfer" : "Transaction")}
         </p>
-        <p className="text-ink-faint flex items-center gap-1.5 text-xs">
-          {showDate ? <span>{formatDate(transaction.occurredAt)}</span> : null}
+        <p className="mt-1 flex min-w-0 items-center gap-1.5 text-[11px] text-ink-faint">
+          {showDate ? <span className="shrink-0">{formatDate(transaction.occurredAt)}</span> : null}
           {route ? (
             <span className="truncate">{showDate ? "· " : ""}{route}</span>
           ) : account ? (
@@ -109,24 +103,26 @@ export function TransactionRow({
         </p>
       </div>
 
-      <div className="flex shrink-0 flex-col items-end gap-0.5">
+      <div className="flex shrink-0 flex-col items-end gap-1">
         <MoneyAmount
           amount={amount}
           // A transfer leg is not income or spending, so colouring it green or red
           // would read as money gained or lost when the total did not change.
           colorBySign={!isTransfer}
           showPlus={!isTransfer}
-          className="text-sm font-semibold"
+          className="whitespace-nowrap text-sm font-semibold tracking-tight"
         />
         <CurrencyBadge currency={transaction.currency} />
       </div>
 
       {editable ? (
+        <div className="col-span-2 col-start-2 flex justify-end sm:col-span-1 sm:col-start-auto">
         <TransactionRowActions
           transactionId={transaction.id}
           isTransfer={isTransfer}
           deleted={deleted}
         />
+        </div>
       ) : null}
     </li>
   );

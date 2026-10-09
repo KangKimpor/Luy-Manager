@@ -12,8 +12,10 @@
 
 # testing
 /coverage
+/.tmp/
+/.cache/
 
-# android (TWA wrapper) — keystore is a secret, build output is regeneratable
+# android (TWA wrapper): keystore is a secret, build output is regeneratable
 android/*.keystore
 android/*.apk
 android/*.aab

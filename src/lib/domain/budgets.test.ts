@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { exchangeRate, formatMoney } from "@/lib/money";
 
@@ -12,6 +12,11 @@ import {
 import type { Budget, Transaction } from "./types";
 
 const rate = exchangeRate(4100, "USD", "KHR", new Date("2026-07-01"));
+
+const at = (year: number, month: number, day: number) =>
+  new Date(`${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}T00:00:00+07:00`);
+
+afterEach(() => vi.unstubAllEnvs());
 
 function budget(overrides: Partial<Budget> = {}): Budget {
   return {
@@ -55,34 +60,59 @@ function txn(overrides: Partial<Transaction> = {}): Transaction {
 }
 
 describe("currentPeriod", () => {
+  it.each(["UTC", "America/Los_Angeles", "Asia/Phnom_Penh"])("changes anchored periods at Cambodia midnight on a %s host", (timezone) => {
+    vi.stubEnv("TZ", timezone);
+    const b = { period: "monthly" as const, startsOn: "2026-07-15" };
+    const before = currentPeriod(b, new Date("2026-08-14T16:59:59.999Z"));
+    const after = currentPeriod(b, new Date("2026-08-14T17:00:00.000Z"));
+    expect(before.from.toISOString()).toBe("2026-07-14T17:00:00.000Z");
+    expect(before.to.toISOString()).toBe("2026-08-14T17:00:00.000Z");
+    expect(after.from.toISOString()).toBe("2026-08-14T17:00:00.000Z");
+    expect(after.to.toISOString()).toBe("2026-09-14T17:00:00.000Z");
+  });
+
+  it("keeps a weekly window seven full days across the host's DST transition", () => {
+    vi.stubEnv("TZ", "America/Los_Angeles");
+    const window = currentPeriod({ period: "weekly", startsOn: "2026-03-06" }, new Date("2026-03-08T18:00:00Z"));
+    expect(window.from.toISOString()).toBe("2026-03-05T17:00:00.000Z");
+    expect(window.to.toISOString()).toBe("2026-03-12T17:00:00.000Z");
+    expect(window.to.getTime() - window.from.getTime()).toBe(7 * 86_400_000);
+  });
+
+  it("restores the original 31st anchor after a leap February clamp", () => {
+    const window = currentPeriod({ period: "monthly", startsOn: "2028-01-31" }, new Date("2028-02-29T18:00:00Z"));
+    expect(window.from.toISOString()).toBe("2028-02-28T17:00:00.000Z");
+    expect(window.to.toISOString()).toBe("2028-03-30T17:00:00.000Z");
+  });
+
   it("runs from the budget's own anchor day, not the calendar month", () => {
     // Someone paid on the 15th thinks in 15th-to-14th months.
     const window = currentPeriod(
       { period: "monthly", startsOn: "2026-07-15" },
-      new Date(2026, 7, 3), // 3 August
+      at(2026, 7, 3), // 3 August
     );
 
-    expect(window.from).toEqual(new Date(2026, 6, 15));
-    expect(window.to).toEqual(new Date(2026, 7, 15));
+    expect(window.from).toEqual(at(2026, 6, 15));
+    expect(window.to).toEqual(at(2026, 7, 15));
   });
 
   it("advances to the next window once the anchor day passes", () => {
     const window = currentPeriod(
       { period: "monthly", startsOn: "2026-07-15" },
-      new Date(2026, 7, 15),
+      at(2026, 7, 15),
     );
 
-    expect(window.from).toEqual(new Date(2026, 7, 15));
-    expect(window.to).toEqual(new Date(2026, 8, 15));
+    expect(window.from).toEqual(at(2026, 7, 15));
+    expect(window.to).toEqual(at(2026, 8, 15));
   });
 
   it("includes the first day of the window", () => {
     const window = currentPeriod(
       { period: "monthly", startsOn: "2026-07-01" },
-      new Date(2026, 6, 1),
+      at(2026, 6, 1),
     );
 
-    expect(window.from).toEqual(new Date(2026, 6, 1));
+    expect(window.from).toEqual(at(2026, 6, 1));
   });
 
   it("clamps a 31st anchor into a short month instead of rolling over", () => {
@@ -90,65 +120,78 @@ describe("currentPeriod", () => {
     // window; the anchor has to stay put.
     const window = currentPeriod(
       { period: "monthly", startsOn: "2026-01-31" },
-      new Date(2026, 1, 10), // 10 February
+      at(2026, 1, 10), // 10 February
     );
 
-    expect(window.from).toEqual(new Date(2026, 0, 31));
-    expect(window.to).toEqual(new Date(2026, 1, 28));
+    expect(window.from).toEqual(at(2026, 0, 31));
+    expect(window.to).toEqual(at(2026, 1, 28));
   });
 
   it("handles weekly windows", () => {
     const window = currentPeriod(
       { period: "weekly", startsOn: "2026-07-06" },
-      new Date(2026, 6, 16),
+      at(2026, 6, 16),
     );
 
-    expect(window.from).toEqual(new Date(2026, 6, 13));
-    expect(window.to).toEqual(new Date(2026, 6, 20));
+    expect(window.from).toEqual(at(2026, 6, 13));
+    expect(window.to).toEqual(at(2026, 6, 20));
   });
 
   it("handles quarterly windows", () => {
     const window = currentPeriod(
       { period: "quarterly", startsOn: "2026-01-01" },
-      new Date(2026, 7, 15),
+      at(2026, 7, 15),
     );
 
-    expect(window.from).toEqual(new Date(2026, 6, 1));
-    expect(window.to).toEqual(new Date(2026, 9, 1));
+    expect(window.from).toEqual(at(2026, 6, 1));
+    expect(window.to).toEqual(at(2026, 9, 1));
   });
 
   it("handles yearly windows", () => {
     const window = currentPeriod(
       { period: "yearly", startsOn: "2024-03-01" },
-      new Date(2026, 5, 1),
+      at(2026, 5, 1),
     );
 
-    expect(window.from).toEqual(new Date(2026, 2, 1));
-    expect(window.to).toEqual(new Date(2027, 2, 1));
+    expect(window.from).toEqual(at(2026, 2, 1));
+    expect(window.to).toEqual(at(2027, 2, 1));
   });
 
   it("reports the first window for a budget that has not started", () => {
     const window = currentPeriod(
       { period: "monthly", startsOn: "2026-12-01" },
-      new Date(2026, 6, 1),
+      at(2026, 6, 1),
     );
 
-    expect(window.from).toEqual(new Date(2026, 11, 1));
+    expect(window.from).toEqual(at(2026, 11, 1));
   });
 
   it("stays correct many periods out", () => {
     const window = currentPeriod(
       { period: "monthly", startsOn: "2020-01-10" },
-      new Date(2026, 6, 20),
+      at(2026, 6, 20),
     );
 
-    expect(window.from).toEqual(new Date(2026, 6, 10));
-    expect(window.to).toEqual(new Date(2026, 7, 10));
+    expect(window.from).toEqual(at(2026, 6, 10));
+    expect(window.to).toEqual(at(2026, 7, 10));
   });
 });
 
 describe("spentForBudget", () => {
-  const now = new Date(2026, 6, 20);
+  const now = at(2026, 6, 20);
+
+  it("includes a Cambodia boundary entry exactly once and preserves USD/KHR conversion", () => {
+    vi.stubEnv("TZ", "UTC");
+    const { spent } = spentForBudget(budget(), [
+      txn({ amount: -900, occurredAt: "2026-06-30T16:59:59.999Z" }),
+      txn({ amount: -525, occurredAt: "2026-06-30T17:00:00.000Z" }),
+      txn({ amount: -4100, currency: "KHR", occurredAt: "2026-07-31T16:59:59.999Z" }),
+      txn({ amount: -900, occurredAt: "2026-07-31T17:00:00.000Z" }),
+      txn({ amount: -5000, type: "transfer", occurredAt: "2026-06-30T17:00:00.000Z" }),
+    ], rate, now);
+    expect(spent.minor).toBe(625);
+    expect(spent.currency).toBe("USD");
+  });
 
   it("counts only outflows in the current window", () => {
     const { spent } = spentForBudget(
@@ -253,7 +296,7 @@ describe("spentForBudget", () => {
 });
 
 describe("budgetProgress", () => {
-  const now = new Date(2026, 6, 20);
+  const now = at(2026, 6, 20);
 
   it("reports remaining and the fraction used", () => {
     const progress = budgetProgress(budget(), [txn({ amount: -2_500 })], rate, now);
@@ -299,7 +342,7 @@ describe("budgetProgress", () => {
       budget({ startsOn: "2026-07-01" }),
       [],
       rate,
-      new Date(2026, 6, 30),
+      at(2026, 6, 30),
     );
 
     // Window ends 1 August, so 30 July has one day left after today.
@@ -311,7 +354,7 @@ describe("budgetProgress", () => {
       budget({ startsOn: "2026-07-01" }),
       [],
       rate,
-      new Date(2026, 6, 31),
+      at(2026, 6, 31),
     );
 
     expect(progress.daysRemaining).toBe(0);
@@ -332,7 +375,7 @@ describe("budgetProgress", () => {
 });
 
 describe("summarizeBudgets", () => {
-  const now = new Date(2026, 6, 20);
+  const now = at(2026, 6, 20);
 
   it("skips inactive budgets", () => {
     const result = summarizeBudgets(
@@ -365,7 +408,7 @@ describe("summarizeBudgets", () => {
 });
 
 describe("totalRemaining", () => {
-  const now = new Date(2026, 6, 20);
+  const now = at(2026, 6, 20);
 
   it("sums what is left across category budgets", () => {
     const progress = summarizeBudgets(

@@ -45,6 +45,9 @@ jobs:
       - name: Test
         run: npm test
 
+      - name: Generated-file cleanup safety
+        run: npm run test:footprint
+
       # Exits non-zero on any high-confidence finding. Scans both application code
       # and the migrations, since a float money column is a schema problem.
       - name: Money safety

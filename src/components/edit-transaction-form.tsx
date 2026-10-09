@@ -11,6 +11,7 @@ import { updateTransaction } from "@/app/actions/transactions";
 import type { AccountBalance, Category, Transaction, TransactionType } from "@/lib/domain/types";
 import { CURRENCY_META, type CurrencyCode } from "@/lib/money";
 import { cn } from "@/lib/utils";
+import { withActionFeedback } from "@/lib/action-feedback";
 
 /**
  * Amending a transaction.
@@ -74,10 +75,11 @@ export function EditTransactionForm({
 
   async function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
+    if (pending) return;
     setPending(true);
     setError(null);
 
-    const result = await updateTransaction({
+    const result = await withActionFeedback(() => updateTransaction({
       id: transaction.id,
       accountId,
       type: type as "expense" | "income" | "refund" | "adjustment",
@@ -87,7 +89,7 @@ export function EditTransactionForm({
       notes: notes.trim() === "" ? null : notes.trim(),
       // datetime-local has no zone, so it is read as local time and converted here.
       occurredAt: new Date(occurredAt).toISOString(),
-    });
+    }), "Could not confirm the save. Check Activity before trying again.");
 
     setPending(false);
 
@@ -100,7 +102,7 @@ export function EditTransactionForm({
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-3">
+    <form onSubmit={handleSubmit} className="page-enter space-y-5" aria-busy={pending}>
       <Card>
         <CardBody className="space-y-3 pt-4">
           <fieldset>

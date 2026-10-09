@@ -16,11 +16,11 @@ export function TransactionHistory({ transactions, categories, accounts, editabl
     groups.set(day, [...(groups.get(day) ?? []), transaction]);
   }
   return (
-    <div className="space-y-6">
+    <div className="stagger-children space-y-5">
       {[...groups].map(([day, rows]) => (
         <section key={day} aria-label={day}>
-          <h2 className="text-ink-muted mb-3 px-1 text-sm font-medium">{day}</h2>
-          <Card><CardBody><ul className="divide-surface-variant divide-y">
+          <div className="mb-3 flex items-center justify-between px-1"><h2 className="text-xs font-semibold text-ink-muted">{day}</h2><span className="text-[11px] text-ink-faint">{rows.length} {rows.length === 1 ? "entry" : "entries"}</span></div>
+          <Card><CardBody className="pt-1 pb-1"><ul className="divide-y divide-surface-variant">
             {rows.map(transaction => <TransactionRow key={transaction.id} transaction={transaction} transactions={transactions} categories={categories} accounts={accounts} editable={editable} showDate={false} />)}
           </ul></CardBody></Card>
         </section>

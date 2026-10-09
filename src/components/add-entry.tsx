@@ -24,21 +24,23 @@ const MODES = [
   { value: "transfer", label: "Transfer" },
 ] as const;
 
-type Mode = (typeof MODES)[number]["value"];
+export type EntryMode = (typeof MODES)[number]["value"];
 
 export function AddEntry({
   accounts,
   categories,
   rate = DEFAULT_RATE,
   readOnly = false,
+  initialMode = "expense",
 }: {
   accounts: readonly AccountBalance[];
   categories: readonly Category[];
   rate?: ExchangeRate;
   /** Demo mode: the forms render but cannot persist. */
   readOnly?: boolean;
+  initialMode?: EntryMode;
 }) {
-  const [mode, setMode] = useState<Mode>("expense");
+  const [mode, setMode] = useState<EntryMode>(initialMode);
 
   return (
     <div className="mx-auto max-w-2xl space-y-5">
@@ -54,8 +56,8 @@ export function AddEntry({
             aria-pressed={mode === option.value}
             onClick={() => setMode(option.value)}
             className={cn(
-              "rounded-xl min-h-11 flex-1 text-sm font-semibold transition-[background-color,box-shadow] duration-150",
-              mode === option.value ? "bg-surface text-ink shadow-card" : "text-ink-muted",
+              "rounded-xl min-h-11 flex-1 text-sm font-semibold transition-[background-color,color,box-shadow] duration-200",
+              mode === option.value ? "bg-brand text-surface shadow-card" : "text-ink-muted",
             )}
           >
             {option.label}
@@ -63,6 +65,7 @@ export function AddEntry({
         ))}
       </div>
 
+      <div key={mode} className="form-enter">
       {mode === "transfer" ? (
         <TransferForm accounts={accounts} rate={rate} readOnly={readOnly} />
       ) : (
@@ -78,6 +81,7 @@ export function AddEntry({
           readOnly={readOnly}
         />
       )}
+      </div>
     </div>
   );
 }

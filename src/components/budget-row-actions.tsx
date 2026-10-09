@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 
 import { deleteBudget } from "@/app/actions/budgets";
+import { withActionFeedback } from "@/lib/action-feedback";
 
 export function BudgetRowActions({
   budgetId,
@@ -21,7 +22,8 @@ export function BudgetRowActions({
     if (!window.confirm(`Remove the ${name} budget?`)) return;
 
     startTransition(async () => {
-      const result = await deleteBudget(budgetId);
+      setError(null);
+      const result = await withActionFeedback(() => deleteBudget(budgetId), "Reload Budgets to check whether it was removed.");
       if (!result.ok) setError(result.error);
       else router.refresh();
     });

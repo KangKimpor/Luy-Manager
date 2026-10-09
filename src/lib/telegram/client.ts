@@ -20,16 +20,30 @@ export interface TelegramUpdate {
   message?: {
     message_id?: number;
     text?: string;
+    caption?: string;
     chat?: { id?: number; type?: string };
     from?: { id?: number; is_bot?: boolean; first_name?: string; username?: string };
   };
 }
 
 export interface InboundMessage {
+  updateId: number;
   chatId: number;
   text: string;
   firstName: string | null;
+  unsupportedAttachment: boolean;
 }
+
+export type ReplyKeyboard = readonly (readonly string[])[];
+
+export const MAIN_KEYBOARD: ReplyKeyboard = [
+  ["Expense", "Income", "Transfer"],
+  ["Accounts", "Recent", "Budgets"],
+  ["Summary today", "Summary month", "Rate"],
+  ["Help"],
+];
+
+export const CONFIRM_KEYBOARD: ReplyKeyboard = [["Yes", "No"]];
 
 /**
  * Pull the one message shape this bot acts on out of an update.
@@ -43,18 +57,25 @@ export function readMessage(update: unknown): InboundMessage | null {
   if (typeof update !== "object" || update === null) return null;
 
   const message = (update as TelegramUpdate).message;
+  const updateId = (update as TelegramUpdate).update_id;
   const chatId = message?.chat?.id;
-  const text = message?.text;
+  const text = message?.text ?? message?.caption;
 
-  if (typeof chatId !== "number" || typeof text !== "string") return null;
+  if (!Number.isSafeInteger(updateId) || (updateId as number) < 0) return null;
+  if (!Number.isSafeInteger(chatId) || (chatId as number) <= 0) return null;
+  // A group cannot own one person's ledger: another member could issue writes
+  // or see balances after that person links it. Only direct chats may connect.
+  if (message?.chat?.type !== "private" || message?.from?.id !== chatId) return null;
   // A bot talking to a bot is a loop waiting to happen.
   if (message?.from?.is_bot === true) return null;
-  if (text.trim() === "") return null;
+  if (typeof text === "string" && text.trim() === "") return null;
 
   return {
-    chatId,
-    text,
+    updateId: updateId as number,
+    chatId: chatId as number,
+    text: typeof text === "string" ? text.slice(0, 4096) : "[Unsupported attachment]",
     firstName: message?.from?.first_name ?? null,
+    unsupportedAttachment: typeof text !== "string",
   };
 }
 
@@ -89,10 +110,10 @@ export function isFromTelegram(request: Request, expectedSecret: string): boolea
 export async function sendMessage(
   chatId: number,
   text: string,
+  keyboard: ReplyKeyboard = MAIN_KEYBOARD,
 ): Promise<{ ok: boolean; error?: string }> {
-  const { botToken } = requireTelegramEnv();
-
   try {
+    const { botToken } = requireTelegramEnv();
     const response = await fetch(`${API_BASE}/bot${botToken}/sendMessage`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -104,15 +125,24 @@ export async function sendMessage(
         // name, and a parse failure means the user gets nothing back.
         parse_mode: "HTML",
         link_preview_options: { is_disabled: true },
+        reply_markup: {
+          keyboard: keyboard.map((row) => row.map((label) => ({ text: label }))),
+          resize_keyboard: true,
+          is_persistent: true,
+          input_field_placeholder: "Spent $5 coffee from ABA",
+        },
       }),
+      signal: AbortSignal.timeout(8_000),
     });
 
     if (!response.ok) {
       return { ok: false, error: `Telegram returned ${response.status}` };
     }
-    return { ok: true };
-  } catch (error) {
-    return { ok: false, error: error instanceof Error ? error.message : "send failed" };
+    const payload = await response.json() as { ok?: boolean };
+    return payload.ok === true ? { ok: true } : { ok: false, error: "Telegram refused the reply." };
+  } catch {
+    // Network errors can contain the full request URL, which contains the token.
+    return { ok: false, error: "Could not deliver the Telegram reply." };
   }
 }
 

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Wallet } from "lucide-react";
 
 import { LoginForm } from "@/components/login-form";
 import { Card, CardBody } from "@/components/ui/card";
@@ -20,9 +21,10 @@ export default async function LoginPage(props: {
   const { next, error } = await props.searchParams;
 
   return (
-    <div className="login-page space-y-8">
+    <div className="login-page page-enter stagger-children space-y-8">
       <header className="pt-8 text-center">
-        <p className="text-brand mb-5 text-sm font-semibold">Luy Manager</p>
+        <span className="bg-brand text-surface shadow-fab mx-auto mb-5 flex size-16 items-center justify-center rounded-3xl"><Wallet size={30} aria-hidden="true" /></span>
+        <p className="text-brand mb-4 text-sm font-semibold">Luy Manager</p>
         <h1 className="text-ink text-4xl font-semibold tracking-tight">Money, made clearer.</h1>
         <p className="text-ink-muted mt-1 text-sm">
           Track dollars and riel side by side.

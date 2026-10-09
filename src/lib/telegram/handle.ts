@@ -1,5 +1,7 @@
-import { asRows, TRANSACTION_COLUMNS } from "@/lib/data/client";
-import { mapRows, toAccountBalance, toCategory, toTransaction } from "@/lib/data/mappers";
+import { ACCOUNT_BALANCE_COLUMNS, asRows, BUDGET_COLUMNS, CATEGORY_COLUMNS, TRANSACTION_COLUMNS } from "@/lib/data/client";
+import { mapRows, toAccountBalance, toBudget, toCategory, toTransaction } from "@/lib/data/mappers";
+import { readTransactionsInRange } from "@/lib/data/transactions";
+import { currentPeriod, summarizeBudgets } from "@/lib/domain/budgets";
 import { buildTransaction, summarizeCashFlow } from "@/lib/domain/transactions";
 import { planTransfer, transferInserts } from "@/lib/domain/transfers";
 import type { AccountBalance, Category } from "@/lib/domain/types";
@@ -7,18 +9,21 @@ import type { AccountBalance, Category } from "@/lib/domain/types";
 // re-exporting it.
 import { formatMoney, money, type CurrencyCode, type Money } from "@/lib/money";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { loadUsdKhrRate } from "@/lib/rates/repository";
+import { describeFreshness, type RateSnapshot } from "@/lib/rates/repository";
 
-import { escapeHtml, readMessage, sendMessage } from "./client";
+import { CONFIRM_KEYBOARD, escapeHtml, MAIN_KEYBOARD, readMessage, sendMessage, type ReplyKeyboard } from "./client";
 import { requireTelegramEnv } from "./env";
 import { verifyLinkToken } from "./link";
 import {
   needsConfirmation,
+  CONFIRM_THRESHOLD,
   parseMessage,
   type RecordIntent,
   type TelegramIntent,
   type TransferIntent,
 } from "./parse";
+import { loadBotRate } from "./rates";
+import { reportingWindow, validTimezone } from "./reporting";
 
 /**
  * The bot's brain: an intent plus a chat id, turned into a ledger write and a reply.
@@ -57,15 +62,19 @@ const HELP = [
   "• <code>Spent $5 coffee</code>",
   "• <code>Spent 12000 riel lunch</code>",
   "• <code>Salary $600</code>",
-  "• <code>Fuel $20</code>",
+  "• <code>Expense $20 fuel from ABA</code>",
   "• <code>Transfer $100 ABA to Wing</code>",
+  "• <code>Transfer $10 ABA to Cash received 41000 riel</code>",
   "",
   "Ask me things:",
   "• <code>Summary today</code> or <code>Summary month</code>",
   "• <code>Show budget</code>",
+  "• <code>Accounts</code>, <code>Recent</code>, <code>Rate</code>",
   "• <code>Undo last transaction</code>",
   "",
   "Always say the currency when you can. <code>5</code> on its own could be $5 or 5៛, so I will ask.",
+  "Transfers record movements in your ledger. Your bank moves the actual funds.",
+  "Use the menu buttons or /expense, /income and /transfer for examples.",
 ].join("\n");
 
 /* -------------------------------------------------------------------------- */
@@ -84,7 +93,8 @@ async function log(
     error?: string | null;
   },
 ): Promise<string | null> {
-  const { data } = await admin
+  try {
+    const { data } = await admin
     .from("telegram_logs")
     .insert({
       chat_id: entry.chatId,
@@ -98,7 +108,11 @@ async function log(
     .select("id")
     .maybeSingle();
 
-  return (data as { id: string } | null)?.id ?? null;
+    return (data as { id: string } | null)?.id ?? null;
+  } catch {
+    console.error("[telegram] Could not write the message log.");
+    return null;
+  }
 }
 
 /** Reply and record that we replied, so a conversation can be reconstructed later. */
@@ -107,8 +121,9 @@ async function reply(
   chatId: number,
   userId: string | null,
   text: string,
-): Promise<void> {
-  const sent = await sendMessage(chatId, text);
+  keyboard: ReplyKeyboard = MAIN_KEYBOARD,
+): Promise<boolean> {
+  const sent = await sendMessage(chatId, text, keyboard);
   await log(admin, {
     chatId,
     userId,
@@ -116,6 +131,7 @@ async function reply(
     text,
     error: sent.ok ? null : sent.error,
   });
+  return sent.ok;
 }
 
 /* -------------------------------------------------------------------------- */
@@ -123,12 +139,13 @@ async function reply(
 /* -------------------------------------------------------------------------- */
 
 async function userIdForChat(admin: Admin, chatId: number): Promise<string | null> {
-  const { data } = await admin
+  const { data, error } = await admin
     .from("profiles")
     .select("id")
     .eq("telegram_chat_id", chatId)
     .maybeSingle();
 
+  if (error) throw new Error("Could not find the linked account.");
   return (data as { id: string } | null)?.id ?? null;
 }
 
@@ -138,23 +155,30 @@ interface UserContext {
   defaultAccountId: string | null;
   accounts: AccountBalance[];
   categories: Category[];
+  timezone: string;
+  rate: RateSnapshot;
 }
 
 async function loadContext(admin: Admin, userId: string): Promise<UserContext> {
-  const [profile, settings, accounts, categories] = await Promise.all([
-    admin.from("profiles").select("base_currency").eq("id", userId).maybeSingle(),
+  const [profile, settings, accounts, categories, rate] = await Promise.all([
+    admin.from("profiles").select("base_currency, timezone").eq("id", userId).maybeSingle(),
     admin.from("settings").select("default_account_id").eq("user_id", userId).maybeSingle(),
     admin
       .from("account_balances")
-      .select("*")
+      .select(ACCOUNT_BALANCE_COLUMNS)
       .eq("user_id", userId)
       .order("sort_order", { ascending: true }),
     admin
       .from("categories")
-      .select("*")
+      .select(CATEGORY_COLUMNS)
       .eq("user_id", userId)
       .is("deleted_at", null),
+    loadBotRate(admin, userId),
   ]);
+
+  if (profile.error || settings.error || accounts.error || categories.error) {
+    throw new Error("Could not load your ledger.");
+  }
 
   return {
     userId,
@@ -167,6 +191,8 @@ async function loadContext(admin: Admin, userId: string): Promise<UserContext> {
       null,
     accounts: mapRows(asRows(accounts.data), toAccountBalance, "account_balances"),
     categories: mapRows(asRows(categories.data), toCategory, "categories"),
+    timezone: validTimezone((profile.data as { timezone?: string } | null)?.timezone),
+    rate,
   };
 }
 
@@ -215,6 +241,23 @@ export function resolveAccount(
   return matching[0] ?? null;
 }
 
+/** Ambiguous or misspelled explicit names must never choose a different wallet. */
+export function namedAccount(
+  accounts: readonly AccountBalance[],
+  hint: string,
+  currency?: CurrencyCode,
+): AccountBalance | null {
+  const usable = accounts.filter((account) => account.isActive && (!currency || account.currency === currency));
+  const needle = hint.trim().toLowerCase();
+  if (!needle) return null;
+  const exact = usable.filter((account) => account.name.toLowerCase() === needle);
+  if (exact.length === 1) return exact[0];
+  if (exact.length > 1) return null;
+  const matches = usable.filter((account) => account.name.toLowerCase().includes(needle) ||
+    (account.institution ?? "").toLowerCase().includes(needle));
+  return matches.length === 1 ? matches[0] : null;
+}
+
 /**
  * Match free text to one of the user's categories.
  *
@@ -254,7 +297,9 @@ async function saveRecord(
   context: UserContext,
   intent: RecordIntent,
 ): Promise<{ ok: true; message: string; transactionId: string } | { ok: false; message: string }> {
-  const account = resolveAccount(
+  const account = intent.resolvedAccountId
+    ? context.accounts.find((entry) => entry.accountId === intent.resolvedAccountId && entry.isActive && entry.currency === intent.amount.currency) ?? null
+    : intent.accountHint ? namedAccount(context.accounts, intent.accountHint, intent.amount.currency) : resolveAccount(
     context.accounts,
     intent.amount.currency,
     intent.descriptor,
@@ -264,14 +309,16 @@ async function saveRecord(
   if (!account) {
     return {
       ok: false,
-      message:
+      message: intent.accountHint
+        ? `I could not uniquely match an active ${intent.amount.currency} account named "${escapeHtml(intent.accountHint)}". Send /accounts and use its full name.`
+        :
         `You have no active ${intent.amount.currency} account, so I cannot record ` +
         `${describeAmount(intent.amount)}. Add one in the app first.`,
     };
   }
 
-  const category = resolveCategory(context.categories, intent.descriptor);
-  const { rate } = await loadUsdKhrRate();
+  const category = resolveCategory(context.categories.filter((entry) => entry.appliesTo.includes(intent.type)), intent.descriptor);
+  const { rate } = context.rate;
 
   const row = buildTransaction(
     {
@@ -310,12 +357,9 @@ async function saveTransfer(
   context: UserContext,
   intent: TransferIntent,
 ): Promise<{ ok: true; message: string } | { ok: false; message: string }> {
-  const from = resolveAccount(
-    context.accounts,
-    intent.amount.currency,
-    intent.fromHint,
-    context.defaultAccountId,
-  );
+  const from = intent.resolvedFromId
+    ? context.accounts.find((entry) => entry.accountId === intent.resolvedFromId && entry.isActive && entry.currency === intent.amount.currency) ?? null
+    : namedAccount(context.accounts, intent.fromHint, intent.amount.currency);
   if (!from) {
     return {
       ok: false,
@@ -325,14 +369,9 @@ async function saveTransfer(
 
   // The destination may hold either currency, so it is matched by name across all
   // active accounts rather than filtered by the sent currency first.
-  const to =
-    context.accounts.find(
-      (account) =>
-        account.isActive &&
-        account.accountId !== from.accountId &&
-        (account.name.toLowerCase().includes(intent.toHint.toLowerCase()) ||
-          (account.institution ?? "").toLowerCase().includes(intent.toHint.toLowerCase())),
-    ) ?? null;
+  const to = intent.resolvedToId
+    ? context.accounts.find((entry) => entry.accountId === intent.resolvedToId && entry.isActive) ?? null
+    : namedAccount(context.accounts, intent.toHint, intent.receivedAmount?.currency);
 
   if (!to) {
     return {
@@ -341,12 +380,12 @@ async function saveTransfer(
     };
   }
 
-  const { rate } = await loadUsdKhrRate();
+  const { rate } = context.rate;
 
   try {
     // planTransfer enforces what the database would otherwise reject: two distinct
     // accounts, a non-zero amount, and each leg in its own account's currency.
-    const plan = planTransfer({ from, to, amount: intent.amount }, rate);
+    const plan = planTransfer({ from, to, amount: intent.amount, receivedAmount: intent.receivedAmount }, rate);
     const groupId = crypto.randomUUID();
     const [out, incoming] = transferInserts(plan, groupId, context.baseCurrency, rate);
 
@@ -364,8 +403,9 @@ async function saveTransfer(
     return {
       ok: true,
       message:
-        `Moved ${describeAmount(plan.sent)} from ${escapeHtml(from.name)} ` +
-        `to ${describeAmount(plan.received)} in ${escapeHtml(to.name)}.`,
+        `Recorded ${describeAmount(plan.sent)} from ${escapeHtml(from.name)} ` +
+        `to ${describeAmount(plan.received)} in ${escapeHtml(to.name)}.` +
+        (plan.receivedBasis === "rate-table" ? `\nConverted using ${escapeHtml(describeFreshness(context.rate))}. Specify "received 41000 riel" to use the amount your bank actually credited.` : ""),
     };
   } catch (error) {
     return {
@@ -384,25 +424,12 @@ async function summarise(
   context: UserContext,
   window: "today" | "month",
 ): Promise<string> {
-  const now = new Date();
-  const from =
-    window === "today"
-      ? new Date(now.getFullYear(), now.getMonth(), now.getDate())
-      : new Date(now.getFullYear(), now.getMonth(), 1);
+  const { from, to } = reportingWindow(new Date(), window, context.timezone);
 
-  const { data } = await admin
-    .from("transactions")
-    .select(TRANSACTION_COLUMNS)
-    .eq("user_id", context.userId)
-    .is("deleted_at", null)
-    .gte("occurred_at", from.toISOString())
-    .order("occurred_at", { ascending: false });
-
-  // asRows: an explicit column list is a template string the client's generics
-  // cannot narrow, so it types `data` as an error shape. Same helper the rest of
-  // the data layer uses for this.
-  const transactions = mapRows(asRows(data), toTransaction, "transactions");
-  const { rate } = await loadUsdKhrRate();
+  const transactions = await readTransactionsInRange(
+    { supabase: admin, userId: context.userId }, from, new Date(to.getTime() - 1),
+  );
+  const { rate } = context.rate;
   const flow = summarizeCashFlow(transactions, context.baseCurrency, rate);
 
   const label = window === "today" ? "Today" : "This month";
@@ -411,47 +438,74 @@ async function summarise(
     `In: ${describeAmount(flow.income)}`,
     `Out: ${describeAmount(flow.expense)}`,
     `Net: ${describeAmount(flow.net)}`,
-    `<i>${transactions.length} transaction${transactions.length === 1 ? "" : "s"}, in ${context.baseCurrency}</i>`,
+    `<i>${transactions.length} transaction${transactions.length === 1 ? "" : "s"}, converted to ${context.baseCurrency}. ${escapeHtml(context.timezone)}.</i>`,
   ].join("\n");
 }
 
 async function budgetSummary(admin: Admin, context: UserContext): Promise<string> {
-  const { data } = await admin
+  const { data, error } = await admin
     .from("budgets")
-    .select("*")
+    .select(BUDGET_COLUMNS)
     .eq("user_id", context.userId)
     .is("deleted_at", null)
     .eq("is_active", true);
+  if (error) throw new Error("Could not read your budgets.");
+  const budgets = mapRows(asRows(data), toBudget, "budgets");
+  if (budgets.length === 0) return "You have no active budgets. Add one in the app.";
 
-  const rows = (data ?? []) as Array<{
-    name: string | null;
-    category_id: string | null;
-    amount: number;
-    currency: CurrencyCode;
-  }>;
-
-  if (rows.length === 0) return "You have no active budgets. Add one in the app.";
-
-  // Limits only. Computing spend-against-budget needs the same period arithmetic
-  // the budgets page does, and duplicating that here would be a second
-  // implementation of the number that matters most.
-  const lines = rows.map((row) => {
-    const name =
-      row.name ??
-      context.categories.find((category) => category.id === row.category_id)?.name ??
-      "Everything";
-    // money() rather than an object literal: it validates the integer and collapses
-    // negative zero, which a bare { minor, currency } quietly skips.
-    return `• ${escapeHtml(name)}: ${escapeHtml(formatMoney(money(row.amount, row.currency)))}`;
-  });
-
-  return [`<b>Active budgets</b>`, ...lines, "", "Open the app for spend against each."].join(
-    "\n",
+  const now = new Date();
+  const periods = budgets.map((budget) => currentPeriod(budget, now));
+  const from = new Date(Math.min(...periods.map((period) => period.from.getTime())));
+  const to = new Date(Math.max(...periods.map((period) => period.to.getTime())));
+  const transactions = await readTransactionsInRange(
+    { supabase: admin, userId: context.userId }, from, new Date(to.getTime() - 1),
   );
+  const progress = summarizeBudgets(budgets, transactions, context.rate.rate, now);
+  const lines = progress.slice(0, 12).map((entry) => {
+    const name = entry.budget.name ??
+      context.categories.find((category) => category.id === entry.budget.categoryId)?.name ??
+      "Everything";
+    return `• <b>${escapeHtml(name)}</b>\n  ${describeAmount(entry.spent)} of ${describeAmount(entry.limit)} spent, ${describeAmount(entry.remaining)} left.`;
+  });
+  return ["<b>Budget progress</b>", ...lines, ...(progress.length > 12 ? ["Open the app for all budgets."] : [])].join("\n");
+}
+
+function accountSummary(context: UserContext): string {
+  const accounts = context.accounts.filter((account) => account.isActive);
+  if (accounts.length === 0) return "You have no active accounts. Add an account in the app first.";
+  return ["<b>Your accounts</b>", ...accounts.slice(0, 20).map((account) =>
+    `• <b>${escapeHtml(account.name)}</b>: ${describeAmount(money(account.currentBalance, account.currency))}${account.accountId === context.defaultAccountId ? " (default)" : ""}`),
+    "", 'Use an exact account name after "from", for example: <code>Spent $5 coffee from ABA</code>.'].join("\n");
+}
+
+async function recentTransactions(admin: Admin, context: UserContext): Promise<string> {
+  const { data, error } = await admin.from("transactions").select(TRANSACTION_COLUMNS)
+    .eq("user_id", context.userId).is("deleted_at", null)
+    .order("occurred_at", { ascending: false }).order("id", { ascending: false }).limit(8);
+  if (error) throw new Error("Could not read recent transactions.");
+  const transactions = mapRows(asRows(data), toTransaction, "transactions");
+  if (transactions.length === 0) return "Your ledger has no transactions yet. Try <code>Spent $5 coffee</code>.";
+  return ["<b>Recent transactions</b>", ...transactions.map((transaction) => {
+    const account = context.accounts.find((entry) => entry.accountId === transaction.accountId);
+    const date = new Intl.DateTimeFormat("en-GB", { timeZone: context.timezone, day: "numeric", month: "short" }).format(new Date(transaction.occurredAt));
+    return `• ${escapeHtml(date)}: ${describeAmount(money(transaction.amount, transaction.currency))} ${transaction.type}\n  ${escapeHtml(account?.name ?? "Account")}${transaction.notes ? `, ${escapeHtml(transaction.notes.slice(0, 100))}` : ""}`;
+  })].join("\n");
+}
+
+function operationGuide(operation: "expense" | "income" | "refund" | "transfer"): string {
+  const examples = {
+    expense: "Expense $5 coffee from ABA\nExpense 12000 riel lunch from Cash",
+    income: "Income $600 salary from ABA\nIncome 50000 riel gift from Cash",
+    refund: "Refund $12 shirt from ABA",
+    transfer: "Transfer $100 ABA to Wing\nTransfer $10 ABA to Cash received 41000 riel",
+  };
+  return [operation === "transfer" ? "Record money you already moved between your accounts:" : `Send the ${operation} amount, currency and description:`,
+    `<code>${examples[operation]}</code>`, "", "Send /accounts to see the exact account names.",
+    operation === "transfer" ? "This records the ledger movement. Your bank moves the actual funds." : "An unclear currency or direction will need Yes or No before saving."].join("\n");
 }
 
 async function undoLast(admin: Admin, context: UserContext): Promise<string> {
-  const { data } = await admin
+  const { data, error: readError } = await admin
     .from("transactions")
     .select("id, transfer_group_id, amount, currency")
     .eq("user_id", context.userId)
@@ -459,6 +513,8 @@ async function undoLast(admin: Admin, context: UserContext): Promise<string> {
     .order("created_at", { ascending: false })
     .limit(1)
     .maybeSingle();
+
+  if (readError) throw new Error("Could not find the latest transaction.");
 
   const row = data as {
     id: string;
@@ -495,7 +551,7 @@ async function undoLast(admin: Admin, context: UserContext): Promise<string> {
 
   if (error) return `I could not undo that: ${escapeHtml(error.message)}`;
 
-  return `Removed ${describeAmount(money(row.amount, row.currency))}. It is recoverable in the app.`;
+  return `Removed ${describeAmount(money(row.amount, row.currency))}${row.transfer_group_id ? " and both transfer legs" : ""} from your ledger.`;
 }
 
 /* -------------------------------------------------------------------------- */
@@ -504,24 +560,22 @@ async function undoLast(admin: Admin, context: UserContext): Promise<string> {
 
 async function storePending(
   admin: Admin,
+  logId: string,
   chatId: number,
   userId: string,
-  text: string,
   intent: TelegramIntent,
 ): Promise<void> {
-  await log(admin, {
-    chatId,
-    userId,
-    direction: "inbound",
-    text,
-    parsed: { pending: intent },
-  });
+  const { error } = await admin.from("telegram_logs")
+    .update({ parsed: { offered: intent } })
+    .eq("id", logId).eq("user_id", userId).eq("chat_id", chatId);
+  if (error) throw new Error("Could not store the confirmation. Nothing was saved.");
 }
 
 async function takePending(
   admin: Admin,
   chatId: number,
   userId: string,
+  allowOffered = false,
 ): Promise<{ id: string; intent: TelegramIntent } | null> {
   const cutoff = new Date(Date.now() - PENDING_TTL_MINUTES * 60_000).toISOString();
 
@@ -530,30 +584,40 @@ async function takePending(
   // easy to get subtly wrong, and getting it wrong here fails open: it would
   // return the newest inbound row whether or not it holds a pending intent, and a
   // stray "yes" could then save something the user never saw offered.
-  const { data } = await admin
+  const { data, error } = await admin
     .from("telegram_logs")
-    .select("id, parsed")
+    .select("id, parsed, consumed_at")
     .eq("user_id", userId)
     .eq("chat_id", chatId)
     .eq("direction", "inbound")
     .gte("created_at", cutoff)
     .order("created_at", { ascending: false })
-    .limit(10);
+    .limit(50);
 
-  const rows = (data ?? []) as Array<{ id: string; parsed: { pending?: TelegramIntent } | null }>;
-  const row = rows.find((candidate) => candidate.parsed?.pending) ?? null;
-  if (!row?.parsed?.pending) return null;
+  if (error) throw new Error("Could not read the pending confirmation.");
+
+  const rows = (data ?? []) as Array<{ id: string; parsed: { pending?: TelegramIntent; offered?: TelegramIntent; resolved?: TelegramIntent } | null; consumed_at: string | null }>;
+  // A consumed newest offer ends the search. Looking for the next unconsumed
+  // row would resurrect an older offer after a second Yes or No.
+  const row = rows.find((candidate) => candidate.parsed?.pending || candidate.parsed?.offered || candidate.parsed?.resolved);
+  const intent = row?.parsed?.pending ?? (allowOffered ? row?.parsed?.offered : undefined);
+  if (!row || !intent || row.consumed_at) return null;
 
   // Consumed immediately so a second "yes" cannot save the same thing twice. The
   // append-only trigger on telegram_logs blocks anon and authenticated, not the
   // service role, so this update is permitted.
-  await admin
+  const claimed = await admin
     .from("telegram_logs")
-    .update({ parsed: { resolved: row.parsed.pending } })
+    .update({ parsed: { resolved: intent }, consumed_at: new Date().toISOString() })
     .eq("id", row.id)
-    .eq("user_id", userId);
+    .eq("user_id", userId)
+    .eq("chat_id", chatId)
+    .is("consumed_at", null)
+    .select("id");
+  if (claimed.error) throw new Error("Could not claim the pending confirmation.");
+  if (!claimed.data?.length) return null;
 
-  return { id: row.id, intent: row.parsed.pending };
+  return { id: row.id, intent };
 }
 
 /* -------------------------------------------------------------------------- */
@@ -574,8 +638,28 @@ export async function handleUpdate(update: unknown): Promise<void> {
   const { webhookSecret } = requireTelegramEnv();
   const admin = createAdminClient();
   const intent = parseMessage(inbound.text);
+  let linkedUserId: string | null = null;
+  let inboundLogId: string | null = null;
 
   try {
+    linkedUserId = await userIdForChat(admin, inbound.chatId);
+    // Uniqueness is enforced by Postgres, so two concurrent webhook deliveries
+    // cannot both pass this check. Without a durable claim, even Undo repeats.
+    const claim = await admin.from("telegram_logs").insert({
+      update_id: inbound.updateId,
+      chat_id: inbound.chatId,
+      user_id: linkedUserId,
+      direction: "inbound",
+      message_text: intent.kind === "link" ? "/start [connect token]" : inbound.text,
+      parsed: intent.kind === "link" ? { kind: "link" } : intent,
+    }).select("id").single();
+    if (claim.error?.code === "23505") return;
+    if (claim.error || !claim.data) {
+      await sendMessage(inbound.chatId, "I could not securely accept this message. Nothing was saved. Ask the app owner to check the Telegram database migration.");
+      return;
+    }
+    inboundLogId = (claim.data as { id: string }).id;
+
     // Linking is the one intent that runs before we know who is calling, since
     // establishing that is its entire purpose.
     if (intent.kind === "link") {
@@ -621,6 +705,12 @@ export async function handleUpdate(update: unknown): Promise<void> {
         return;
       }
 
+      let scopedLog = admin.from("telegram_logs").update({ user_id: verified.userId })
+        .eq("id", inboundLogId).eq("chat_id", inbound.chatId);
+      scopedLog = linkedUserId ? scopedLog.eq("user_id", linkedUserId) : scopedLog.is("user_id", null);
+      await scopedLog;
+      linkedUserId = verified.userId;
+
       await reply(
         admin,
         inbound.chatId,
@@ -630,17 +720,9 @@ export async function handleUpdate(update: unknown): Promise<void> {
       return;
     }
 
-    const userId = await userIdForChat(admin, inbound.chatId);
+    const userId = linkedUserId;
 
     if (!userId) {
-      await log(admin, {
-        chatId: inbound.chatId,
-        userId: null,
-        direction: "inbound",
-        text: inbound.text,
-        parsed: intent,
-        error: "chat is not linked to a profile",
-      });
       await reply(
         admin,
         inbound.chatId,
@@ -651,15 +733,23 @@ export async function handleUpdate(update: unknown): Promise<void> {
     }
 
     if (intent.kind === "help") {
-      await log(admin, { chatId: inbound.chatId, userId, direction: "inbound", text: inbound.text, parsed: intent });
       await reply(admin, inbound.chatId, userId, HELP);
+      return;
+    }
+
+    if (inbound.unsupportedAttachment) {
+      await reply(admin, inbound.chatId, userId, "Send a text message or a photo with an amount in its caption. I cannot transcribe voice messages or read receipt photos yet. Try <code>Spent $5 coffee</code>.");
+      return;
+    }
+    if (intent.kind === "guide") {
+      await reply(admin, inbound.chatId, userId, operationGuide(intent.operation));
       return;
     }
 
     const context = await loadContext(admin, userId);
 
     if (intent.kind === "cancel") {
-      const pending = await takePending(admin, inbound.chatId, userId);
+      const pending = await takePending(admin, inbound.chatId, userId, true);
       await reply(
         admin,
         inbound.chatId,
@@ -680,27 +770,43 @@ export async function handleUpdate(update: unknown): Promise<void> {
         );
         return;
       }
-      await execute(admin, context, inbound.chatId, pending.intent, inbound.text);
+      await execute(admin, context, inbound.chatId, inboundLogId, pending.intent);
       return;
     }
 
     if (intent.kind === "record" || intent.kind === "transfer") {
-      if (needsConfirmation(intent)) {
-        await storePending(admin, inbound.chatId, userId, inbound.text, intent);
-        await reply(admin, inbound.chatId, userId, describePending(intent));
+      const target = intent.kind === "transfer" ? namedAccount(context.accounts, intent.toHint) : null;
+      const estimatesReceived = intent.kind === "transfer" && target && target.currency !== intent.amount.currency && !intent.receivedAmount;
+      if (needsConfirmation(intent) || estimatesReceived) {
+        let offered: RecordIntent | TransferIntent = intent;
+        if (intent.kind === "transfer") {
+          const from = namedAccount(context.accounts, intent.fromHint, intent.amount.currency);
+          const to = namedAccount(context.accounts, intent.toHint, intent.receivedAmount?.currency);
+          if (from && to) {
+            const plan = planTransfer({ from, to, amount: intent.amount, receivedAmount: intent.receivedAmount }, context.rate.rate);
+            offered = { ...intent, resolvedFromId: from.accountId, resolvedToId: to.accountId, receivedAmount: plan.received };
+          }
+        } else {
+          const account = intent.accountHint ? namedAccount(context.accounts, intent.accountHint, intent.amount.currency)
+            : resolveAccount(context.accounts, intent.amount.currency, intent.descriptor, context.defaultAccountId);
+          if (account) offered = { ...intent, resolvedAccountId: account.accountId };
+        }
+        await storePending(admin, inboundLogId, inbound.chatId, userId, offered);
+        const delivered = await reply(admin, inbound.chatId, userId, describePending(intent, context), CONFIRM_KEYBOARD);
+        // The staged offer is a barrier while delivery is in flight. Yes cannot
+        // execute unseen terms, and a failed offer never revives an older one.
+        const activated = await admin.from("telegram_logs")
+          .update(delivered ? { parsed: { pending: offered } } : { parsed: { resolved: offered }, consumed_at: new Date().toISOString() })
+          .eq("id", inboundLogId).eq("user_id", userId).eq("chat_id", inbound.chatId).is("consumed_at", null);
+        if (activated.error) throw new Error("Could not activate the confirmation.");
         return;
       }
-      await execute(admin, context, inbound.chatId, intent, inbound.text);
+      // Resending an ambiguous message with explicit currency replaces the old
+      // offer. A later Yes must not resurrect the version the user corrected.
+      await takePending(admin, inbound.chatId, userId, true);
+      await execute(admin, context, inbound.chatId, inboundLogId, intent);
       return;
     }
-
-    await log(admin, {
-      chatId: inbound.chatId,
-      userId,
-      direction: "inbound",
-      text: inbound.text,
-      parsed: intent,
-    });
 
     if (intent.kind === "undo") {
       await reply(admin, inbound.chatId, userId, await undoLast(admin, context));
@@ -714,6 +820,18 @@ export async function handleUpdate(update: unknown): Promise<void> {
       await reply(admin, inbound.chatId, userId, await summarise(admin, context, intent.window));
       return;
     }
+    if (intent.kind === "accounts") {
+      await reply(admin, inbound.chatId, userId, accountSummary(context));
+      return;
+    }
+    if (intent.kind === "recent") {
+      await reply(admin, inbound.chatId, userId, await recentTransactions(admin, context));
+      return;
+    }
+    if (intent.kind === "rate") {
+      await reply(admin, inbound.chatId, userId, `<b>USD / KHR</b>\n$1 = ${escapeHtml(context.rate.rate.rate.toLocaleString("en-US"))} riel\n${escapeHtml(describeFreshness(context.rate))}.`);
+      return;
+    }
 
     await reply(
       admin,
@@ -721,36 +839,47 @@ export async function handleUpdate(update: unknown): Promise<void> {
       userId,
       `I did not understand that.\n\n${HELP}`,
     );
-  } catch (error) {
+  } catch {
     // Logged rather than rethrown, for the retry reason above.
     await log(admin, {
       chatId: inbound.chatId,
-      userId: null,
-      direction: "inbound",
-      text: inbound.text,
-      parsed: intent,
-      error: error instanceof Error ? error.message : "handler failed",
+      userId: linkedUserId,
+      direction: "outbound",
+      error: "Could not complete the request. Check recent transactions before retrying.",
     });
-    await sendMessage(inbound.chatId, "Something went wrong on my side. Nothing was saved.");
+    // A write may already have committed before a later operation failed. Never
+    // promise that nothing was saved or encourage an immediate duplicate write.
+    await sendMessage(inbound.chatId, "I could not finish that request. Check /recent before trying it again.");
   }
 }
 
 /** What the bot says when it is about to guess. */
-function describePending(intent: RecordIntent | TransferIntent): string {
+function describePending(intent: RecordIntent | TransferIntent, context: UserContext): string {
   const percent = Math.round(intent.confidence * 100);
 
   if (intent.kind === "transfer") {
+    const to = namedAccount(context.accounts, intent.toHint, intent.receivedAmount?.currency);
+    const from = namedAccount(context.accounts, intent.fromHint, intent.amount.currency);
+    let received = "";
+    if (from && to) {
+      try {
+        const plan = planTransfer({ from, to, amount: intent.amount, receivedAmount: intent.receivedAmount }, context.rate.rate);
+        received = `Credit ${describeAmount(plan.received)}${plan.receivedBasis === "rate-table" ? ` estimated using ${escapeHtml(describeFreshness(context.rate))}` : ""}.`;
+      } catch { /* The execution path will explain an invalid account pair. */ }
+    }
     return [
       `I read that as a transfer of ${describeAmount(intent.amount)}`,
       `from "${escapeHtml(intent.fromHint)}" to "${escapeHtml(intent.toHint)}".`,
-      "",
-      `I am only ${percent}% sure. Reply <b>yes</b> to save it, or <b>no</b> to discard.`,
+      received,
+      intent.confidence < CONFIRM_THRESHOLD ? `I am only ${percent}% sure.` : "Confirm the received amount before recording the movement.",
+      "Reply <b>yes</b> to save, <b>no</b> to discard, or send a new transfer with the actual received amount.",
     ].join(" ");
   }
 
   const what = intent.descriptor === "" ? "no description" : `"${escapeHtml(intent.descriptor)}"`;
   return [
     `I read that as ${intent.type} of ${describeAmount(intent.amount)} with ${what}.`,
+    ...(intent.accountHint ? [`Account: ${escapeHtml(intent.accountHint)}.`] : []),
     "",
     `I am only ${percent}% sure, usually because the currency or direction was not stated.`,
     "Reply <b>yes</b> to save it, <b>no</b> to discard, or send it again with the currency spelled out.",
@@ -762,34 +891,23 @@ async function execute(
   admin: Admin,
   context: UserContext,
   chatId: number,
+  logId: string,
   intent: TelegramIntent,
-  originalText: string,
 ): Promise<void> {
   if (intent.kind === "record") {
     const result = await saveRecord(admin, context, intent);
-    await log(admin, {
-      chatId,
-      userId: context.userId,
-      direction: "inbound",
-      text: originalText,
-      parsed: intent,
-      transactionId: result.ok ? result.transactionId : null,
-      error: result.ok ? null : result.message,
-    });
+    await admin.from("telegram_logs").update({ parsed: intent,
+      transaction_id: result.ok ? result.transactionId : null,
+      error_message: result.ok ? null : result.message,
+    }).eq("id", logId).eq("user_id", context.userId).eq("chat_id", chatId);
     await reply(admin, chatId, context.userId, result.message);
     return;
   }
 
   if (intent.kind === "transfer") {
     const result = await saveTransfer(admin, context, intent);
-    await log(admin, {
-      chatId,
-      userId: context.userId,
-      direction: "inbound",
-      text: originalText,
-      parsed: intent,
-      error: result.ok ? null : result.message,
-    });
+    await admin.from("telegram_logs").update({ parsed: intent, error_message: result.ok ? null : result.message })
+      .eq("id", logId).eq("user_id", context.userId).eq("chat_id", chatId);
     await reply(admin, chatId, context.userId, result.message);
     return;
   }

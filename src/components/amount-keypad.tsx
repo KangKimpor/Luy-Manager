@@ -55,7 +55,14 @@ export function pressAmountKey(
 
   // Avoid a leading zero turning into "05".
   if (raw === "0") return key;
-  return raw + key;
+  const candidate = raw + key;
+  try {
+    fromMajor(Number(candidate), currency);
+    return candidate;
+  } catch {
+    // An oversized amount used to throw during render and replace the whole form.
+    return raw;
+  }
 }
 
 /**
@@ -81,7 +88,11 @@ export function truncateForCurrency(raw: string, currency: CurrencyCode): string
 export function parseKeypadAmount(raw: string, currency: CurrencyCode): Money {
   const parsed = Number(raw);
   if (raw === "" || !Number.isFinite(parsed)) return fromMajor(0, currency);
-  return fromMajor(parsed, currency);
+  try {
+    return fromMajor(parsed, currency);
+  } catch {
+    return fromMajor(0, currency);
+  }
 }
 
 const TONE_CLASS = {
@@ -102,8 +113,9 @@ export function AmountDisplay({
   trailing?: ReactNode;
 }) {
   return (
-    <Card>
+    <Card className="border-0 bg-surface-container-low">
       <CardBody className="py-6">
+        <p className="text-ink-faint mb-3 text-xs font-semibold uppercase tracking-wider">{label}</p>
         <div className="flex flex-wrap items-center justify-between gap-3">
           <output
             aria-live="polite"
@@ -140,7 +152,7 @@ export function AmountKeypad({
             aria-label={key === "del" ? "Delete last digit" : key}
             disabled={disabled}
             className={cn(
-              "bg-surface border-surface-variant rounded-2xl flex min-h-14 items-center justify-center border text-2xl font-medium transition-[background-color,transform] active:bg-brand-soft active:text-brand",
+              "bg-surface border-surface-variant hover:border-brand/30 rounded-2xl flex min-h-14 items-center justify-center border text-2xl font-medium transition-[background-color,transform,border-color] active:bg-brand-soft active:text-brand active:scale-90",
               disabled && "opacity-30",
             )}
           >

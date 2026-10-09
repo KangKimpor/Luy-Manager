@@ -16,13 +16,16 @@ export function DeferredNetWorthTrend({
 }) {
   const host = useRef<HTMLDivElement>(null);
   const [Chart, setChart] = useState<NetWorthTrendComponent | null>(null);
+  const [failed, setFailed] = useState(false);
 
   useEffect(() => {
     const element = host.current;
     if (!element || Chart) return;
 
     const load = () => {
-      void import("./net-worth-trend").then((module) => setChart(() => module.NetWorthTrend));
+      void import("./net-worth-trend")
+        .then((module) => setChart(() => module.NetWorthTrend))
+        .catch(() => setFailed(true));
     };
 
     if (!("IntersectionObserver" in window)) {
@@ -44,8 +47,8 @@ export function DeferredNetWorthTrend({
   }, [Chart]);
 
   return (
-    <div ref={host} className="bg-surface-variant h-44 animate-pulse rounded-card" aria-busy={!Chart}>
-      {Chart ? <Chart points={points} currency={currency} /> : null}
+    <div ref={host} className={Chart || failed ? "h-52 min-w-0" : "h-52 min-w-0 animate-pulse rounded-2xl bg-surface-container-low"} aria-busy={!Chart && !failed}>
+      {Chart ? <Chart points={points} currency={currency} /> : failed ? <p role="status" className="flex h-full items-center justify-center text-center text-sm text-ink-muted">The chart could not load. Refresh to try again.</p> : <span className="sr-only">Loading balance chart...</span>}
     </div>
   );
 }

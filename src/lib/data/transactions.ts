@@ -25,6 +25,7 @@ import {
   SPLIT_COLUMNS,
   TENDER_COLUMNS,
   TRANSACTION_COLUMNS,
+  type DataContext,
 } from "./client";
 import { mapRows, toTransaction, toTransactionSplit, toTransactionTender } from "./mappers";
 
@@ -174,29 +175,70 @@ export async function listTransactions(
 /**
  * Every transaction in a date range, for the dashboard aggregates.
  *
- * Unpaged because the aggregation functions need the whole period to produce a
- * correct total; a page of it would silently understate spending. Bounded by the
- * date range rather than by a row limit, so the ceiling is one month of activity
- * rather than an entire history.
+ * Aggregations need every matching row. Explicit pages avoid PostgREST's response
+ * cap silently cutting an annual report short. Count once, then advance by the
+ * rows actually received so a lower configured API cap cannot truncate totals.
  */
 export const listTransactionsInRange = cache(
   async (from: Date, to: Date): Promise<Transaction[]> => {
+    validateRange(from, to);
     const context = await dataContext();
     if (!context) return filterDemo({ from, to });
+    return readTransactionsInRange(context, from, to);
+  },
+);
 
-    const { data, error } = await context.supabase
+function validateRange(from: Date, to: Date) {
+  if (!Number.isFinite(from.getTime()) || !Number.isFinite(to.getTime()) || from > to) {
+    throw new DataError("load transactions for that period", new Error("Choose a valid date range."));
+  }
+}
+
+/** Shared with the sessionless bot: every page is explicitly owner-scoped. */
+export async function readTransactionsInRange(
+  context: DataContext,
+  from: Date,
+  to: Date,
+): Promise<Transaction[]> {
+  validateRange(from, to);
+  const pageSize = 500;
+  const transactions: Transaction[] = [];
+  const ids = new Set<string>();
+  let total: number | undefined;
+  do {
+    const offset = transactions.length;
+    const { data, error, count } = await context.supabase
       .from("transactions")
-      .select(TRANSACTION_COLUMNS)
+      .select(TRANSACTION_COLUMNS, total === undefined ? { count: "exact" } : undefined)
+      .eq("user_id", context.userId)
       .is("deleted_at", null)
       .gte("occurred_at", from.toISOString())
       .lte("occurred_at", to.toISOString())
-      .order("occurred_at", { ascending: false });
+      .order("occurred_at", { ascending: false })
+      .order("id", { ascending: false })
+      .range(offset, offset + pageSize - 1);
 
     if (error) throw new DataError("load transactions for that period", error);
-
-    return mapRows(asRows(data), toTransaction, "transactions");
-  },
-);
+    if (total === undefined) {
+      if (count === null || !Number.isSafeInteger(count) || count < 0) {
+        throw new DataError("load transactions for that period", new Error("The entry count could not be verified."));
+      }
+      total = count;
+    }
+    const rows = mapRows(asRows(data), toTransaction, "transactions");
+    if ((rows.length === 0 && offset < total) || offset + rows.length > total) {
+      throw new DataError("load transactions for that period", new Error("Entries changed while loading. Reload to get complete totals."));
+    }
+    for (const row of rows) {
+      // Concurrent inserts can shift an offset page. Refuse a repeated row
+      // instead of double-counting money until the next refresh.
+      if (ids.has(row.id)) throw new DataError("load transactions for that period", new Error("Entries changed while loading. Reload to get complete totals."));
+      ids.add(row.id);
+      transactions.push(row);
+    }
+  } while (transactions.length < total);
+  return transactions;
+}
 
 /** One transaction, for the edit form. */
 export async function getTransaction(id: string): Promise<Transaction | null> {

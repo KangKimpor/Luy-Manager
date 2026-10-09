@@ -231,3 +231,37 @@ describe("confidence is bounded", () => {
     expect(record("Spent $5 coffee").confidence).toBeLessThanOrEqual(1);
   });
 });
+
+describe("command menu and explicit account selection", () => {
+  test.each(["Accounts", "/accounts", "/balance@LuyManagerBot"])("%s reads balances", (text) => {
+    expect(parseMessage(text).kind).toBe("accounts");
+  });
+  test.each(["Recent", "Transactions", "/recent", "History"])("%s reads history", (text) => {
+    expect(parseMessage(text).kind).toBe("recent");
+  });
+  test.each(["Expense", "Income", "Transfer", "/refund"])("%s asks for the operation details", (text) => {
+    expect(parseMessage(text).kind).toBe("guide");
+  });
+  test("slash commands with a bot suffix keep the stated direction", () => {
+    expect(record("/income@LuyManagerBot $600 salary")).toMatchObject({ type: "income", amount: { minor: 60000, currency: "USD" } });
+  });
+  test("a named account is distinct from the description", () => {
+    expect(record("Expense $5 coffee from ABA USD")).toMatchObject({ descriptor: "coffee", accountHint: "aba usd" });
+  });
+  test("explicit bank conversion credits the actual received riel", () => {
+    expect(parseMessage("/transfer $10 from ABA to Cash received 41000 riel")).toMatchObject({ kind: "transfer", fromHint: "aba", toHint: "cash", receivedAmount: { minor: 41000, currency: "KHR" } });
+  });
+  test("a received amount without a currency is refused", () => {
+    expect(parseMessage("Transfer $10 ABA to Cash received 41000").kind).toBe("unknown");
+  });
+  test("confirm words at the start of a longer money message are not confirmations", () => {
+    expect(parseMessage("Yes spent $5 coffee").kind).toBe("record");
+    expect(parseMessage("No expense $5 coffee").kind).toBe("record");
+  });
+});
+
+describe("amounts must not be partially matched or silently rounded", () => {
+  test.each(["Spent -5 coffee", "Spent -$5 coffee", "Spent $-5 coffee", "Spent $5.999 coffee", "Spent 5,00 usd coffee", "Spent 5.5 riel coffee", "Spent $999999999999999999999 coffee"])("%s is refused", (text) => {
+    expect(parseMessage(text).kind).toBe("unknown");
+  });
+});

@@ -41,36 +41,48 @@ export function LoginForm({
   };
 
   async function signInWithGoogle() {
+    if (pending) return;
     setError(null);
     setPending("google");
 
-    const supabase = createClient();
-    const { error: oauthError } = await supabase.auth.signInWithOAuth({
-      provider: "google",
-      options: { redirectTo: callbackUrl() },
-    });
+    try {
+      const supabase = createClient();
+      const { error: oauthError } = await supabase.auth.signInWithOAuth({
+        provider: "google",
+        options: { redirectTo: callbackUrl() },
+      });
 
-    // On success the browser navigates away, so reaching here means it failed.
-    if (oauthError) {
-      setError(oauthError.message);
+      // On success the browser navigates away, so reaching here means it failed.
+      if (oauthError) {
+        setError(oauthError.message);
+        setPending(null);
+      }
+    } catch {
+      setError("Could not open sign-in. Check your connection and try again.");
       setPending(null);
     }
   }
 
   async function signInWithEmail(event: React.FormEvent) {
     event.preventDefault();
+    if (pending) return;
     setError(null);
     setPending("email");
 
-    const supabase = createClient();
-    const { error: otpError } = await supabase.auth.signInWithOtp({
-      email: email.trim(),
-      options: { emailRedirectTo: callbackUrl() },
-    });
+    try {
+      const supabase = createClient();
+      const { error: otpError } = await supabase.auth.signInWithOtp({
+        email: email.trim(),
+        options: { emailRedirectTo: callbackUrl() },
+      });
 
-    setPending(null);
-    if (otpError) setError(otpError.message);
-    else setSent(true);
+      if (otpError) setError(otpError.message);
+      else setSent(true);
+    } catch {
+      setError("Could not confirm delivery. Check your inbox before requesting another link.");
+    } finally {
+      setPending(null);
+    }
   }
 
   if (sent) {

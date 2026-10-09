@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 
 import { deleteTransaction, restoreTransaction } from "@/app/actions/transactions";
+import { withActionFeedback } from "@/lib/action-feedback";
 
 /**
  * The only interactive part of a ledger row.
@@ -34,7 +35,8 @@ export function TransactionRowActions({
     if (!window.confirm(message)) return;
 
     startTransition(async () => {
-      const result = await deleteTransaction(transactionId);
+      setError(null);
+      const result = await withActionFeedback(() => deleteTransaction(transactionId), "Reload Activity to check whether it was deleted.");
       if (!result.ok) setError(result.error);
       else router.refresh();
     });
@@ -42,7 +44,8 @@ export function TransactionRowActions({
 
   function restore() {
     startTransition(async () => {
-      const result = await restoreTransaction(transactionId);
+      setError(null);
+      const result = await withActionFeedback(() => restoreTransaction(transactionId), "Reload Activity to check whether it was restored.");
       if (!result.ok) setError(result.error);
       else router.refresh();
     });

@@ -1,6 +1,6 @@
 "use client";
 
-import { useOptimistic, useTransition } from "react";
+import { useOptimistic, useState, useTransition } from "react";
 
 import { setDisplayCurrency } from "@/app/actions/display-currency";
 import { CURRENCIES, type CurrencyCode } from "@/lib/money";
@@ -27,17 +27,24 @@ export function CurrencyToggle({
 }) {
   const [isPending, startTransition] = useTransition();
   const [optimistic, setOptimistic] = useOptimistic(current);
+  const [error, setError] = useState(false);
 
   function choose(currency: CurrencyCode) {
-    if (currency === optimistic) return;
+    if (currency === optimistic || isPending) return;
 
     startTransition(async () => {
       setOptimistic(currency);
-      await setDisplayCurrency(currency);
+      setError(false);
+      try {
+        await setDisplayCurrency(currency);
+      } catch {
+        setError(true);
+      }
     });
   }
 
   return (
+    <div className="inline-flex flex-col gap-1">
     <div
       role="group"
       aria-label="Show totals in"
@@ -54,9 +61,10 @@ export function CurrencyToggle({
           key={code}
           type="button"
           aria-pressed={optimistic === code}
+          disabled={isPending}
           onClick={() => choose(code)}
           className={cn(
-            "rounded-pill min-h-11 px-3 text-xs font-bold transition-colors",
+            "rounded-pill min-h-11 px-3 text-xs font-bold transition-[background-color,color,box-shadow] duration-200",
             optimistic === code
               ? "bg-surface text-ink shadow-card"
               : "text-ink-muted hover:text-ink",
@@ -65,6 +73,8 @@ export function CurrencyToggle({
           {code}
         </button>
       ))}
+    </div>
+    {error ? <p role="alert" className="text-outflow text-xs">Could not change currency. Try again.</p> : null}
     </div>
   );
 }

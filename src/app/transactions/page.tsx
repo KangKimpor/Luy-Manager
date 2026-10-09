@@ -1,4 +1,4 @@
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { ChevronLeft, ChevronRight, Plus, Search } from "lucide-react";
 import Link from "next/link";
 
 import { TransactionFilters } from "@/components/transaction-filters";
@@ -83,15 +83,15 @@ export default async function TransactionsPage(props: {
   }
 
   return (
-    <div className="mx-auto max-w-4xl space-y-6">
+    <div className="page-enter mx-auto max-w-4xl space-y-5 sm:space-y-6">
       {/* The screen name lives in the app bar, so this is only the result count. */}
-      <p className="text-ink-muted text-body-md">
-        {result.total === 0
-          ? "Nothing matches these filters."
-          : `Showing ${shownFrom} to ${shownTo} of ${result.total}`}
-      </p>
+      <div className="flex items-center justify-between gap-3">
+        <div className="min-w-0"><p className="text-sm font-medium text-ink">Every money move, in one place.</p><p className="mt-1 text-xs text-ink-faint">{result.total === 0 ? "No matching entries" : result.transactions.length === 0 ? "No entries on this page" : `Showing ${shownFrom} to ${shownTo} of ${result.total}`}</p></div>
+        <Link href="/add" aria-label="Add a transaction" className="card-interactive flex size-11 shrink-0 items-center justify-center rounded-2xl bg-brand text-surface"><Plus size={20} aria-hidden="true" /></Link>
+      </div>
 
       <TransactionFilters
+        key={`${monthParam(period)}:${params.q ?? ""}`}
         accounts={accounts}
         categories={categories}
         month={monthParam(period)}
@@ -105,10 +105,13 @@ export default async function TransactionsPage(props: {
 
       {result.transactions.length === 0 ? (
         <Card>
-          <CardBody>
-            <p className="text-ink-faint py-6 text-center text-sm">
+          <CardBody className="py-8 text-center">
+            <span className="mx-auto mb-4 flex size-12 items-center justify-center rounded-2xl bg-brand-soft text-brand"><Search size={22} aria-hidden="true" /></span>
+            <p className="font-semibold text-ink">Nothing here yet</p>
+            <p className="mt-2 text-sm text-ink-muted">
               No transactions for {period.label} with these filters.
             </p>
+            <Link href={`/transactions?month=${monthParam(period)}`} className="card-interactive mt-4 inline-flex min-h-11 items-center text-sm font-semibold text-brand">Clear filters</Link>
           </CardBody>
         </Card>
       ) : (
@@ -118,7 +121,7 @@ export default async function TransactionsPage(props: {
       {/* Prev/next rather than numbered pages: on a phone, two large targets beat
           a row of small ones, and the total above already gives a sense of scale. */}
       {result.total > result.pageSize ? (
-        <nav className="flex items-center justify-between gap-2 text-sm" aria-label="Pages">
+        <nav className="flex items-center justify-between gap-2 rounded-card border border-surface-variant bg-surface p-2 text-sm shadow-card" aria-label="Pages">
           {/*
             Chevron icons rather than "←" and "→". The arrow characters are outside
             every font subset the app ships and rendered as tofu boxes.
@@ -127,13 +130,13 @@ export default async function TransactionsPage(props: {
             <Link
               href={pageHref(page - 1)}
               rel="prev"
-              className="text-brand flex items-center gap-1 font-semibold"
+              className="card-interactive flex min-h-11 items-center gap-1 rounded-xl px-3 text-xs font-semibold text-brand"
             >
               <ChevronLeft size={16} aria-hidden="true" />
               Newer
             </Link>
           ) : (
-            <span className="text-ink-faint flex items-center gap-1">
+            <span className="flex min-h-11 items-center gap-1 px-3 text-xs text-ink-faint">
               <ChevronLeft size={16} aria-hidden="true" />
               Newer
             </span>
@@ -147,13 +150,13 @@ export default async function TransactionsPage(props: {
             <Link
               href={pageHref(page + 1)}
               rel="next"
-              className="text-brand flex items-center gap-1 font-semibold"
+              className="card-interactive flex min-h-11 items-center gap-1 rounded-xl px-3 text-xs font-semibold text-brand"
             >
               Older
               <ChevronRight size={16} aria-hidden="true" />
             </Link>
           ) : (
-            <span className="text-ink-faint flex items-center gap-1">
+            <span className="flex min-h-11 items-center gap-1 px-3 text-xs text-ink-faint">
               Older
               <ChevronRight size={16} aria-hidden="true" />
             </span>
