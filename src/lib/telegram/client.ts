@@ -47,6 +47,24 @@ export const MAIN_KEYBOARD: ReplyKeyboard = [
 
 export const CONFIRM_KEYBOARD: ReplyKeyboard = [["Yes", "No"]];
 
+export function messagePayload(chatId: number, text: string, keyboard: ReplyKeyboard = MAIN_KEYBOARD) {
+  return {
+    chat_id: chatId,
+    text,
+    parse_mode: "HTML",
+    link_preview_options: { is_disabled: true },
+    reply_markup: {
+      keyboard: keyboard.map((row) => row.map((label) => ({ text: label }))),
+      resize_keyboard: true,
+      is_persistent: true,
+      input_field_placeholder: "-$5 coffee or +$600 salary",
+    },
+  };
+}
+
+export type ReplySender = (chatId: number, text: string, keyboard?: ReplyKeyboard) =>
+  Promise<{ ok: boolean; error?: string; viaWebhook?: true }>;
+
 /**
  * Pull the one message shape this bot acts on out of an update.
  *
@@ -119,21 +137,7 @@ export async function sendMessage(
     const response = await fetch(`${API_BASE}/bot${botToken}/sendMessage`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        chat_id: chatId,
-        text,
-        // HTML rather than Markdown: amounts contain characters like * and _ far
-        // less often than Markdown parsing breaks on an underscore in a merchant
-        // name, and a parse failure means the user gets nothing back.
-        parse_mode: "HTML",
-        link_preview_options: { is_disabled: true },
-        reply_markup: {
-          keyboard: keyboard.map((row) => row.map((label) => ({ text: label }))),
-          resize_keyboard: true,
-          is_persistent: true,
-          input_field_placeholder: "-$5 coffee or +$600 salary",
-        },
-      }),
+      body: JSON.stringify(messagePayload(chatId, text, keyboard)),
       signal: AbortSignal.timeout(8_000),
     });
 

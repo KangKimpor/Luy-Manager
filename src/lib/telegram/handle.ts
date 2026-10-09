@@ -1,3 +1,5 @@
+import { after } from "next/server";
+
 import { ACCOUNT_BALANCE_COLUMNS, asRows, BUDGET_COLUMNS, CATEGORY_COLUMNS, TRANSACTION_COLUMNS } from "@/lib/data/client";
 import { mapRows, toAccountBalance, toBudget, toCategory, toTransaction } from "@/lib/data/mappers";
 import { readTransactionsInRange } from "@/lib/data/transactions";
@@ -9,9 +11,9 @@ import type { AccountBalance, Category } from "@/lib/domain/types";
 // re-exporting it.
 import { formatMoney, money, type CurrencyCode, type Money } from "@/lib/money";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { describeFreshness, type RateSnapshot } from "@/lib/rates/repository";
+import { describeFreshness, fallbackSnapshot, type RateSnapshot } from "@/lib/rates/repository";
 
-import { CONFIRM_KEYBOARD, escapeHtml, MAIN_KEYBOARD, readMessage, sendMessage, type ReplyKeyboard } from "./client";
+import { CONFIRM_KEYBOARD, escapeHtml, MAIN_KEYBOARD, readMessage, sendMessage, type ReplyKeyboard, type ReplySender } from "./client";
 import { requireTelegramEnv } from "./env";
 import { verifyLinkToken } from "./link";
 import {
@@ -129,15 +131,22 @@ async function reply(
   userId: string | null,
   text: string,
   keyboard: ReplyKeyboard = MAIN_KEYBOARD,
+  deliver: ReplySender = sendMessage,
 ): Promise<boolean> {
-  const sent = await sendMessage(chatId, text, keyboard);
-  await log(admin, {
+  // A confirmation must be delivered before Yes becomes valid. Webhook replies
+  // have no delivery receipt, so those prompts keep the verified API request.
+  const sender: ReplySender = keyboard === CONFIRM_KEYBOARD ? sendMessage : deliver;
+  const sent = await sender(chatId, text, keyboard);
+  const writeLog = () => log(admin, {
     chatId,
     userId,
     direction: "outbound",
     text,
+    parsed: sent.viaWebhook ? { delivery: "webhook-response-unverified" } : null,
     error: sent.ok ? null : sent.error,
   });
+  if (sent.viaWebhook) after(async () => { await writeLog(); });
+  else await writeLog();
   return sent.ok;
 }
 
@@ -145,15 +154,21 @@ async function reply(
 /* Reading the user's own data                                                 */
 /* -------------------------------------------------------------------------- */
 
-async function userIdForChat(admin: Admin, chatId: number): Promise<string | null> {
+interface LinkedProfile {
+  id: string;
+  base_currency: CurrencyCode;
+  timezone: string;
+}
+
+async function profileForChat(admin: Admin, chatId: number): Promise<LinkedProfile | null> {
   const { data, error } = await admin
     .from("profiles")
-    .select("id")
+    .select("id, base_currency, timezone")
     .eq("telegram_chat_id", chatId)
     .maybeSingle();
 
   if (error) throw new Error("Could not find the linked account.");
-  return (data as { id: string } | null)?.id ?? null;
+  return data as LinkedProfile | null;
 }
 
 interface UserContext {
@@ -166,39 +181,41 @@ interface UserContext {
   rate: RateSnapshot;
 }
 
-async function loadContext(admin: Admin, userId: string): Promise<UserContext> {
-  const [profile, settings, accounts, categories, rate] = await Promise.all([
-    admin.from("profiles").select("base_currency, timezone").eq("id", userId).maybeSingle(),
-    admin.from("settings").select("default_account_id").eq("user_id", userId).maybeSingle(),
-    admin
+async function loadContext(admin: Admin, profile: LinkedProfile, kind: TelegramIntent["kind"]): Promise<UserContext> {
+  const userId = profile.id;
+  const writing = kind === "record" || kind === "transfer" || kind === "confirm";
+  // Read commands should not wait on data they never use, or fail because an
+  // unrelated part of the ledger is unavailable.
+  const [settings, accounts, categories, rate] = await Promise.all([
+    writing || kind === "accounts"
+      ? admin.from("settings").select("default_account_id").eq("user_id", userId).maybeSingle()
+      : { data: null, error: null },
+    writing || kind === "accounts" || kind === "recent" ? admin
       .from("account_balances")
       .select(ACCOUNT_BALANCE_COLUMNS)
       .eq("user_id", userId)
-      .order("sort_order", { ascending: true }),
-    admin
+      .order("sort_order", { ascending: true }) : { data: [], error: null },
+    writing || kind === "budget" ? admin
       .from("categories")
       .select(CATEGORY_COLUMNS)
       .eq("user_id", userId)
-      .is("deleted_at", null),
-    loadBotRate(admin, userId),
+      .is("deleted_at", null) : { data: [], error: null },
+    writing || kind === "budget" || kind === "summary" ? loadBotRate(admin, userId) : fallbackSnapshot(),
   ]);
 
-  if (profile.error || settings.error || accounts.error || categories.error) {
+  if (settings.error || accounts.error || categories.error) {
     throw new Error("Could not load your ledger.");
   }
 
   return {
     userId,
-    baseCurrency:
-      ((profile.data as { base_currency?: CurrencyCode } | null)?.base_currency as
-        | CurrencyCode
-        | undefined) ?? "USD",
+    baseCurrency: profile.base_currency ?? "USD",
     defaultAccountId:
       (settings.data as { default_account_id: string | null } | null)?.default_account_id ??
       null,
     accounts: mapRows(asRows(accounts.data), toAccountBalance, "account_balances"),
     categories: mapRows(asRows(categories.data), toCategory, "categories"),
-    timezone: validTimezone((profile.data as { timezone?: string } | null)?.timezone),
+    timezone: validTimezone(profile.timezone),
     rate,
   };
 }
@@ -511,7 +528,7 @@ function operationGuide(operation: "expense" | "income" | "refund" | "transfer")
     operation === "transfer" ? "This records the ledger movement. Your bank moves the actual funds." : "An unclear currency or direction will need Yes or No before saving."].join("\n");
 }
 
-async function undoLast(admin: Admin, context: UserContext): Promise<string> {
+async function undoLast(admin: Admin, context: Pick<UserContext, "userId">): Promise<string> {
   const { data, error: readError } = await admin
     .from("transactions")
     .select("id, transfer_group_id, amount, currency")
@@ -650,7 +667,7 @@ async function entryMode(admin: Admin, chatId: number, userId: string): Promise<
  * because Telegram retries anything else and a retry after a successful insert
  * records the transaction twice.
  */
-export async function handleUpdate(update: unknown): Promise<void> {
+export async function handleUpdate(update: unknown, deliver: ReplySender = sendMessage): Promise<void> {
   const inbound = readMessage(update);
   if (!inbound) return;
 
@@ -659,9 +676,12 @@ export async function handleUpdate(update: unknown): Promise<void> {
   let intent = parseMessage(inbound.text);
   let linkedUserId: string | null = null;
   let inboundLogId: string | null = null;
+  const respond = (...args: [Admin, number, string | null, string, ReplyKeyboard?]) =>
+    reply(args[0], args[1], args[2], args[3], args[4], deliver);
 
   try {
-    linkedUserId = await userIdForChat(admin, inbound.chatId);
+    const profile = await profileForChat(admin, inbound.chatId);
+    linkedUserId = profile?.id ?? null;
     // Uniqueness is enforced by Postgres, so two concurrent webhook deliveries
     // cannot both pass this check. Without a durable claim, even Undo repeats.
     const claim = await admin.from("telegram_logs").insert({
@@ -674,7 +694,7 @@ export async function handleUpdate(update: unknown): Promise<void> {
     }).select("id").single();
     if (claim.error?.code === "23505") return;
     if (claim.error || !claim.data) {
-      await sendMessage(inbound.chatId, "I could not securely accept this message. Nothing was saved. Ask the app owner to check the Telegram database migration.");
+      await deliver(inbound.chatId, "I could not securely accept this message. Nothing was saved. Ask the app owner to check the Telegram database migration.");
       return;
     }
     inboundLogId = (claim.data as { id: string }).id;
@@ -689,7 +709,7 @@ export async function handleUpdate(update: unknown): Promise<void> {
           verified.reason === "expired"
             ? "That connect link has expired. Open Settings in the app and tap Connect Telegram again."
             : "That connect link is not valid. Open Settings in the app and tap Connect Telegram.";
-        await reply(admin, inbound.chatId, null, message);
+        await respond(admin, inbound.chatId, null, message);
         return;
       }
 
@@ -703,7 +723,7 @@ export async function handleUpdate(update: unknown): Promise<void> {
         .select("id");
 
       if (!error && (linked ?? []).length === 0) {
-        await reply(
+        await respond(
           admin,
           inbound.chatId,
           null,
@@ -715,7 +735,7 @@ export async function handleUpdate(update: unknown): Promise<void> {
       if (error) {
         // telegram_chat_id is unique, so the readable cause is this chat already
         // belonging to a different account.
-        await reply(
+        await respond(
           admin,
           inbound.chatId,
           verified.userId,
@@ -730,7 +750,7 @@ export async function handleUpdate(update: unknown): Promise<void> {
       await scopedLog;
       linkedUserId = verified.userId;
 
-      await reply(
+      await respond(
         admin,
         inbound.chatId,
         verified.userId,
@@ -741,8 +761,8 @@ export async function handleUpdate(update: unknown): Promise<void> {
 
     const userId = linkedUserId;
 
-    if (!userId) {
-      await reply(
+    if (!userId || !profile) {
+      await respond(
         admin,
         inbound.chatId,
         null,
@@ -752,38 +772,32 @@ export async function handleUpdate(update: unknown): Promise<void> {
     }
 
     if (intent.kind === "help") {
-      await reply(admin, inbound.chatId, userId, HELP);
+      await respond(admin, inbound.chatId, userId, HELP);
       return;
     }
 
     if (inbound.unsupportedAttachment) {
-      await reply(admin, inbound.chatId, userId, "Send a text message or a photo with an amount in its caption. I cannot transcribe voice messages or read receipt photos yet. Try <code>Spent $5 coffee</code>.");
+      await respond(admin, inbound.chatId, userId, "Send a text message or a photo with an amount in its caption. I cannot transcribe voice messages or read receipt photos yet. Try <code>Spent $5 coffee</code>.");
       return;
     }
     if (intent.kind === "guide") {
-      await reply(admin, inbound.chatId, userId, operationGuide(intent.operation));
+      await respond(admin, inbound.chatId, userId, operationGuide(intent.operation));
       return;
     }
 
     if (intent.kind === "entry" && intent.mode) {
       await takePending(admin, inbound.chatId, userId, true);
-      await reply(admin, inbound.chatId, userId,
+      await respond(admin, inbound.chatId, userId,
         `<b>${intent.mode.type === "income" ? "Income" : "Expense"} ${intent.mode.currency}</b> for 10 minutes.\nSend just <code>${intent.mode.currency === "KHR" ? "6000 coffee" : "5 coffee"}</code>.\nUse the buttons to switch, or Cancel to clear. Explicit currencies override this choice.`);
       return;
     }
-
-    if (/^[\d$]/.test(inbound.text.trim())) {
-      intent = parseMessage(inbound.text, await entryMode(admin, inbound.chatId, userId));
-    }
-
-    const context = await loadContext(admin, userId);
 
     if (intent.kind === "cancel") {
       const pending = await takePending(admin, inbound.chatId, userId, true);
       const cleared = await admin.from("telegram_logs").update({ parsed: { kind: "entry", mode: null } })
         .eq("id", inboundLogId).eq("user_id", userId).eq("chat_id", inbound.chatId);
       if (cleared.error) throw new Error("Could not clear entry mode.");
-      await reply(
+      await respond(
         admin,
         inbound.chatId,
         userId,
@@ -792,10 +806,27 @@ export async function handleUpdate(update: unknown): Promise<void> {
       return;
     }
 
+    if (intent.kind === "undo") {
+      await respond(admin, inbound.chatId, userId, await undoLast(admin, { userId }));
+      return;
+    }
+    if (intent.kind === "rate") {
+      const rate = await loadBotRate(admin, userId);
+      await respond(admin, inbound.chatId, userId, `<b>USD / KHR</b>\n$1 = ${escapeHtml(rate.rate.rate.toLocaleString("en-US"))} riel\n${escapeHtml(describeFreshness(rate))}.`);
+      return;
+    }
+
+    const readsMode = /^[\d$]/.test(inbound.text.trim());
+    const [context, mode] = await Promise.all([
+      loadContext(admin, profile, intent.kind),
+      readsMode ? entryMode(admin, inbound.chatId, userId) : null,
+    ]);
+    if (readsMode) intent = parseMessage(inbound.text, mode);
+
     if (intent.kind === "confirm") {
       const pending = await takePending(admin, inbound.chatId, userId);
       if (!pending) {
-        await reply(
+        await respond(
           admin,
           inbound.chatId,
           userId,
@@ -803,7 +834,7 @@ export async function handleUpdate(update: unknown): Promise<void> {
         );
         return;
       }
-      await execute(admin, context, inbound.chatId, inboundLogId, pending.intent);
+      await execute(admin, context, inbound.chatId, inboundLogId, pending.intent, deliver);
       return;
     }
 
@@ -825,7 +856,7 @@ export async function handleUpdate(update: unknown): Promise<void> {
           if (account) offered = { ...intent, resolvedAccountId: account.accountId };
         }
         await storePending(admin, inboundLogId, inbound.chatId, userId, offered);
-        const delivered = await reply(admin, inbound.chatId, userId, describePending(intent, context), CONFIRM_KEYBOARD);
+        const delivered = await respond(admin, inbound.chatId, userId, describePending(intent, context), CONFIRM_KEYBOARD);
         // The staged offer is a barrier while delivery is in flight. Yes cannot
         // execute unseen terms, and a failed offer never revives an older one.
         const activated = await admin.from("telegram_logs")
@@ -837,36 +868,27 @@ export async function handleUpdate(update: unknown): Promise<void> {
       // Resending an ambiguous message with explicit currency replaces the old
       // offer. A later Yes must not resurrect the version the user corrected.
       await takePending(admin, inbound.chatId, userId, true);
-      await execute(admin, context, inbound.chatId, inboundLogId, intent);
+      await execute(admin, context, inbound.chatId, inboundLogId, intent, deliver);
       return;
     }
 
-    if (intent.kind === "undo") {
-      await reply(admin, inbound.chatId, userId, await undoLast(admin, context));
-      return;
-    }
     if (intent.kind === "budget") {
-      await reply(admin, inbound.chatId, userId, await budgetSummary(admin, context));
+      await respond(admin, inbound.chatId, userId, await budgetSummary(admin, context));
       return;
     }
     if (intent.kind === "summary") {
-      await reply(admin, inbound.chatId, userId, await summarise(admin, context, intent.window));
+      await respond(admin, inbound.chatId, userId, await summarise(admin, context, intent.window));
       return;
     }
     if (intent.kind === "accounts") {
-      await reply(admin, inbound.chatId, userId, accountSummary(context));
+      await respond(admin, inbound.chatId, userId, accountSummary(context));
       return;
     }
     if (intent.kind === "recent") {
-      await reply(admin, inbound.chatId, userId, await recentTransactions(admin, context));
+      await respond(admin, inbound.chatId, userId, await recentTransactions(admin, context));
       return;
     }
-    if (intent.kind === "rate") {
-      await reply(admin, inbound.chatId, userId, `<b>USD / KHR</b>\n$1 = ${escapeHtml(context.rate.rate.rate.toLocaleString("en-US"))} riel\n${escapeHtml(describeFreshness(context.rate))}.`);
-      return;
-    }
-
-    await reply(
+    await respond(
       admin,
       inbound.chatId,
       userId,
@@ -882,7 +904,7 @@ export async function handleUpdate(update: unknown): Promise<void> {
     });
     // A write may already have committed before a later operation failed. Never
     // promise that nothing was saved or encourage an immediate duplicate write.
-    await sendMessage(inbound.chatId, "I could not finish that request. Check /recent before trying it again.");
+    await deliver(inbound.chatId, "I could not finish that request. Check /recent before trying it again.");
   }
 }
 
@@ -926,24 +948,25 @@ async function execute(
   chatId: number,
   logId: string,
   intent: TelegramIntent,
+  deliver: ReplySender,
 ): Promise<void> {
   if (intent.kind === "record") {
     const result = await saveRecord(admin, context, intent);
-    await admin.from("telegram_logs").update({ parsed: intent,
+    await Promise.all([admin.from("telegram_logs").update({ parsed: intent,
       transaction_id: result.ok ? result.transactionId : null,
       error_message: result.ok ? null : result.message,
-    }).eq("id", logId).eq("user_id", context.userId).eq("chat_id", chatId);
-    await reply(admin, chatId, context.userId, result.message);
+    }).eq("id", logId).eq("user_id", context.userId).eq("chat_id", chatId),
+      reply(admin, chatId, context.userId, result.message, MAIN_KEYBOARD, deliver)]);
     return;
   }
 
   if (intent.kind === "transfer") {
     const result = await saveTransfer(admin, context, intent);
-    await admin.from("telegram_logs").update({ parsed: intent, error_message: result.ok ? null : result.message })
-      .eq("id", logId).eq("user_id", context.userId).eq("chat_id", chatId);
-    await reply(admin, chatId, context.userId, result.message);
+    await Promise.all([admin.from("telegram_logs").update({ parsed: intent, error_message: result.ok ? null : result.message })
+      .eq("id", logId).eq("user_id", context.userId).eq("chat_id", chatId),
+      reply(admin, chatId, context.userId, result.message, MAIN_KEYBOARD, deliver)]);
     return;
   }
 
-  await reply(admin, chatId, context.userId, "That is no longer something I can save.");
+  await reply(admin, chatId, context.userId, "That is no longer something I can save.", MAIN_KEYBOARD, deliver);
 }

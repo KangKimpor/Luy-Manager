@@ -12,6 +12,29 @@ function request(body = "{}", secret = "secret") {
 }
 
 describe("webhook acknowledgements", () => {
+  test("replies through Telegram's native webhook response with the usual keyboard", async () => {
+    mocks.handle.mockImplementationOnce(async (_update, deliver) => {
+      await deliver(100, "Your accounts", [["Accounts"]]);
+    });
+    const response = await POST(request());
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({ method: "sendMessage", chat_id: 100,
+      text: "Your accounts", parse_mode: "HTML", reply_markup: { keyboard: [[{ text: "Accounts" }]] } });
+  });
+  test("the webhook does not acknowledge unfinished financial work", async () => {
+    let finish!: () => void;
+    const gate = new Promise<void>((resolve) => { finish = resolve; });
+    mocks.handle.mockImplementationOnce(async (_update, deliver) => {
+      await deliver(100, "Saved.");
+      await gate;
+    });
+    let returned = false;
+    const response = POST(request()).then((result) => { returned = true; return result; });
+    await vi.waitFor(() => expect(mocks.handle).toHaveBeenCalled());
+    expect(returned).toBe(false);
+    finish();
+    expect((await response).status).toBe(200);
+  });
   test("authentication happens before reading the body", async () => {
     const req = request("{}", "wrong");
     const body = vi.spyOn(req, "json");

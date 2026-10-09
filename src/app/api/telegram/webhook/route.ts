@@ -1,4 +1,4 @@
-import { isFromTelegram } from "@/lib/telegram/client";
+import { isFromTelegram, messagePayload } from "@/lib/telegram/client";
 import { isTelegramConfigured, requireTelegramEnv } from "@/lib/telegram/env";
 import { handleUpdate } from "@/lib/telegram/handle";
 import { isServiceRoleConfigured, isSupabaseConfigured } from "@/lib/supabase/env";
@@ -89,8 +89,14 @@ export async function POST(request: Request): Promise<Response> {
     return Response.json({ ok: true, ignored: "unparseable body" }, { status: 200 });
   }
 
+  let responseBody: object = { ok: true };
   try {
-    await handleUpdate(update);
+    // Telegram can execute sendMessage from this response, avoiding another HTTP
+    // round trip. Financial writes still finish before the acknowledgement.
+    await handleUpdate(update, async (chatId, text, keyboard) => {
+      responseBody = { method: "sendMessage", ...messagePayload(chatId, text, keyboard) };
+      return { ok: true, viaWebhook: true };
+    });
   } catch {
     // handleUpdate is written not to throw. If it does anyway, swallowing it here
     // is still correct: a retry would re-run a handler that may already have
@@ -98,5 +104,5 @@ export async function POST(request: Request): Promise<Response> {
     console.error("[telegram] handler did not complete. Inspect the scoped message logs.");
   }
 
-  return Response.json({ ok: true }, { status: 200 });
+  return Response.json(responseBody, { status: 200 });
 }

@@ -132,5 +132,7 @@ export const config = {
   // Everything except Next's own assets and static files. Without this exclusion
   // the auth redirect would also catch CSS, JS and icons, and the app would load
   // unstyled or not at all.
-  matcher: ["/((?!_next/static|_next/image|favicon.ico|icon.svg|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)"],
+  // The webhook authenticates its own secret and has no browser session to
+  // refresh. Excluding it avoids a second function invocation on every message.
+  matcher: ["/((?!api/telegram/webhook(?:/|$)|_next/static|_next/image|favicon.ico|icon.svg|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)"],
 };

@@ -1,7 +1,8 @@
 import { beforeEach, describe, expect, test, vi } from "vitest";
 import type { AccountBalance } from "@/lib/domain/types";
 
-const mocks = vi.hoisted(() => ({ admin: null as unknown, sent: vi.fn() }));
+const mocks = vi.hoisted(() => ({ admin: null as unknown, sent: vi.fn(), after: [] as Array<() => Promise<void>> }));
+vi.mock("next/server", () => ({ after: (task: () => Promise<void>) => mocks.after.push(task) }));
 vi.mock("@/lib/supabase/admin", () => ({ createAdminClient: () => mocks.admin }));
 vi.mock("./client", async (original) => ({ ...await original<typeof import("./client")>(), sendMessage: mocks.sent }));
 import { handleUpdate, namedAccount } from "./handle";
@@ -32,6 +33,7 @@ class TestDatabase {
     ],
   };
   unsafeQueries: string[] = [];
+  reads: string[] = [];
   failClaim = false;
   sequence = 0;
   from(table: string) { return new TestQuery(this, table); }
@@ -62,6 +64,7 @@ class TestQuery {
   single() { this.singular = true; return this; }
   maybeSingle() { this.singular = true; return this; }
   then<T>(resolve: (result: { data: unknown; error: { code: string; message: string } | null; count?: number | null }) => T) {
+    if (this.operation === "select") this.db.reads.push(this.table);
     let result: { data: unknown; error: { code: string; message: string } | null; count?: number | null };
     if (this.operation !== "insert" && this.table !== "profiles" && !this.predicates.some((predicate) => predicate.key === "user_id")) {
       this.db.unsafeQueries.push(this.table);
@@ -107,10 +110,49 @@ function update(id: number, text: string) {
 beforeEach(() => {
   vi.useRealTimers(); vi.stubEnv("TELEGRAM_WEBHOOK_SECRET", "test-secret"); vi.stubEnv("TELEGRAM_BOT_TOKEN", "test-token");
   db = new TestDatabase(); mocks.admin = db;
+  mocks.after = [];
   mocks.sent.mockReset().mockResolvedValue({ ok: true });
 });
 
 describe("retry-safe Telegram ledger writes", () => {
+  test.each([
+    ["Cancel", []], ["Undo", ["transactions"]], ["Rate", ["exchange_rates"]],
+    ["Accounts", ["settings", "account_balances"]], ["Recent", ["account_balances", "transactions"]],
+    ["Summary month", ["exchange_rates", "transactions"]],
+  ])("%s only reads the data its answer needs", async (command, tables) => {
+    await handleUpdate(update(1, command));
+    expect(db.reads.filter((table) => table === "profiles")).toHaveLength(1);
+    expect(new Set(db.reads.filter((table) => !["profiles", "telegram_logs"].includes(table))))
+      .toEqual(new Set(tables));
+    expect(db.unsafeQueries).toEqual([]);
+  });
+  test("webhook replies follow a committed save and do not wait for outbound audit logging", async () => {
+    const deliver = vi.fn(async () => {
+      expect(db.tables.transactions).toHaveLength(1);
+      return { ok: true, viaWebhook: true as const };
+    });
+    await handleUpdate(update(1, "Spent $5 coffee"), deliver);
+    await handleUpdate(update(1, "Spent $5 coffee"), deliver);
+    expect(deliver).toHaveBeenCalledTimes(1);
+    expect(mocks.sent).not.toHaveBeenCalled();
+    expect(db.tables.telegram_logs.filter((row) => row.direction === "outbound")).toHaveLength(0);
+    await Promise.all(mocks.after.map((task) => task()));
+    expect(db.tables.telegram_logs).toEqual(expect.arrayContaining([
+      expect.objectContaining({ direction: "outbound", user_id: USER, parsed: { delivery: "webhook-response-unverified" } }),
+    ]));
+    expect(db.unsafeQueries).toEqual([]);
+  });
+  test("an unverified webhook reply cannot activate a confirmation", async () => {
+    const deliver = vi.fn().mockResolvedValue({ ok: true, viaWebhook: true });
+    mocks.sent.mockResolvedValue({ ok: false, error: "Delivery failed" });
+    await handleUpdate(update(1, "Spent 5 coffee"), deliver);
+    expect(mocks.sent).toHaveBeenCalledOnce();
+    expect(deliver).not.toHaveBeenCalled();
+    await handleUpdate(update(2, "Yes"), deliver);
+    expect(db.tables.transactions).toHaveLength(0);
+    expect(deliver.mock.calls.at(-1)?.[1]).toContain("nothing waiting");
+    expect(db.unsafeQueries).toEqual([]);
+  });
   test("one mode selection supports repeated quick entries, currency override and safe cancellation", async () => {
     await handleUpdate(update(1, "Expense KHR"));
     await Promise.all([handleUpdate(update(2, "6000 coffee")), handleUpdate(update(2, "6000 coffee"))]);
