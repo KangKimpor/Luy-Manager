@@ -20,10 +20,10 @@ import { Card, CardBody } from "@/components/ui/card";
  */
 export default function Error({
   error,
-  reset,
+  unstable_retry,
 }: {
   error: Error & { digest?: string };
-  reset: () => void;
+  unstable_retry: () => void;
 }) {
   useEffect(() => {
     // The digest is what ties this to the server log entry; without it a user
@@ -45,7 +45,7 @@ export default function Error({
             </div>
           </div>
 
-          <Button onClick={reset} size="full">
+          <Button onClick={unstable_retry} size="full">
             <RefreshCw size={16} aria-hidden="true" />
             Try again
           </Button>

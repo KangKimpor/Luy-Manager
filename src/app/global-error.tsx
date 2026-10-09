@@ -11,10 +11,10 @@ import { useEffect } from "react";
  */
 export default function GlobalError({
   error,
-  reset,
+  unstable_retry,
 }: {
   error: Error & { digest?: string };
-  reset: () => void;
+  unstable_retry: () => void;
 }) {
   useEffect(() => {
     console.error("Root layout failed:", error.message, error.digest);
@@ -48,7 +48,7 @@ export default function GlobalError({
           </p>
           <button
             type="button"
-            onClick={reset}
+            onClick={unstable_retry}
             style={{
               minHeight: "2.75rem",
               width: "100%",
