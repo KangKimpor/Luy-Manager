@@ -43,26 +43,26 @@ export function isDemoMode(): boolean {
  * during one render share a single validation round trip instead of each making
  * their own.
  *
- * Uses `getUser()`, not `getSession()`: the latter decodes the cookie and trusts
- * it, which is fine for optimistic UI and not fine for deciding what data to
- * return.
+ * Uses `getClaims()`, not `getUser()`: it verifies the token's signature locally
+ * against the project's cached public keys instead of asking the auth server on
+ * every render. Unlike `getSession()`, which trusts the cookie as given, a forged
+ * or expired token fails here. A session revoked server-side stays valid until
+ * its access token expires, the same window Row Level Security already honours.
  */
 export const getUser = cache(async (): Promise<AuthUser | null> => {
   if (isDemoMode()) return null;
 
   const supabase = await createClient();
-  const {
-    data: { user },
-    error,
-  } = await supabase.auth.getUser();
+  const { data, error } = await supabase.auth.getClaims();
 
-  if (error || !user) return null;
+  const claims = data?.claims;
+  if (error || !claims?.sub) return null;
 
-  const metadata = user.user_metadata ?? {};
+  const metadata = claims.user_metadata ?? {};
 
   return {
-    id: user.id,
-    email: user.email ?? null,
+    id: claims.sub,
+    email: typeof claims.email === "string" ? claims.email : null,
     displayName:
       typeof metadata.full_name === "string"
         ? metadata.full_name

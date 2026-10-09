@@ -18,7 +18,7 @@ export function BottomNav() {
           const active = isNavActive(pathname, item.href);
           const Icon = item.icon;
           return (
-            <Link key={item.href} href={item.href} aria-current={active ? "page" : undefined}
+            <Link key={item.href} href={item.href} prefetch aria-current={active ? "page" : undefined}
               className={cn("row-start-1 flex min-h-12 flex-col items-center justify-center gap-1 rounded-xl text-xs font-medium transition-colors", active ? "text-brand" : "text-ink-faint hover:text-ink")}
               style={{ gridColumn: index >= 2 ? index + 2 : index + 1 }}>
               <span className={cn("flex h-7 w-12 items-center justify-center rounded-pill transition-colors", active && "bg-brand-soft")}><Icon size={21} strokeWidth={active ? 2.2 : 1.8} aria-hidden="true" /></span>
@@ -26,7 +26,7 @@ export function BottomNav() {
             </Link>
           );
         })}
-        <Link href="/add" aria-label="Add transaction" aria-current={pathname === "/add" ? "page" : undefined}
+        <Link href="/add" prefetch aria-label="Add transaction" aria-current={pathname === "/add" ? "page" : undefined}
           className="bg-brand text-surface shadow-fab col-start-3 row-start-1 mx-auto flex size-12 items-center justify-center rounded-2xl transition-transform active:scale-90">
           <Plus size={25} aria-hidden="true" />
         </Link>

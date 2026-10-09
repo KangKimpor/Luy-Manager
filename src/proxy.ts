@@ -93,13 +93,19 @@ export async function proxy(request: NextRequest) {
     },
   );
 
-  // getUser() rather than getSession(): it validates the token with the auth
-  // server instead of trusting whatever the cookie claims, and calling it here is
-  // what triggers the refresh whose cookies setAll writes back. It must happen
+  // getClaims() rather than getUser(): getUser() is a network call to the auth
+  // server on every request, including every prefetch, and from Cambodia that
+  // round trip was paid before any page work began. getClaims() verifies the
+  // token's signature against the project's cached public keys, with no network
+  // call once they are loaded, and still refreshes a token that is about to
+  // expire, which is what triggers the cookies setAll writes back. It must happen
   // before the response is generated, or a refresh completing later is lost.
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  //
+  // Trade-off: a session revoked on the server stays valid here until its access
+  // token expires (one hour by default). Row Level Security trusts the same token,
+  // so this does not widen what a revoked session can reach.
+  const { data } = await supabase.auth.getClaims();
+  const user = data?.claims ?? null;
 
   const { pathname } = request.nextUrl;
 
