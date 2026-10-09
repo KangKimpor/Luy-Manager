@@ -56,7 +56,7 @@ export function TransactionRowActions({
           onClick={restore}
           disabled={pending}
           aria-label="Restore this transaction"
-          className="text-ink-faint hover:text-inflow flex size-8 items-center justify-center disabled:opacity-40"
+          className="text-ink-faint hover:text-inflow flex size-11 items-center justify-center disabled:opacity-40"
         >
           <Undo2 size={14} aria-hidden="true" />
         </button>
@@ -66,7 +66,7 @@ export function TransactionRowActions({
             <Link
               href={`/transactions/${transactionId}/edit`}
               aria-label="Edit this transaction"
-              className="text-ink-faint hover:text-ink flex size-8 items-center justify-center"
+              className="text-ink-faint hover:text-ink flex size-11 items-center justify-center"
             >
               <Pencil size={14} aria-hidden="true" />
             </Link>
@@ -76,7 +76,7 @@ export function TransactionRowActions({
             onClick={remove}
             disabled={pending}
             aria-label="Delete this transaction"
-            className="text-ink-faint hover:text-outflow flex size-8 items-center justify-center disabled:opacity-40"
+            className="text-ink-faint hover:text-outflow flex size-11 items-center justify-center disabled:opacity-40"
           >
             <Trash2 size={14} aria-hidden="true" />
           </button>

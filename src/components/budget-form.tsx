@@ -79,7 +79,7 @@ export function BudgetForm({
           <div>
             <label
               htmlFor="budget-category"
-              className="text-ink-muted mb-2 block text-xs font-semibold tracking-wide uppercase"
+              className="text-ink-muted mb-2 block text-sm font-medium"
             >
               Category
             </label>
@@ -101,7 +101,7 @@ export function BudgetForm({
           <div>
             <label
               htmlFor="budget-amount"
-              className="text-ink-muted mb-2 block text-xs font-semibold tracking-wide uppercase"
+              className="text-ink-muted mb-2 block text-sm font-medium"
             >
               Limit
             </label>
@@ -142,7 +142,7 @@ export function BudgetForm({
           </div>
 
           <fieldset>
-            <legend className="text-ink-muted mb-2 text-xs font-semibold tracking-wide uppercase">
+            <legend className="text-ink-muted mb-2 text-sm font-medium">
               Repeats
             </legend>
             <div className="flex flex-wrap gap-2">
@@ -168,7 +168,7 @@ export function BudgetForm({
           <div>
             <label
               htmlFor="budget-start"
-              className="text-ink-muted mb-2 block text-xs font-semibold tracking-wide uppercase"
+              className="text-ink-muted mb-2 block text-sm font-medium"
             >
               Starting
             </label>
@@ -188,7 +188,7 @@ export function BudgetForm({
           <div>
             <label
               htmlFor="budget-threshold"
-              className="text-ink-muted mb-2 block text-xs font-semibold tracking-wide uppercase"
+              className="text-ink-muted mb-2 block text-sm font-medium"
             >
               Warn at {threshold}%
             </label>

@@ -20,9 +20,10 @@ export default async function LoginPage(props: {
   const { next, error } = await props.searchParams;
 
   return (
-    <div className="space-y-4">
-      <header className="pt-6 text-center">
-        <h1 className="text-ink text-2xl font-bold">Luy Manager</h1>
+    <div className="login-page space-y-8">
+      <header className="pt-8 text-center">
+        <p className="text-brand mb-5 text-sm font-semibold">Luy Manager</p>
+        <h1 className="text-ink text-4xl font-semibold tracking-tight">Money, made clearer.</h1>
         <p className="text-ink-muted mt-1 text-sm">
           Track dollars and riel side by side.
         </p>
@@ -33,10 +34,7 @@ export default async function LoginPage(props: {
           <CardBody className="space-y-2">
             <p className="text-ink text-sm font-semibold">Running on demo data</p>
             <p className="text-ink-muted text-sm">
-              No Supabase project is configured, so there is nothing to sign in to
-              and nothing is saved. Copy <code>.env.example</code> to{" "}
-              <code>.env.local</code> and fill in your project URL and anon key to
-              enable accounts.
+              Explore with sample data. Saving and sign-in are not available in this demo.
             </p>
             <Link href="/" className="text-brand inline-block text-sm font-semibold underline">
               Continue to the demo

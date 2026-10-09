@@ -43,8 +43,7 @@ export default async function AddTransactionPage() {
   }
 
   return (
-    <div className="space-y-4">
-      <p className="text-ink-muted text-body-md">Amount first, everything else optional.</p>
+    <div className="mx-auto max-w-2xl space-y-5">
 
       <AddEntry
         accounts={accounts}

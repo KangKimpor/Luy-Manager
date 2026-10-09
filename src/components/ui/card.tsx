@@ -17,18 +17,18 @@ export function Card({ className, ...props }: ComponentPropsWithoutRef<"div">) {
 }
 
 export function CardHeader({ className, ...props }: ComponentPropsWithoutRef<"div">) {
-  return <div className={cn("px-4 pt-4 pb-2", className)} {...props} />;
+  return <div className={cn("px-5 pt-5 pb-3", className)} {...props} />;
 }
 
 export function CardTitle({ className, ...props }: ComponentPropsWithoutRef<"h3">) {
   return (
     <h3
-      className={cn("text-ink-muted text-xs font-semibold tracking-wide uppercase", className)}
+      className={cn("text-ink text-base font-semibold tracking-tight", className)}
       {...props}
     />
   );
 }
 
 export function CardBody({ className, ...props }: ComponentPropsWithoutRef<"div">) {
-  return <div className={cn("px-4 pb-4", className)} {...props} />;
+  return <div className={cn("px-5 pt-2 pb-5", className)} {...props} />;
 }

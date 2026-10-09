@@ -105,7 +105,7 @@ export default async function ReportsPage() {
   );
 
   return (
-    <div className="space-y-4">
+    <div className="mx-auto max-w-4xl space-y-6">
       <header className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <p className="text-ink-muted text-body-md">Last 12 months</p>
@@ -130,7 +130,7 @@ export default async function ReportsPage() {
         <Card className="p-4">
           <div className="flex items-start justify-between gap-2">
             <span className="text-label-caps text-ink-muted uppercase">
-              Expense
+              Spending
             </span>
             <ArrowDownRight size={16} className="text-outflow" aria-hidden="true" />
           </div>
@@ -148,8 +148,7 @@ export default async function ReportsPage() {
         <CardBody>
           <DeferredNetWorthTrend points={trend} currency={displayCurrency} />
           <p className="text-ink-faint mt-2 text-xs">
-            Reconstructed backwards from today&apos;s balances, so it ends at the
-            figure on your accounts page.
+            Estimated from today&apos;s balances and recorded transactions. Converted to {displayCurrency}.
           </p>
         </CardBody>
       </Card>

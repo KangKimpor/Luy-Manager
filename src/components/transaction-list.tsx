@@ -29,16 +29,14 @@ export function TransactionList({
   return (
     <Card>
       <CardHeader className="flex items-baseline justify-between gap-2">
-        <CardTitle>Recent</CardTitle>
-        {transactions.length > recent.length ? (
-          <Link href="/transactions" className="text-brand text-xs font-semibold">
-            See all {transactions.length}
+        <CardTitle>Recent activity</CardTitle>
+          <Link href="/transactions" className="text-brand flex min-h-11 items-center text-sm font-semibold">
+            View all
           </Link>
-        ) : null}
       </CardHeader>
       <CardBody>
         {recent.length === 0 ? (
-          <p className="text-ink-faint py-6 text-center text-sm">No transactions yet.</p>
+          <div className="py-8 text-center"><p className="text-ink font-medium">A fresh start</p><p className="text-ink-muted mt-1 text-sm">Your transactions will appear here.</p><Link href="/add" className="text-brand mt-4 inline-flex min-h-11 items-center text-sm font-semibold">Add a transaction</Link></div>
         ) : (
           <ul className="divide-surface-variant divide-y">
             {recent.map((transaction) => (

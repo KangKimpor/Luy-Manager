@@ -255,6 +255,17 @@ describe("saving", () => {
     expect(confirmation).toHaveTextContent("Wing");
   });
 
+  it("keeps the entered amount and releases saving after a request failure", async () => {
+    createTransfer.mockRejectedValue(new Error("network"));
+    const user = userEvent.setup();
+    render(<TransferForm accounts={[usd, khr]} rate={rate} />);
+    await typeAmount(user, "100");
+    await user.click(screen.getByRole("button", { name: /exchange and transfer/i }));
+    expect(screen.getByRole("alert")).toHaveTextContent("Check Activity");
+    expect(screen.getByRole("button", { name: /exchange and transfer/i })).toBeEnabled();
+    expect(screen.getByLabelText("Amount to transfer")).toHaveTextContent("$100.00");
+  });
+
   it("does not call the action in read-only demo mode", async () => {
     const user = userEvent.setup();
     render(<TransferForm accounts={[usd, khr]} rate={rate} readOnly />);

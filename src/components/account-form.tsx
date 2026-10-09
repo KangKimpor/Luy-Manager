@@ -90,7 +90,7 @@ export function AccountForm({ account }: { account?: Account }) {
     <form onSubmit={handleSubmit} className="space-y-3">
       {!editing ? (
         <fieldset>
-          <legend className="text-ink-muted mb-2 text-xs font-semibold tracking-wide uppercase">
+          <legend className="text-ink-muted mb-2 text-sm font-medium">
             Start from a preset
           </legend>
           <div className="flex flex-wrap gap-2">
@@ -118,7 +118,7 @@ export function AccountForm({ account }: { account?: Account }) {
           <div>
             <label
               htmlFor="account-name"
-              className="text-ink-muted mb-2 block text-xs font-semibold tracking-wide uppercase"
+              className="text-ink-muted mb-2 block text-sm font-medium"
             >
               Name
             </label>
@@ -137,7 +137,7 @@ export function AccountForm({ account }: { account?: Account }) {
           <div>
             <label
               htmlFor="account-institution"
-              className="text-ink-muted mb-2 block text-xs font-semibold tracking-wide uppercase"
+              className="text-ink-muted mb-2 block text-sm font-medium"
             >
               Institution <span className="normal-case">(optional)</span>
             </label>
@@ -152,7 +152,7 @@ export function AccountForm({ account }: { account?: Account }) {
           </div>
 
           <fieldset>
-            <legend className="text-ink-muted mb-2 text-xs font-semibold tracking-wide uppercase">
+            <legend className="text-ink-muted mb-2 text-sm font-medium">
               Type
             </legend>
             <div className="flex flex-wrap gap-2">
@@ -176,7 +176,7 @@ export function AccountForm({ account }: { account?: Account }) {
           </fieldset>
 
           <fieldset>
-            <legend className="text-ink-muted mb-2 text-xs font-semibold tracking-wide uppercase">
+            <legend className="text-ink-muted mb-2 text-sm font-medium">
               Currency
             </legend>
             <div className="flex gap-2">
@@ -214,7 +214,7 @@ export function AccountForm({ account }: { account?: Account }) {
           <div>
             <label
               htmlFor="account-opening"
-              className="text-ink-muted mb-2 block text-xs font-semibold tracking-wide uppercase"
+              className="text-ink-muted mb-2 block text-sm font-medium"
             >
               Opening balance <span className="normal-case">(optional)</span>
             </label>

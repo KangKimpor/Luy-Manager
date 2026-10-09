@@ -56,7 +56,7 @@ export function AccountRowActions({
       <Link
         href={`/accounts/${accountId}/edit`}
         aria-label={`Edit ${name}`}
-        className="text-ink-faint hover:text-ink flex size-8 items-center justify-center"
+        className="text-ink-faint hover:text-ink flex size-11 items-center justify-center"
       >
         <Pencil size={14} aria-hidden="true" />
       </Link>
@@ -67,7 +67,7 @@ export function AccountRowActions({
         disabled={pending}
         aria-label={isActive ? `Close ${name}` : `Reopen ${name}`}
         title={isActive ? "Close this account" : "Reopen this account"}
-        className="text-ink-faint hover:text-ink flex size-8 items-center justify-center disabled:opacity-40"
+        className="text-ink-faint hover:text-ink flex size-11 items-center justify-center disabled:opacity-40"
       >
         {isActive ? (
           <Archive size={14} aria-hidden="true" />
@@ -82,7 +82,7 @@ export function AccountRowActions({
           onClick={remove}
           disabled={pending}
           aria-label={`Delete ${name}`}
-          className="text-ink-faint hover:text-outflow flex size-8 items-center justify-center disabled:opacity-40"
+          className="text-ink-faint hover:text-outflow flex size-11 items-center justify-center disabled:opacity-40"
         >
           <Trash2 size={14} aria-hidden="true" />
         </button>

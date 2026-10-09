@@ -1,13 +1,12 @@
 "use client";
 
-import { Search, X } from "lucide-react";
+import { ChevronDown, Search, X } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useState, useTransition } from "react";
 
 import { Card, CardBody } from "@/components/ui/card";
 import type { AccountBalance, Category } from "@/lib/domain/types";
 import { TRANSACTION_TYPES } from "@/lib/domain/types";
-import { cn } from "@/lib/utils";
 
 /**
  * Filters for the ledger view.
@@ -44,6 +43,7 @@ export function TransactionFilters({
 }) {
   const router = useRouter();
   const [search, setSearch] = useState(selected.q ?? "");
+  const [pending, startTransition] = useTransition();
 
   /** Rebuild the URL with one filter changed, dropping the page. */
   function go(patch: Record<string, string | undefined>) {
@@ -66,7 +66,7 @@ export function TransactionFilters({
 
     // Changing a filter must reset paging: page 4 of a narrower result set is
     // usually empty, which reads as "no transactions" rather than "wrong page".
-    router.push(`/transactions?${params.toString()}`);
+    startTransition(() => router.push(`/transactions?${params.toString()}`));
   }
 
   const hasFilters = Boolean(
@@ -75,7 +75,7 @@ export function TransactionFilters({
 
   return (
     <Card>
-      <CardBody className="space-y-3 pt-4">
+      <CardBody className="space-y-4 pt-5" aria-busy={pending}>
         <form
           onSubmit={(event) => {
             event.preventDefault();
@@ -106,12 +106,16 @@ export function TransactionFilters({
           </button>
         </form>
 
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <input type="month" value={month} onChange={(event) => { if (event.target.value) go({ month: event.target.value }); }} aria-label="Month" className="border-border-subtle bg-surface rounded-xl text-ink-muted min-h-11 max-w-full border px-3 text-sm" />
+          <details open={hasFilters} className="min-w-0 flex-1">
+          <summary className="text-ink-muted flex min-h-11 items-center justify-end gap-2 text-sm font-medium">Filters{hasFilters ? " applied" : ""}<ChevronDown size={16} aria-hidden="true" /></summary>
+        <div className="mt-3 flex flex-wrap gap-2">
           <select
             value={selected.account ?? ""}
             onChange={(event) => go({ account: event.target.value || undefined })}
             aria-label="Filter by account"
-            className="border-border-subtle bg-surface rounded-pill text-ink-muted min-h-9 border px-3 text-xs"
+            className="border-border-subtle bg-surface rounded-pill text-ink-muted min-h-11 border px-3 text-xs"
           >
             <option value="">All accounts</option>
             {accounts.map((account) => (
@@ -125,7 +129,7 @@ export function TransactionFilters({
             value={selected.category ?? ""}
             onChange={(event) => go({ category: event.target.value || undefined })}
             aria-label="Filter by category"
-            className="border-border-subtle bg-surface rounded-pill text-ink-muted min-h-9 border px-3 text-xs"
+            className="border-border-subtle bg-surface rounded-pill text-ink-muted min-h-11 border px-3 text-xs"
           >
             <option value="">All categories</option>
             {categories.map((category) => (
@@ -139,7 +143,7 @@ export function TransactionFilters({
             value={selected.type ?? ""}
             onChange={(event) => go({ type: event.target.value || undefined })}
             aria-label="Filter by type"
-            className="border-border-subtle bg-surface rounded-pill text-ink-muted min-h-9 border px-3 text-xs"
+            className="border-border-subtle bg-surface rounded-pill text-ink-muted min-h-11 border px-3 text-xs"
           >
             <option value="">All types</option>
             {TRANSACTION_TYPES.map((type) => (
@@ -149,18 +153,6 @@ export function TransactionFilters({
             ))}
           </select>
 
-          <input
-            type="month"
-            value={month}
-            onChange={(event) => {
-              if (event.target.value) go({ month: event.target.value });
-            }}
-            aria-label="Month"
-            className={cn(
-              "border-border-subtle bg-surface rounded-pill text-ink-muted min-h-9 border px-3 text-xs",
-            )}
-          />
-
           {hasFilters ? (
             <button
               type="button"
@@ -168,13 +160,16 @@ export function TransactionFilters({
                 setSearch("");
                 router.push(`/transactions?month=${month}`);
               }}
-              className="rounded-pill text-ink-muted hover:text-ink flex min-h-9 items-center gap-1 px-2 text-xs font-medium"
+              className="rounded-pill text-ink-muted hover:text-ink flex min-h-11 items-center gap-1 px-2 text-xs font-medium"
             >
               <X size={13} aria-hidden="true" />
               Clear
             </button>
           ) : null}
         </div>
+        </details>
+        </div>
+        <p role="status" className="text-brand text-sm">{pending ? "Updating activity..." : ""}</p>
       </CardBody>
     </Card>
   );

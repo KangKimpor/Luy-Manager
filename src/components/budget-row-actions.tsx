@@ -39,7 +39,7 @@ export function BudgetRowActions({
         onClick={remove}
         disabled={pending}
         aria-label={`Remove the ${name} budget`}
-        className="text-ink-faint hover:text-outflow flex size-8 items-center justify-center disabled:opacity-40"
+        className="text-ink-faint hover:text-outflow flex size-11 items-center justify-center disabled:opacity-40"
       >
         <Trash2 size={14} aria-hidden="true" />
       </button>

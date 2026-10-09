@@ -2,8 +2,6 @@ import Link from "next/link";
 
 import { CurrencyToggle } from "@/components/currency-toggle";
 import { BudgetSummaryCard } from "@/components/dashboard/budget-summary-card";
-import { DeferredCashFlowChart } from "@/components/dashboard/deferred-cash-flow-chart";
-import { CategoryBreakdown } from "@/components/dashboard/category-breakdown";
 import { SummaryCards } from "@/components/dashboard/summary-cards";
 import { MonthStepper } from "@/components/month-stepper";
 import { RateStrip } from "@/components/rate-strip";
@@ -15,10 +13,8 @@ import { categoryLookup } from "@/lib/data/reference";
 import { listTransactionsInRange } from "@/lib/data/transactions";
 import { otherCurrency, readDisplayCurrency } from "@/lib/display-currency";
 import { summarizeNetWorth } from "@/lib/domain/accounts";
-import { summarizeBudgets, totalRemaining } from "@/lib/domain/budgets";
+import { summarizeBudgets } from "@/lib/domain/budgets";
 import {
-  dailyCashFlow,
-  spendingByCategory,
   summarizeCashFlow,
 } from "@/lib/domain/transactions";
 import { monthFromParam, monthParam, shiftMonth } from "@/lib/period";
@@ -56,8 +52,6 @@ export default async function DashboardPage(props: {
 
   const netWorth = summarizeNetWorth(accounts, displayCurrency, rate);
   const cashFlow = summarizeCashFlow(transactions, displayCurrency, rate);
-  const categoryTotals = spendingByCategory(transactions, displayCurrency, rate);
-  const series = dailyCashFlow(transactions, period.from, period.to, displayCurrency, rate);
 
   // Re-aggregated in the other currency rather than converted from the total
   // above. Converting the finished total is one rounding; re-aggregating is one per
@@ -71,27 +65,15 @@ export default async function DashboardPage(props: {
   ).netWorth;
 
   const budgetProgress = summarizeBudgets(budgets, transactions, rate);
-  const budgetRemaining =
-    budgetProgress.length > 0 ? totalRemaining(budgetProgress, displayCurrency, rate) : undefined;
 
   const previous = shiftMonth(period, -1);
   const next = shiftMonth(period, 1);
 
   return (
-    <div className="space-y-4">
-      <RateStrip snapshot={snapshot}>
-        <CurrencyToggle current={displayCurrency} />
-      </RateStrip>
-
-      <MonthStepper
-        label={period.label}
-        prevHref={`/?month=${monthParam(previous)}`}
-        nextHref={`/?month=${monthParam(next)}`}
-      />
-
+    <div className="space-y-6">
       {isDemoMode() ? (
         <p className="bg-brand-soft text-brand rounded-card px-3 py-2 text-xs font-medium">
-          Showing sample data. Connect Supabase to track your own money.
+          You&apos;re exploring sample data.
         </p>
       ) : null}
 
@@ -99,26 +81,22 @@ export default async function DashboardPage(props: {
         netWorth={netWorth}
         cashFlow={cashFlow}
         netWorthEquivalent={netWorthEquivalent}
-        budgetRemaining={budgetRemaining}
+        periodLabel={period.label}
       />
-
-      {budgetProgress.length > 0 ? (
-        <BudgetSummaryCard progress={budgetProgress} categories={categories} />
-      ) : null}
-
-      <DeferredCashFlowChart series={series} currency={displayCurrency} />
-
-      <CategoryBreakdown totals={categoryTotals} categories={categories} />
-
-      <TransactionList transactions={transactions} categories={categories} accounts={lookup} />
-
-      <div className="flex justify-center pt-1">
-        <Link
-          href="/transactions"
-          className="text-brand text-body-md rounded-pill border-surface-variant bg-surface hover:bg-surface-container border px-5 py-2 font-semibold transition-colors"
-        >
-          All transactions
-        </Link>
+      <div className="grid items-start gap-3 lg:grid-cols-2">
+        <MonthStepper label={period.label} prevHref={`/?month=${monthParam(previous)}`} nextHref={`/?month=${monthParam(next)}`} />
+        <RateStrip snapshot={snapshot}><CurrencyToggle current={displayCurrency} /></RateStrip>
+      </div>
+      <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
+        <TransactionList transactions={transactions} categories={categories} accounts={lookup} limit={5} />
+        <div className="space-y-6">
+          {budgetProgress.length > 0 ? <BudgetSummaryCard progress={budgetProgress} categories={categories} limit={3} /> : null}
+          <Link href="/reports" className="bg-surface border-surface-variant hover:border-brand/30 block rounded-card border p-5 transition-colors">
+            <span className="text-ink block font-semibold">See the bigger picture</span>
+            <span className="text-ink-muted mt-1 block text-sm">Spending, categories and your balance over time.</span>
+            <span className="text-brand mt-4 block text-sm font-semibold">View reports</span>
+          </Link>
+        </div>
       </div>
     </div>
   );

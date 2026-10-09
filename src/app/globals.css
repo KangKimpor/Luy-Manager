@@ -39,25 +39,25 @@
    * a white page from reading as one undifferentiated sheet.
    */
   --color-surface: #ffffff;
-  --color-surface-muted: #f9f9ff;
+  --color-surface-muted: #f6f7f9;
   --color-surface-raised: #ffffff;
-  --color-surface-container-low: #f1f3ff;
-  --color-surface-container: #ebedf9;
-  --color-surface-container-high: #e5e8f4;
-  --color-surface-variant: #dfe2ee;
+  --color-surface-container-low: #f1f3f7;
+  --color-surface-container: #eceef3;
+  --color-surface-container-high: #e5e8ef;
+  --color-surface-variant: #e5e7eb;
 
-  --color-border-subtle: #c5c5d6;
-  --color-outline: #757685;
+  --color-border-subtle: #d1d5df;
+  --color-outline: #697386;
 
   /* Text. */
-  --color-ink: #181c24;
-  --color-ink-muted: #454653;
-  --color-ink-faint: #757685;
+  --color-ink: #172033;
+  --color-ink-muted: #4b5568;
+  --color-ink-faint: #697386;
 
   /* Brand. Deep indigo reads as financial software without being corporate. */
   --color-brand: #3145bb;
   --color-brand-strong: #2338af;
-  --color-brand-container: #4c5fd5;
+  --color-brand-container: #4055c8;
   --color-brand-soft: #eef0fc;
   --color-brand-fixed: #dee0ff;
 
@@ -128,18 +128,18 @@
   --text-label-caps--font-weight: 600;
 
   /* Elevation. One soft level for cards, plus a lifted level for the centre action. */
-  --shadow-card: 0 2px 4px rgb(16 20 28 / 0.04);
+  --shadow-card: 0 2px 8px rgb(16 20 28 / 0.025);
   --shadow-header: 0 1px 8px rgb(0 0 0 / 0.04);
   --shadow-nav: 0 -1px 8px rgb(0 0 0 / 0.04);
   --shadow-fab: 0 4px 12px rgb(76 95 213 / 0.4);
 
-  --radius-card: 1rem;
+  --radius-card: 1.5rem;
   --radius-panel: 1.5rem;
   --radius-pill: 999px;
 
   /* Fixed chrome heights, referenced by page padding so content never hides. */
   --spacing-navbar: 4.5rem;
-  --spacing-appbar: 4rem;
+  --spacing-appbar: 5rem;
 }
 
 @layer base {
@@ -204,4 +204,37 @@
 
 @utility pb-safe {
   padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+
+@layer base {
+  button, a, summary, select { -webkit-tap-highlight-color: transparent; }
+  button:not(:disabled), summary { cursor: pointer; }
+  input:not([type="checkbox"]):not([type="radio"]), select, textarea {
+    font-size: 1rem;
+    min-height: 2.75rem;
+    transition: border-color 150ms, box-shadow 150ms;
+  }
+  input:focus, select:focus, textarea:focus { border-color: var(--color-brand); }
+  button:not(:disabled):active { transform: scale(0.97); }
+  button { transition-duration: 150ms; }
+  summary { list-style: none; }
+  summary::-webkit-details-marker { display: none; }
+}
+
+.page-enter { animation: page-in 180ms ease-out; }
+.feedback-enter { animation: feedback-in 220ms ease-out; }
+@keyframes page-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes feedback-in {
+  from { opacity: 0; transform: translateY(4px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+body:has(.login-page) .app-main {
+  margin-inline: auto;
+  max-width: 30rem;
+  padding-top: 3rem !important;
 }

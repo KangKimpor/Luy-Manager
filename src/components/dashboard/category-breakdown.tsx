@@ -27,7 +27,7 @@ export function CategoryBreakdown({
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Top Spending</CardTitle>
+        <CardTitle>Spending by category</CardTitle>
       </CardHeader>
       <CardBody>
         {shown.length === 0 ? (
@@ -58,7 +58,7 @@ export function CategoryBreakdown({
                   <div
                     role="img"
                     aria-label={`${name}: ${percent} percent of spending`}
-                    className="bg-surface-muted h-1.5 w-full overflow-hidden rounded-full"
+                    className="bg-surface-variant h-1.5 w-full overflow-hidden rounded-full"
                   >
                     <div
                       className="h-full rounded-full"

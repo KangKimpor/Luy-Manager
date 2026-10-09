@@ -14,7 +14,7 @@
  */
 export const CHART_COLORS = {
   brand: "#3145bb",
-  brandContainer: "#4c5fd5",
+  brandContainer: "#4055c8",
 
   /** Income. Matches --color-inflow. */
   inflow: "#006e2d",
@@ -22,9 +22,9 @@ export const CHART_COLORS = {
   outflow: "#ba1a1a",
 
   /** Axis labels and other de-emphasised marks. Matches --color-ink-faint. */
-  inkFaint: "#757685",
+  inkFaint: "#697386",
   /** Hairlines and tooltip borders. Matches --color-surface-variant. */
-  border: "#dfe2ee",
+  border: "#e5e7eb",
   /** Tooltip and card backgrounds. Matches --color-surface. */
   surface: "#ffffff",
 } as const;

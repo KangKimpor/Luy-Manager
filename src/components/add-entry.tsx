@@ -41,9 +41,9 @@ export function AddEntry({
   const [mode, setMode] = useState<Mode>("expense");
 
   return (
-    <div className="space-y-3">
+    <div className="mx-auto max-w-2xl space-y-5">
       <div
-        className="bg-surface-muted rounded-pill flex gap-1 p-1"
+        className="bg-surface-container rounded-2xl flex gap-1 p-1.5"
         role="group"
         aria-label="Entry type"
       >
@@ -54,7 +54,7 @@ export function AddEntry({
             aria-pressed={mode === option.value}
             onClick={() => setMode(option.value)}
             className={cn(
-              "rounded-pill min-h-9 flex-1 text-sm font-semibold transition-colors",
+              "rounded-xl min-h-11 flex-1 text-sm font-semibold transition-[background-color,box-shadow] duration-150",
               mode === option.value ? "bg-surface text-ink shadow-card" : "text-ink-muted",
             )}
           >

@@ -54,7 +54,7 @@ export default async function BudgetsPage() {
   const editable = !isDemoMode();
 
   return (
-    <div className="space-y-4">
+    <div className="mx-auto max-w-4xl space-y-6">
       {/*
         One summary figure, explicitly labelled as a conversion.
 
@@ -66,12 +66,12 @@ export default async function BudgetsPage() {
       {progress.length > 0 ? (
         <Card className="p-4">
           <div className="flex items-baseline justify-between gap-2">
-            <span className="text-label-caps text-ink-muted uppercase">Left to spend</span>
+            <span className="text-sm font-medium text-ink-muted">Left to spend</span>
             <span className="text-ink-faint text-xs">in {displayCurrency}</span>
           </div>
           <MoneyAmount amount={remaining} colorBySign className="text-headline-lg mt-1 block" />
           <p className="text-body-md text-ink-muted">
-            across {progress.length} budget{progress.length === 1 ? "" : "s"}
+            Converted total across {progress.length} budget{progress.length === 1 ? "" : "s"}
           </p>
         </Card>
       ) : null}
@@ -91,13 +91,12 @@ export default async function BudgetsPage() {
           <CardBody className="space-y-2 text-center">
             <p className="text-ink text-sm font-semibold">No budgets yet</p>
             <p className="text-ink-muted text-sm">
-              Set a limit on a category, or one overall cap on everything. Spending is
-              compared against it automatically, converting riel and dollars as needed.
+              Set a spending limit for a category or for everything.
             </p>
           </CardBody>
         </Card>
       ) : (
-        <ul className="space-y-3">
+        <ul className="grid gap-4 lg:grid-cols-2">
           {progress.map((entry) => {
             const tone = TONE[entry.status];
             const name =
@@ -146,11 +145,11 @@ export default async function BudgetsPage() {
 
                   <CardBody className="space-y-2">
                     <div className="flex items-baseline justify-between gap-2">
-                      <span className="tabular text-lg font-bold">
-                        <MoneyAmount amount={entry.spent} />
+                      <span className="tabular text-lg font-semibold">
+                        <MoneyAmount amount={entry.remaining} />
                         <span className="text-ink-faint text-sm font-normal">
                           {" "}
-                          of <MoneyAmount amount={entry.limit} />
+                          remaining
                         </span>
                       </span>
                       <span className={cn("text-xs font-semibold", tone.label)}>
@@ -163,13 +162,14 @@ export default async function BudgetsPage() {
                       // almost white, so the old track was invisible on a card.
                       className="bg-surface-variant h-2 w-full overflow-hidden rounded-full"
                       role="progressbar"
-                      aria-valuenow={Math.round(entry.fraction * 100)}
+                      aria-valuenow={Math.min(100, Math.round(entry.fraction * 100))}
+                      aria-valuetext={`${Math.round(entry.fraction * 100)}% spent`}
                       aria-valuemin={0}
                       aria-valuemax={100}
                       aria-label={`${name} budget`}
                     >
                       <div
-                        className={cn("h-full rounded-full", tone.bar)}
+                        className={cn("h-full rounded-full transition-[width] duration-300", tone.bar)}
                         // Capped so an overspend cannot render wider than its track,
                         // while the percentage beside it still tells the truth.
                         style={{ width: `${Math.min(100, Math.round(entry.fraction * 100))}%` }}
@@ -177,15 +177,7 @@ export default async function BudgetsPage() {
                     </div>
 
                     <p className="text-ink-muted text-xs">
-                      {entry.status === "over" ? (
-                        <span className="text-outflow font-semibold">
-                          <MoneyAmount amount={entry.remaining} /> over
-                        </span>
-                      ) : (
-                        <>
-                          <MoneyAmount amount={entry.remaining} /> left
-                        </>
-                      )}
+                      <MoneyAmount amount={entry.spent} /> of <MoneyAmount amount={entry.limit} /> spent
                       {" · "}
                       {entry.daysRemaining === 0
                         ? "last day of this period"

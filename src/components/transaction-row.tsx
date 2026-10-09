@@ -1,4 +1,4 @@
-import { ArrowRightLeft, Send } from "lucide-react";
+import { ArrowDownLeft, ArrowRightLeft, ArrowUpRight, Send } from "lucide-react";
 
 import { CurrencyBadge, MoneyAmount } from "@/components/money-amount";
 import { TransactionRowActions } from "@/components/transaction-row-actions";
@@ -52,6 +52,7 @@ export function TransactionRow({
   accounts,
   editable = true,
   deleted = false,
+  showDate = true,
 }: {
   transaction: Transaction;
   /** The rows on screen, used to find a transfer's counterpart leg. */
@@ -61,6 +62,7 @@ export function TransactionRow({
   editable?: boolean;
   /** Renders the restore affordance instead of delete. */
   deleted?: boolean;
+  showDate?: boolean;
 }) {
   const category = transaction.categoryId ? categories[transaction.categoryId] : undefined;
   const account = accounts[transaction.accountId];
@@ -69,11 +71,11 @@ export function TransactionRow({
   const isTransfer = route !== null;
 
   return (
-    <li className="flex items-center gap-3 py-2.5">
+    <li className="flex flex-wrap items-center gap-x-3 gap-y-2 py-4">
       <span
         aria-hidden="true"
         className={cn(
-          "flex size-9 shrink-0 items-center justify-center rounded-full",
+          "flex size-10 shrink-0 items-center justify-center rounded-2xl",
           isTransfer && "text-ink-muted",
         )}
         style={{
@@ -82,24 +84,24 @@ export function TransactionRow({
             : `${category?.color ?? CHART_COLORS.inkFaint}1f`,
         }}
       >
-        {isTransfer ? <ArrowRightLeft size={14} /> : null}
+        {isTransfer ? <ArrowRightLeft size={17} /> : transaction.amount < 0 ? <ArrowUpRight size={17} className="text-ink-muted" /> : <ArrowDownLeft size={17} className="text-ink-muted" />}
       </span>
 
-      <div className="min-w-0 flex-1">
+      <div className="min-w-20 flex-1">
         <p
           className={cn(
-            "truncate text-sm font-medium",
+            "truncate text-sm font-semibold",
             deleted ? "text-ink-faint line-through" : "text-ink",
           )}
         >
           {transaction.notes ?? category?.name ?? (isTransfer ? "Transfer" : "Transaction")}
         </p>
         <p className="text-ink-faint flex items-center gap-1.5 text-xs">
-          <span>{formatDate(transaction.occurredAt)}</span>
+          {showDate ? <span>{formatDate(transaction.occurredAt)}</span> : null}
           {route ? (
-            <span className="truncate">· {route}</span>
+            <span className="truncate">{showDate ? "· " : ""}{route}</span>
           ) : account ? (
-            <span className="truncate">· {account.name}</span>
+            <span className="truncate">{showDate ? "· " : ""}{account.name}</span>
           ) : null}
           {transaction.createdVia === "telegram" ? (
             <Send size={11} aria-label="Added via Telegram" className="text-brand" />

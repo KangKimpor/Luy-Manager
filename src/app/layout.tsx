@@ -6,6 +6,7 @@ import { SpeedInsights } from "@vercel/speed-insights/next";
 import { BottomNav } from "@/components/bottom-nav";
 import { ServiceWorkerRegistration } from "@/components/service-worker";
 import { SiteHeader } from "@/components/site-header";
+import { Sidebar } from "@/components/sidebar";
 
 import "./globals.css";
 
@@ -79,6 +80,7 @@ export default function RootLayout({
         </a>
 
         <SiteHeader />
+        <Sidebar />
 
         {/*
           Top padding clears the fixed app bar plus the notch; bottom padding
@@ -88,12 +90,12 @@ export default function RootLayout({
         */}
         <main
           id="main"
-          className="mx-auto max-w-lg px-4 pb-28"
+          className="app-main mx-auto max-w-xl px-5 pb-28 lg:mr-0 lg:ml-60 lg:max-w-none lg:px-10 lg:pb-12 xl:px-14"
           style={{
             paddingTop: "calc(var(--spacing-appbar) + env(safe-area-inset-top, 0px) + 1rem)",
           }}
         >
-          {children}
+          <div className="mx-auto max-w-6xl">{children}</div>
         </main>
 
         <BottomNav />

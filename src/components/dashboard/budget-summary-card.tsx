@@ -20,7 +20,7 @@ import { cn } from "@/lib/utils";
 
 const TONE = {
   under: { bar: "bg-inflow", text: "text-ink" },
-  warning: { bar: "bg-amber-500", text: "text-ink" },
+  warning: { bar: "bg-warning", text: "text-warning" },
   over: { bar: "bg-outflow", text: "text-outflow" },
 } as const;
 
@@ -39,8 +39,8 @@ export function BudgetSummaryCard({
     <Card>
       <CardHeader className="flex items-baseline justify-between gap-2">
         <CardTitle>Budgets</CardTitle>
-        <Link href="/budgets" className="text-brand text-xs font-semibold">
-          Manage
+        <Link href="/budgets" className="text-brand flex min-h-11 items-center text-sm font-semibold">
+          View all
         </Link>
       </CardHeader>
       <CardBody>
@@ -64,15 +64,16 @@ export function BudgetSummaryCard({
                 </div>
 
                 <div
-                  className="bg-surface-muted h-1.5 w-full overflow-hidden rounded-full"
+                  className="bg-surface-variant h-1.5 w-full overflow-hidden rounded-full"
                   role="progressbar"
-                  aria-valuenow={Math.round(entry.fraction * 100)}
+                  aria-valuenow={Math.min(100, Math.round(entry.fraction * 100))}
+                  aria-valuetext={`${Math.round(entry.fraction * 100)}% spent`}
                   aria-valuemin={0}
                   aria-valuemax={100}
                   aria-label={`${name} budget`}
                 >
                   <div
-                    className={cn("h-full rounded-full", tone.bar)}
+                    className={cn("h-full rounded-full transition-[width] duration-300", tone.bar)}
                     // Clamped so an overspend cannot render wider than its track.
                     style={{ width: `${Math.min(100, Math.round(entry.fraction * 100))}%` }}
                   />

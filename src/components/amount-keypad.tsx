@@ -103,12 +103,12 @@ export function AmountDisplay({
 }) {
   return (
     <Card>
-      <CardBody className="pt-4">
-        <div className="flex items-center justify-between gap-3">
+      <CardBody className="py-6">
+        <div className="flex flex-wrap items-center justify-between gap-3">
           <output
             aria-live="polite"
             aria-label={label}
-            className={cn("tabular text-3xl font-bold", TONE_CLASS[tone])}
+            className={cn("tabular break-all text-4xl font-semibold tracking-tight", TONE_CLASS[tone])}
           >
             {formatMoney(amount)}
           </output>
@@ -140,7 +140,7 @@ export function AmountKeypad({
             aria-label={key === "del" ? "Delete last digit" : key}
             disabled={disabled}
             className={cn(
-              "bg-surface shadow-card rounded-card flex min-h-14 items-center justify-center text-xl font-semibold transition-colors active:bg-surface-muted",
+              "bg-surface border-surface-variant rounded-2xl flex min-h-14 items-center justify-center border text-2xl font-medium transition-[background-color,transform] active:bg-brand-soft active:text-brand",
               disabled && "opacity-30",
             )}
           >

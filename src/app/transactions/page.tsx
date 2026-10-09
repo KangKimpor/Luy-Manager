@@ -2,7 +2,7 @@ import { ChevronLeft, ChevronRight } from "lucide-react";
 import Link from "next/link";
 
 import { TransactionFilters } from "@/components/transaction-filters";
-import { TransactionRow } from "@/components/transaction-row";
+import { TransactionHistory } from "@/components/transaction-history";
 import { Card, CardBody } from "@/components/ui/card";
 import { isDemoMode } from "@/lib/auth";
 import { accountLookup, listAccountBalances } from "@/lib/data/accounts";
@@ -83,7 +83,7 @@ export default async function TransactionsPage(props: {
   }
 
   return (
-    <div className="space-y-4">
+    <div className="mx-auto max-w-4xl space-y-6">
       {/* The screen name lives in the app bar, so this is only the result count. */}
       <p className="text-ink-muted text-body-md">
         {result.total === 0
@@ -112,22 +112,7 @@ export default async function TransactionsPage(props: {
           </CardBody>
         </Card>
       ) : (
-        <Card>
-          <CardBody>
-            <ul className="divide-surface-variant divide-y">
-              {result.transactions.map((transaction) => (
-                <TransactionRow
-                  key={transaction.id}
-                  transaction={transaction}
-                  transactions={result.transactions}
-                  categories={categories2}
-                  accounts={lookup}
-                  editable={!isDemoMode()}
-                />
-              ))}
-            </ul>
-          </CardBody>
-        </Card>
+        <TransactionHistory transactions={result.transactions} categories={categories2} accounts={lookup} editable={!isDemoMode()} />
       )}
 
       {/* Prev/next rather than numbered pages: on a phone, two large targets beat

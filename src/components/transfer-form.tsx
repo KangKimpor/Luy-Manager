@@ -174,7 +174,7 @@ export function TransferForm({
   }
 
   async function handleSave() {
-    if (!plan || readOnly) return;
+    if (!plan || readOnly || pending) return;
 
     setPending(true);
     setSaveError(null);
@@ -183,25 +183,29 @@ export function TransferForm({
     // inserts both legs in a single statement: migration 0004 defers its balance
     // check to COMMIT precisely so the pair lands together, and a half-written
     // transfer would debit one account and credit nothing.
-    const result = await createTransfer({
-      fromAccountId: plan.from.accountId,
-      toAccountId: plan.to.accountId,
-      amount: raw.trim(),
-      receivedAmount: receivedRaw.trim() === "" ? undefined : receivedRaw.trim(),
-      notes: note.trim() === "" ? null : note.trim(),
-    });
+    try {
+      const result = await createTransfer({
+        fromAccountId: plan.from.accountId,
+        toAccountId: plan.to.accountId,
+        amount: raw.trim(),
+        receivedAmount: receivedRaw.trim() === "" ? undefined : receivedRaw.trim(),
+        notes: note.trim() === "" ? null : note.trim(),
+      });
 
-    setPending(false);
+      if (!result.ok) {
+        setSaveError(result.error);
+        return;
+      }
 
-    if (!result.ok) {
-      setSaveError(result.error);
-      return;
+      setSaved(describeTransfer(plan));
+      setRaw("");
+      setReceivedRaw("");
+      setNote("");
+    } catch {
+      setSaveError("Could not confirm the transfer. Check Activity before trying again.");
+    } finally {
+      setPending(false);
     }
-
-    setSaved(describeTransfer(plan));
-    setRaw("");
-    setReceivedRaw("");
-    setNote("");
   }
 
   if (accounts.length < 2) {
@@ -217,7 +221,8 @@ export function TransferForm({
   }
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-5" aria-busy={pending}>
+      <fieldset disabled={pending} className="space-y-5 disabled:opacity-70">
       <AmountDisplay
         amount={amount}
         tone="neutral"
@@ -239,7 +244,7 @@ export function TransferForm({
           <CardBody className="space-y-3">
             <div className="flex items-center justify-between gap-3">
               <div className="min-w-0">
-                <p className="text-ink-muted text-xs font-semibold tracking-wide uppercase">
+                <p className="text-ink-muted text-sm font-medium">
                   Arrives in {plan.to.name}
                 </p>
                 <MoneyAmount
@@ -267,7 +272,7 @@ export function TransferForm({
             <div>
               <label
                 htmlFor="received"
-                className="text-ink-muted mb-1.5 block text-xs font-semibold tracking-wide uppercase"
+                className="text-ink-muted mb-1.5 block text-sm font-medium"
               >
                 Amount received{" "}
                 <span className="normal-case">(optional, if your bank gave a different rate)</span>
@@ -306,7 +311,7 @@ export function TransferForm({
           common correction and re-picking both sides invites choosing the same
           account twice. */}
       <fieldset>
-        <legend className="text-ink-muted mb-2 text-xs font-semibold tracking-wide uppercase">
+        <legend className="text-ink-muted mb-2 text-sm font-medium">
           From
         </legend>
         <AccountPicker
@@ -322,7 +327,7 @@ export function TransferForm({
           type="button"
           onClick={swap}
           aria-label="Swap the two accounts"
-          className="bg-surface-muted text-ink-muted hover:text-ink rounded-pill flex min-h-9 items-center gap-1.5 px-3 text-xs font-semibold transition-colors"
+          className="bg-surface-muted text-ink-muted hover:text-ink rounded-pill flex min-h-11 items-center gap-1.5 px-3 text-xs font-semibold transition-colors"
         >
           <ArrowRightLeft size={14} aria-hidden="true" />
           Swap
@@ -330,7 +335,7 @@ export function TransferForm({
       </div>
 
       <fieldset>
-        <legend className="text-ink-muted mb-2 text-xs font-semibold tracking-wide uppercase">
+        <legend className="text-ink-muted mb-2 text-sm font-medium">
           To
         </legend>
         <AccountPicker
@@ -368,7 +373,7 @@ export function TransferForm({
       <div>
         <label
           htmlFor="transfer-note"
-          className="text-ink-muted mb-2 block text-xs font-semibold tracking-wide uppercase"
+          className="text-ink-muted mb-2 block text-sm font-medium"
         >
           Note <span className="normal-case">(optional)</span>
         </label>
@@ -406,7 +411,8 @@ export function TransferForm({
         </p>
       ))}
 
-      <Button size="full" disabled={!canSave || pending} onClick={handleSave}>
+      </fieldset>
+      <Button size="full" disabled={!canSave || pending} onClick={handleSave} aria-busy={pending}>
         <Check size={18} aria-hidden="true" />
         {pending
           ? "Saving…"
@@ -417,13 +423,12 @@ export function TransferForm({
 
       {readOnly ? (
         <p className="text-ink-faint text-center text-xs">
-          The demo runs on sample data, so nothing is saved. Connect Supabase to
-          record real transfers.
+          Sample data. Saving is available when your account is connected.
         </p>
       ) : null}
 
       {saved ? (
-        <p role="status" className="text-inflow text-center text-sm font-medium">
+        <p role="status" className="feedback-enter bg-inflow-soft text-inflow rounded-2xl p-4 text-center text-sm font-medium">
           Transferred {saved}
         </p>
       ) : null}
@@ -471,7 +476,7 @@ function AccountPicker({
             aria-pressed={isSelected}
             onClick={() => onSelect(account)}
             className={cn(
-              "rounded-pill flex min-h-9 items-center gap-1.5 border px-3 text-xs font-medium transition-colors",
+              "rounded-pill flex min-h-11 items-center gap-1.5 border px-3 text-xs font-medium transition-colors",
               isSelected
                 ? "border-brand bg-brand-soft text-brand"
                 : "border-border-subtle bg-surface text-ink-muted",

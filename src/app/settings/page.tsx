@@ -71,7 +71,7 @@ export default async function SettingsPage() {
   const telegram = await telegramConnectState();
 
   return (
-    <div className="space-y-4">
+    <div className="mx-auto max-w-2xl space-y-6">
       {/* Who you are. The screen name itself comes from the app bar. */}
       <div className="flex items-center gap-3">
         <span className="bg-brand text-surface flex size-10 shrink-0 items-center justify-center rounded-full">
@@ -96,9 +96,7 @@ export default async function SettingsPage() {
         <CardBody className="space-y-2">
           <CurrencyToggle current={displayCurrency} />
           <p className="text-ink-faint text-xs">
-            Applies to net worth and other totals. Individual accounts and
-            transactions always stay in the currency they are actually held or spent
-            in, so they can be checked against a bank app or a receipt.
+            Converts totals only. Accounts and transactions keep their original currency.
           </p>
         </CardBody>
       </Card>
@@ -128,7 +126,7 @@ export default async function SettingsPage() {
 
           {demo ? (
             <p className="text-ink-muted text-sm">
-              Connect Supabase to record your own rate.
+              Your own rate is available when your account is connected.
             </p>
           ) : (
             <ManualRateForm currentRate={snapshot.rate.rate} />
@@ -149,10 +147,7 @@ export default async function SettingsPage() {
         <CardBody className="space-y-3">
           {!telegram.available ? (
             <p className="text-ink-muted text-body-md">
-              Not set up on this deployment. It needs{" "}
-              <code className="text-ink text-xs">TELEGRAM_BOT_TOKEN</code>,{" "}
-              <code className="text-ink text-xs">TELEGRAM_WEBHOOK_SECRET</code> and{" "}
-              <code className="text-ink text-xs">NEXT_PUBLIC_TELEGRAM_BOT_USERNAME</code>.
+              Telegram is not available yet.
             </p>
           ) : telegram.connected ? (
             <>
@@ -194,10 +189,8 @@ export default async function SettingsPage() {
       </Card>
 
       {history.length > 0 ? (
-        <Card>
-          <CardHeader>
-            <CardTitle>Recent rates</CardTitle>
-          </CardHeader>
+        <details className="bg-surface border-surface-variant rounded-card border p-5">
+          <summary className="text-ink flex min-h-11 items-center font-semibold">Recent exchange rates</summary>
           <CardBody>
             <ul className="divide-surface-variant divide-y">
               {history.map((entry) => (
@@ -226,7 +219,7 @@ export default async function SettingsPage() {
               ))}
             </ul>
           </CardBody>
-        </Card>
+        </details>
       ) : null}
 
       {user ? (

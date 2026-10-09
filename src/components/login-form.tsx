@@ -151,8 +151,7 @@ export function LoginForm({
         ) : null}
 
         <p className="text-ink-faint text-xs">
-          No password to forget. Both routes create the same account, so you can
-          switch between them later.
+          Secure sign-in. No password needed.
         </p>
       </CardBody>
     </Card>

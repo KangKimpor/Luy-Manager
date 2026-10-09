@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowLeft, User } from "lucide-react";
+import { ArrowLeft, Settings } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
@@ -24,11 +24,12 @@ import { usePathname, useRouter } from "next/navigation";
 
 /** Routes that are destinations in their own right, so no back affordance. */
 const ROOT_TITLES: Record<string, string> = {
-  "/": "Dashboard",
+  "/": "Home",
   "/accounts": "Accounts",
   "/budgets": "Budgets",
   "/reports": "Reports",
-  "/transactions": "Transactions",
+  "/transactions": "Activity",
+  "/more": "More",
 };
 
 /** Deeper routes, matched most specific first. */
@@ -66,8 +67,8 @@ export function SiteHeader() {
   const { title, isRoot } = resolved;
 
   return (
-    <header className="bg-surface/85 shadow-header pt-safe fixed inset-x-0 top-0 z-50 backdrop-blur-xl">
-      <div className="mx-auto flex h-appbar max-w-lg items-center justify-between gap-3 px-4">
+    <header className="bg-surface-muted/95 pt-safe fixed inset-x-0 top-0 z-40 lg:left-60">
+      <div className="mx-auto flex h-appbar max-w-xl items-center justify-between gap-3 px-5 lg:max-w-none lg:px-10 xl:px-14">
         <div className="flex min-w-0 items-center gap-3">
           {isRoot ? (
             <Image
@@ -75,13 +76,13 @@ export function SiteHeader() {
               alt=""
               width={28}
               height={28}
-              className="size-7 shrink-0"
+              className="size-7 shrink-0 lg:hidden"
               priority
             />
           ) : (
             <button
               type="button"
-              onClick={() => router.back()}
+              onClick={() => window.history.length > 1 ? router.back() : router.push("/")}
               aria-label="Go back"
               className="text-ink-muted hover:bg-surface-container -ml-2 flex size-10 shrink-0 items-center justify-center rounded-full transition-colors"
             >
@@ -89,16 +90,16 @@ export function SiteHeader() {
             </button>
           )}
 
-          <h1 className="text-headline-md text-ink truncate">{title}</h1>
+          <h1 className="text-headline-md text-ink truncate tracking-tight lg:text-2xl">{title}</h1>
         </div>
 
         {isRoot ? (
           <Link
             href="/settings"
             aria-label="Settings"
-            className="bg-brand text-surface flex size-8 shrink-0 items-center justify-center rounded-full transition-transform active:scale-95"
+            className="bg-surface text-ink-muted border-surface-variant hover:text-brand flex size-11 shrink-0 items-center justify-center rounded-2xl border transition-transform active:scale-95"
           >
-            <User size={17} aria-hidden="true" />
+            <Settings size={19} aria-hidden="true" />
           </Link>
         ) : null}
       </div>

@@ -56,7 +56,7 @@ export function CurrencyToggle({
           aria-pressed={optimistic === code}
           onClick={() => choose(code)}
           className={cn(
-            "rounded-pill min-h-8 px-3 text-xs font-bold transition-colors",
+            "rounded-pill min-h-11 px-3 text-xs font-bold transition-colors",
             optimistic === code
               ? "bg-surface text-ink shadow-card"
               : "text-ink-muted hover:text-ink",

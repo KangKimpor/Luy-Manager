@@ -38,10 +38,9 @@ export default function Error({
           <div className="flex items-start gap-2">
             <TriangleAlert size={20} className="text-outflow mt-0.5 shrink-0" aria-hidden="true" />
             <div>
-              <h1 className="text-ink text-lg font-bold">We could not load your figures</h1>
+              <h2 className="text-ink text-lg font-semibold">Could not load your figures</h2>
               <p className="text-ink-muted mt-1 text-sm">
-                Nothing has been changed. Rather than show you numbers that might be
-                wrong, we have shown you none.
+                Please try again in a moment.
               </p>
             </div>
           </div>

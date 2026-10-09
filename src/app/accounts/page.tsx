@@ -100,7 +100,7 @@ export default async function AccountsPage() {
   }).filter((group) => group.accounts.length > 0);
 
   return (
-    <div className="space-y-5">
+    <div className="mx-auto max-w-4xl space-y-6">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <p className="text-label-caps text-ink-muted uppercase">Net worth</p>
@@ -166,7 +166,7 @@ export default async function AccountsPage() {
             <Card className="overflow-hidden">
               <ul className="divide-surface-variant divide-y">
                 {group.accounts.map((account) => (
-                  <li key={account.accountId} className="flex items-center gap-3 px-4 py-3">
+                  <li key={account.accountId} className="flex flex-wrap items-center gap-3 px-5 py-5">
                     <span
                       className={cn(
                         "flex size-10 shrink-0 items-center justify-center rounded-full",
@@ -187,8 +187,6 @@ export default async function AccountsPage() {
                       </p>
                       <p className="text-ink-faint text-xs">
                         {account.institution ?? ACCOUNT_TYPE_LABELS[account.type]}
-                        {" · "}
-                        {account.transactionCount} transactions
                         {!account.isActive ? " · closed" : null}
                         {account.isActive && !account.includeInNetWorth
                           ? " · not counted"
@@ -196,7 +194,7 @@ export default async function AccountsPage() {
                       </p>
                     </div>
 
-                    <div className="flex shrink-0 items-center gap-2">
+                    <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
                       <div className="flex flex-col items-end gap-1">
                         <MoneyAmount
                           amount={balanceOf(account)}

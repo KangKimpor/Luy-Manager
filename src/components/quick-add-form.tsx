@@ -1,6 +1,6 @@
 "use client";
 
-import { Check, Layers, TriangleAlert, Wallet } from "lucide-react";
+import { Check, ChevronDown, Layers, LoaderCircle, TriangleAlert, Wallet } from "lucide-react";
 import { useMemo, useState } from "react";
 
 import {
@@ -33,6 +33,7 @@ import {
   type CurrencyCode,
   DEFAULT_RATE,
   type ExchangeRate,
+  type Money,
 } from "@/lib/money";
 import { cn } from "@/lib/utils";
 
@@ -83,7 +84,7 @@ export function QuickAddForm({
   const [currency, setCurrency] = useState<CurrencyCode>(accounts[0]?.currency ?? "USD");
   const [categoryId, setCategoryId] = useState<string | null>(null);
   const [note, setNote] = useState("");
-  const [saved, setSaved] = useState<string | null>(null);
+  const [saved, setSaved] = useState<Money | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
 
@@ -111,6 +112,8 @@ export function QuickAddForm({
   }
 
   function selectAccount(next: AccountBalance) {
+    setSaved(null);
+    setError(null);
     setAccountId(next.accountId);
     // Follow the account's currency: spending from a KHR wallet means riel.
     setCurrency(next.currency);
@@ -118,43 +121,48 @@ export function QuickAddForm({
   }
 
   async function handleSave() {
-    if (!canSave) return;
+    if (!canSave || pending) return;
 
     setPending(true);
     setError(null);
 
-    const result = await createTransaction({
-      accountId,
-      // The parent control only offers these three; a transfer has its own form.
-      type: type as "expense" | "income" | "refund",
-      // Exactly what was typed, parsed server-side by the same money layer rather
-      // than round-tripped through a number here. Ignored when tenders are present,
-      // because the total is derived from them.
-      amount: raw.trim() === "" ? "0" : raw.trim(),
-      currency,
-      categoryId,
-      notes: note.trim() === "" ? null : note.trim(),
-      tenders: tenders ? parseTenders(tenders) : undefined,
-      splits: splits ? parseSplits(splits) : undefined,
-    });
+    try {
+      const result = await createTransaction({
+        accountId,
+        // The parent control only offers these three; a transfer has its own form.
+        type: type as "expense" | "income" | "refund",
+        // Exactly what was typed, parsed server-side by the same money layer rather
+        // than round-tripped through a number here. Ignored when tenders are present,
+        // because the total is derived from them.
+        amount: raw.trim() === "" ? "0" : raw.trim(),
+        currency,
+        categoryId,
+        notes: note.trim() === "" ? null : note.trim(),
+        tenders: tenders ? parseTenders(tenders) : undefined,
+        splits: splits ? parseSplits(splits) : undefined,
+      });
 
-    setPending(false);
+      if (!result.ok) {
+        setError(result.error);
+        return;
+      }
 
-    if (!result.ok) {
-      setError(result.error);
-      return;
+      setSaved(amount);
+      setRaw("");
+      setNote("");
+      setCategoryId(null);
+      setTenders(null);
+      setSplits(null);
+    } catch {
+      setError("Could not confirm the save. Check Activity before trying again.");
+    } finally {
+      setPending(false);
     }
-
-    setSaved("Saved.");
-    setRaw("");
-    setNote("");
-    setCategoryId(null);
-    setTenders(null);
-    setSplits(null);
   }
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-5" aria-busy={pending}>
+      <fieldset disabled={pending} className="space-y-5 disabled:opacity-70">
       <AmountDisplay
         amount={amount}
         tone={type === "expense" ? "outflow" : "inflow"}
@@ -174,7 +182,7 @@ export function QuickAddForm({
                   disabled={!target}
                   onClick={() => target && selectAccount(target)}
                   className={cn(
-                    "rounded-pill min-h-9 px-3 text-xs font-bold transition-colors",
+                    "rounded-pill min-h-11 px-3 text-xs font-bold transition-colors",
                     currency === code
                       ? "bg-brand text-white"
                       : "bg-surface-muted text-ink-muted",
@@ -208,8 +216,65 @@ export function QuickAddForm({
         <AmountKeypad currency={currency} onPress={press} />
       )}
 
-      {/* Optional modes, off by default so they cost nothing when unwanted. */}
-      <div className="flex gap-2">
+      {/* Account. */}
+      <fieldset>
+        <legend className="text-ink-muted mb-2 text-sm font-medium">
+          Account
+        </legend>
+        <div className="flex flex-wrap gap-2">
+          {accounts.map((account) => (
+            <button
+              key={account.accountId}
+              type="button"
+              aria-pressed={accountId === account.accountId}
+              onClick={() => selectAccount(account)}
+              className={cn(
+                "rounded-xl flex min-h-11 items-center gap-1.5 border px-3 text-sm font-medium transition-colors",
+                accountId === account.accountId
+                  ? "border-brand bg-brand-soft text-brand"
+                  : "border-border-subtle bg-surface text-ink-muted",
+              )}
+            >
+              {account.name}
+              <CurrencyBadge currency={account.currency} />
+            </button>
+          ))}
+        </div>
+      </fieldset>
+
+      {/* Category. Hidden while splitting, since each split carries its own. */}
+      <fieldset className={cn(splits && "hidden")}>
+        <legend className="text-ink-muted mb-2 text-sm font-medium">
+          Category <span className="normal-case">(optional)</span>
+        </legend>
+        <div className="flex flex-wrap gap-2">
+          {relevantCategories.map((category) => (
+            <button
+              key={category.id}
+              type="button"
+              aria-pressed={categoryId === category.id}
+              onClick={() => { setSaved(null); setCategoryId(categoryId === category.id ? null : category.id); }}
+              className={cn(
+                "rounded-xl min-h-11 border px-3 text-sm font-medium transition-colors",
+                categoryId === category.id
+                  ? "border-brand bg-brand-soft text-brand"
+                  : "border-border-subtle bg-surface text-ink-muted",
+              )}
+            >
+              {category.name}
+            </button>
+          ))}
+        </div>
+      </fieldset>
+
+      <details className="border-surface-variant rounded-2xl border bg-surface p-4">
+      <summary className="text-ink-muted flex min-h-11 items-center justify-between text-sm font-medium">More options<ChevronDown size={17} aria-hidden="true" /></summary>
+      <div className="mt-4 space-y-4">
+      <div>
+        <label htmlFor="note" className="text-ink-muted mb-2 block text-sm font-medium">Note</label>
+        <input id="note" type="text" value={note} onChange={(event) => { setSaved(null); setNote(event.target.value); }} placeholder="What was it for?" className="border-border-subtle bg-surface rounded-xl text-ink placeholder:text-ink-faint min-h-11 w-full border px-3" />
+      </div>
+      <div className="flex flex-wrap gap-2">
         <button
           type="button"
           aria-pressed={tenders !== null}
@@ -228,7 +293,7 @@ export function QuickAddForm({
             );
           }}
           className={cn(
-            "rounded-pill flex min-h-9 flex-1 items-center justify-center gap-1.5 border text-xs font-medium transition-colors",
+            "rounded-pill flex min-h-11 flex-1 items-center justify-center gap-1.5 border text-xs font-medium transition-colors",
             tenders !== null
               ? "border-brand bg-brand-soft text-brand"
               : "border-border-subtle bg-surface text-ink-muted",
@@ -247,7 +312,7 @@ export function QuickAddForm({
             setSplits(splits ? null : [newSplit(), newSplit()]);
           }}
           className={cn(
-            "rounded-pill flex min-h-9 flex-1 items-center justify-center gap-1.5 border text-xs font-medium transition-colors",
+            "rounded-pill flex min-h-11 flex-1 items-center justify-center gap-1.5 border text-xs font-medium transition-colors",
             splits !== null
               ? "border-brand bg-brand-soft text-brand"
               : "border-border-subtle bg-surface text-ink-muted",
@@ -257,6 +322,9 @@ export function QuickAddForm({
           Split it
         </button>
       </div>
+
+      </div>
+      </details>
 
       {splits ? (
         <SplitEditor
@@ -271,94 +339,29 @@ export function QuickAddForm({
         />
       ) : null}
 
-      {/* Account. */}
-      <fieldset>
-        <legend className="text-ink-muted mb-2 text-xs font-semibold tracking-wide uppercase">
-          Account
-        </legend>
-        <div className="flex flex-wrap gap-2">
-          {accounts.map((account) => (
-            <button
-              key={account.accountId}
-              type="button"
-              aria-pressed={accountId === account.accountId}
-              onClick={() => selectAccount(account)}
-              className={cn(
-                "rounded-pill flex min-h-9 items-center gap-1.5 border px-3 text-xs font-medium transition-colors",
-                accountId === account.accountId
-                  ? "border-brand bg-brand-soft text-brand"
-                  : "border-border-subtle bg-surface text-ink-muted",
-              )}
-            >
-              {account.name}
-              <CurrencyBadge currency={account.currency} />
-            </button>
-          ))}
-        </div>
       </fieldset>
-
-      {/* Category. Hidden while splitting, since each split carries its own. */}
-      <fieldset className={cn(splits && "hidden")}>
-        <legend className="text-ink-muted mb-2 text-xs font-semibold tracking-wide uppercase">
-          Category <span className="normal-case">(optional)</span>
-        </legend>
-        <div className="flex flex-wrap gap-2">
-          {relevantCategories.map((category) => (
-            <button
-              key={category.id}
-              type="button"
-              aria-pressed={categoryId === category.id}
-              onClick={() => setCategoryId(categoryId === category.id ? null : category.id)}
-              className={cn(
-                "rounded-pill min-h-9 border px-3 text-xs font-medium transition-colors",
-                categoryId === category.id
-                  ? "border-brand bg-brand-soft text-brand"
-                  : "border-border-subtle bg-surface text-ink-muted",
-              )}
-            >
-              {category.name}
-            </button>
-          ))}
-        </div>
-      </fieldset>
-
-      {/* Note. */}
-      <div>
-        <label htmlFor="note" className="text-ink-muted mb-2 block text-xs font-semibold tracking-wide uppercase">
-          Note <span className="normal-case">(optional)</span>
-        </label>
-        <input
-          id="note"
-          type="text"
-          value={note}
-          onChange={(event) => setNote(event.target.value)}
-          placeholder="Coffee at Brown"
-          className="border-border-subtle bg-surface rounded-card text-ink placeholder:text-ink-faint min-h-11 w-full border px-3 text-sm"
-        />
-      </div>
 
       {error ? (
-        <p role="alert" className="text-outflow flex items-start gap-1.5 text-sm">
+        <p role="alert" className="feedback-enter bg-outflow-soft text-outflow flex items-start gap-2 rounded-2xl p-4 text-sm">
           <TriangleAlert size={15} className="mt-0.5 shrink-0" aria-hidden="true" />
           {error}
         </p>
       ) : null}
 
-      <Button size="full" disabled={!canSave || pending} onClick={handleSave}>
-        <Check size={18} aria-hidden="true" />
-        {pending ? "Saving…" : `Save ${type === "expense" ? "expense" : type}`}
+      <Button size="full" disabled={!canSave || pending} onClick={handleSave} aria-busy={pending}>
+        {pending ? <LoaderCircle size={18} className="animate-spin" aria-hidden="true" /> : <Check size={18} aria-hidden="true" />}
+        {pending ? "Saving..." : `Save ${type === "expense" ? "expense" : type}`}
       </Button>
 
       {readOnly ? (
         <p className="text-ink-faint text-center text-xs">
-          The demo runs on sample data, so nothing is saved. Connect Supabase to
-          record your own transactions.
+          Sample data. Saving is available when your account is connected.
         </p>
       ) : null}
 
       {saved ? (
-        <p role="status" className="text-inflow text-center text-sm font-medium">
-          {saved} <MoneyAmount amount={amount} />
+        <p role="status" aria-label="Save confirmation" className="feedback-enter bg-inflow-soft text-inflow flex items-center justify-center gap-2 rounded-2xl p-4 text-sm font-medium">
+          <Check size={18} aria-hidden="true" />Saved <MoneyAmount amount={saved} />
         </p>
       ) : null}
     </div>

@@ -104,7 +104,7 @@ export function EditTransactionForm({
       <Card>
         <CardBody className="space-y-3 pt-4">
           <fieldset>
-            <legend className="text-ink-muted mb-2 text-xs font-semibold tracking-wide uppercase">
+            <legend className="text-ink-muted mb-2 text-sm font-medium">
               Type
             </legend>
             <div className="flex flex-wrap gap-2">
@@ -133,7 +133,7 @@ export function EditTransactionForm({
           <div>
             <label
               htmlFor="edit-amount"
-              className="text-ink-muted mb-2 block text-xs font-semibold tracking-wide uppercase"
+              className="text-ink-muted mb-2 block text-sm font-medium"
             >
               Amount
             </label>
@@ -157,7 +157,7 @@ export function EditTransactionForm({
           <div>
             <label
               htmlFor="edit-account"
-              className="text-ink-muted mb-2 block text-xs font-semibold tracking-wide uppercase"
+              className="text-ink-muted mb-2 block text-sm font-medium"
             >
               Account
             </label>
@@ -182,7 +182,7 @@ export function EditTransactionForm({
           <div>
             <label
               htmlFor="edit-category"
-              className="text-ink-muted mb-2 block text-xs font-semibold tracking-wide uppercase"
+              className="text-ink-muted mb-2 block text-sm font-medium"
             >
               Category
             </label>
@@ -204,7 +204,7 @@ export function EditTransactionForm({
           <div>
             <label
               htmlFor="edit-when"
-              className="text-ink-muted mb-2 block text-xs font-semibold tracking-wide uppercase"
+              className="text-ink-muted mb-2 block text-sm font-medium"
             >
               When
             </label>
@@ -220,7 +220,7 @@ export function EditTransactionForm({
           <div>
             <label
               htmlFor="edit-notes"
-              className="text-ink-muted mb-2 block text-xs font-semibold tracking-wide uppercase"
+              className="text-ink-muted mb-2 block text-sm font-medium"
             >
               Note
             </label>

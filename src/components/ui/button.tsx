@@ -6,7 +6,7 @@ import { cn } from "@/lib/utils";
 const buttonVariants = cva(
   // min-h-11 keeps every button at or above the 44px touch target that mobile
   // accessibility guidance asks for.
-  "inline-flex min-h-11 items-center justify-center gap-2 rounded-pill px-4 text-sm font-semibold transition-colors disabled:pointer-events-none disabled:opacity-50",
+  "inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl px-4 text-sm font-semibold transition-[background-color,transform,box-shadow] duration-150 active:scale-[0.97] disabled:pointer-events-none disabled:opacity-50",
   {
     variants: {
       variant: {
@@ -17,7 +17,7 @@ const buttonVariants = cva(
         danger: "bg-outflow text-white hover:brightness-95",
       },
       size: {
-        sm: "min-h-9 px-3 text-xs",
+        sm: "min-h-11 px-3 text-sm",
         md: "min-h-11 px-4",
         lg: "min-h-13 px-6 text-base",
         full: "min-h-13 w-full px-6 text-base",
