@@ -108,7 +108,7 @@ export function TransactionFilters({
 
         <div className="flex flex-wrap items-start justify-between gap-3">
           <input type="month" value={month} onChange={(event) => { if (event.target.value) go({ month: event.target.value }); }} aria-label="Month" className="border-border-subtle bg-surface rounded-xl text-ink-muted min-h-11 max-w-full border px-3 text-sm" />
-          <details open={hasFilters} className="min-w-0 flex-1">
+          <details open={hasFilters} className="min-w-0 flex-1 open:basis-full">
           <summary className="text-ink-muted flex min-h-11 items-center justify-end gap-2 text-sm font-medium">Filters{hasFilters ? " applied" : ""}<ChevronDown size={16} aria-hidden="true" /></summary>
         <div className="mt-3 flex flex-wrap gap-2">
           <select
