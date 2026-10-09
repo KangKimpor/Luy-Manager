@@ -74,6 +74,7 @@ export type RecordType = "expense" | "income" | "refund";
 export interface EntryMode {
   type: "expense" | "income";
   currency: CurrencyCode;
+  accountId?: string;
 }
 
 export interface RecordIntent {
@@ -105,6 +106,8 @@ export type TelegramIntent =
   | RecordIntent
   | TransferIntent
   | { kind: "entry"; mode: EntryMode | null; confidence: number }
+  | { kind: "choose-account"; confidence: number }
+  | { kind: "select-account"; name: string; currency: CurrencyCode; confidence: number }
   | { kind: "undo"; confidence: number }
   /** Answers to a confirmation the bot asked for. See needsConfirmation. */
   | { kind: "confirm"; confidence: number }
@@ -253,6 +256,9 @@ export function parseMessage(input: string, mode?: EntryMode | null): TelegramIn
   const lower = text.toLowerCase();
 
   const entry = lower.match(/^(expense|income) (usd|khr)$/);
+  if (/^(choose|change) account$/.test(lower)) return { kind: "choose-account", confidence: 1 };
+  const selection = text.match(/^Use (.+) \((USD|KHR)\)$/i);
+  if (selection) return { kind: "select-account", name: selection[1], currency: selection[2].toUpperCase() as CurrencyCode, confidence: 1 };
   if (entry) return { kind: "entry", mode: { type: entry[1] as EntryMode["type"], currency: entry[2].toUpperCase() as CurrencyCode }, confidence: 1 };
 
   // Deep-link payload from tapping "Connect Telegram". Checked first because the

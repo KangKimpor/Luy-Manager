@@ -11,7 +11,7 @@ const USER = "11111111-2222-3333-4444-555555555555";
 const OTHER = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee";
 const CHAT = 100;
 type Row = Record<string, unknown>;
-type Predicate = { key: string; operator: "eq" | "is" | "gte" | "lt" | "lte" | "contains"; value: unknown };
+type Predicate = { key: string; operator: "eq" | "neq" | "is" | "gte" | "lt" | "lte" | "contains"; value: unknown };
 
 /** In-memory PostgREST boundary: uniqueness and conditional updates are atomic. */
 class TestDatabase {
@@ -32,8 +32,14 @@ class TestDatabase {
       { rate: "9999", base_currency: "USD", quote_currency: "KHR", as_of: "2026-10-09", source: "manual", user_id: OTHER },
     ],
   };
+  constructor() {
+    this.tables.accounts = this.tables.account_balances.map((row) => ({
+      ...row, id: row.account_id, opening_balance: 0,
+    }));
+  }
   unsafeQueries: string[] = [];
   reads: string[] = [];
+  walletReadGate: Promise<void> | null = null;
   failClaim = false;
   sequence = 0;
   from(table: string) { return new TestQuery(this, table); }
@@ -53,6 +59,7 @@ class TestQuery {
   insert(payload: Row | Row[]) { this.operation = "insert"; this.payload = Array.isArray(payload) ? payload : [payload]; return this; }
   update(payload: Row) { this.operation = "update"; this.payload = [payload]; return this; }
   eq(key: string, value: unknown) { this.predicates.push({ key, value, operator: "eq" }); return this; }
+  neq(key: string, value: unknown) { this.predicates.push({ key, value, operator: "neq" }); return this; }
   contains(key: string, value: unknown) { this.predicates.push({ key, value, operator: "contains" }); return this; }
   is(key: string, value: unknown) { this.predicates.push({ key, value, operator: "is" }); return this; }
   gte(key: string, value: unknown) { this.predicates.push({ key, value, operator: "gte" }); return this; }
@@ -82,6 +89,7 @@ class TestQuery {
       let rows = this.db.tables[this.table].filter((row) => this.predicates.every(({ key, operator, value }) => {
         if (operator === "contains") return row[key] && Object.entries(value as Row).every(([field, expected]) => (row[key] as Row)[field] === expected);
         if (operator === "eq") return row[key] === value;
+        if (operator === "neq") return row[key] !== value;
         if (operator === "is") return (row[key] ?? null) === value;
         if (operator === "gte") return String(row[key]) >= String(value);
         if (operator === "lte") return String(row[key]) <= String(value);
@@ -99,7 +107,8 @@ class TestQuery {
       if (this.operation === "update") for (const row of rows) Object.assign(row, this.payload[0]);
       result = { data: this.singular ? rows[0] ?? null : rows, error: null, count };
     }
-    return Promise.resolve(resolve(structuredClone(result)));
+    const ready = this.table === "accounts" && this.operation === "select" && this.db.walletReadGate ? this.db.walletReadGate : Promise.resolve();
+    return ready.then(() => resolve(structuredClone(result)));
   }
 }
 
@@ -117,7 +126,8 @@ beforeEach(() => {
 describe("retry-safe Telegram ledger writes", () => {
   test.each([
     ["Cancel", []], ["Undo", ["transactions"]], ["Rate", ["exchange_rates"]],
-    ["Accounts", ["settings", "account_balances"]], ["Recent", ["account_balances", "transactions"]],
+    ["Accounts", ["settings", "account_balances"]], ["Recent", ["accounts", "transactions"]],
+    ["Expense USD", ["accounts"]], ["Choose account", ["accounts"]],
     ["Summary month", ["exchange_rates", "transactions"]],
   ])("%s only reads the data its answer needs", async (command, tables) => {
     await handleUpdate(update(1, command));
@@ -135,9 +145,11 @@ describe("retry-safe Telegram ledger writes", () => {
     await handleUpdate(update(1, "Spent $5 coffee"), deliver);
     expect(deliver).toHaveBeenCalledTimes(1);
     expect(mocks.sent).not.toHaveBeenCalled();
+    expect(db.tables.telegram_logs.find((row) => row.direction === "inbound")?.transaction_id).toBeUndefined();
     expect(db.tables.telegram_logs.filter((row) => row.direction === "outbound")).toHaveLength(0);
     await Promise.all(mocks.after.map((task) => task()));
     expect(db.tables.telegram_logs).toEqual(expect.arrayContaining([
+      expect.objectContaining({ direction: "inbound", transaction_id: db.tables.transactions[0].id }),
       expect.objectContaining({ direction: "outbound", user_id: USER, parsed: { delivery: "webhook-response-unverified" } }),
     ]));
     expect(db.unsafeQueries).toEqual([]);
@@ -168,6 +180,82 @@ describe("retry-safe Telegram ledger writes", () => {
     await handleUpdate(update(7, "5 coffee"));
     expect(db.tables.transactions).toHaveLength(3);
     expect(mocks.sent.mock.calls.at(-1)?.[1]).toContain("yes");
+    expect(db.unsafeQueries).toEqual([]);
+  });
+  test("wallet buttons select the account for expenses and incomes, including quick and explicit entries", async () => {
+    await handleUpdate(update(1, "Expense USD"));
+    expect(mocks.sent.mock.calls.at(-1)?.[2]).toEqual(expect.arrayContaining([["Use Wing USD (USD)"]]));
+    expect(JSON.stringify(mocks.sent.mock.calls.at(-1)?.[2])).not.toContain("Other wallet");
+    expect(JSON.stringify(mocks.sent.mock.calls.at(-1)?.[2])).not.toContain("Cash KHR");
+    await handleUpdate(update(2, "Use Wing USD (USD)"));
+    await Promise.all([handleUpdate(update(3, "5 coffee")), handleUpdate(update(3, "5 coffee"))]);
+    await handleUpdate(update(4, "Income USD"));
+    await handleUpdate(update(5, "600 salary"));
+    await handleUpdate(update(6, "+$20 gift"));
+    await handleUpdate(update(7, "Expense $2 coffee from ABA USD"));
+    expect(db.tables.transactions).toMatchObject([
+      { account_id: "wing", type: "expense", amount: -500 },
+      { account_id: "wing", type: "income", amount: 60000 },
+      { account_id: "wing", type: "income", amount: 2000 },
+      { account_id: "aba", type: "expense", amount: -200 },
+    ]);
+    expect(db.reads).not.toContain("account_balances");
+    expect(db.unsafeQueries).toEqual([]);
+  });
+  test("selected wallet currency is explicit and a closed or incompatible wallet never falls back", async () => {
+    await handleUpdate(update(1, "Income KHR"));
+    await handleUpdate(update(2, "Use Cash KHR (KHR)"));
+    await handleUpdate(update(3, "6000 gift"));
+    expect(db.tables.transactions[0]).toMatchObject({ account_id: "cash", amount: 6000, currency: "KHR", type: "income" });
+    await handleUpdate(update(4, "Expense $5 coffee"));
+    expect(db.tables.transactions).toHaveLength(1);
+    expect(mocks.sent.mock.calls.at(-1)?.[1]).toContain("does not hold USD");
+    db.tables.accounts.find((row) => row.id === "cash")!.is_active = false;
+    await handleUpdate(update(5, "6000 gift"));
+    expect(db.tables.transactions).toHaveLength(1);
+    await handleUpdate(update(6, "Use Other wallet (USD)"));
+    expect(mocks.sent.mock.calls.at(-1)?.[1]).toContain("unavailable");
+    expect(db.unsafeQueries).toEqual([]);
+  });
+  test("account switching discards old confirmations and Cancel clears the wallet", async () => {
+    await handleUpdate(update(1, "Spent 5 coffee"));
+    await handleUpdate(update(2, "Use Wing USD (USD)"));
+    await handleUpdate(update(3, "Yes"));
+    expect(db.tables.transactions).toHaveLength(0);
+    await handleUpdate(update(4, "Cancel"));
+    await handleUpdate(update(5, "Spent $5 coffee"));
+    expect(db.tables.transactions[0]).toMatchObject({ account_id: "aba" });
+  });
+  test("confirmations use lightweight account reads and keep the offered wallet fixed", async () => {
+    await handleUpdate(update(1, "Use Wing USD (USD)"));
+    await handleUpdate(update(2, "Spent 5 coffee"));
+    expect(mocks.sent.mock.calls.at(-1)?.[1]).toContain("Wing USD");
+    db.tables.settings[0].default_account_id = "cash";
+    await handleUpdate(update(3, "Yes"));
+    expect(db.tables.transactions[0]).toMatchObject({ account_id: "wing", amount: -500 });
+    expect(db.reads).not.toContain("account_balances");
+    expect(db.reads).not.toContain("exchange_rates");
+    expect(db.unsafeQueries).toEqual([]);
+  });
+  test("a quick-entry mode still loads the real conversion rate when it changes the initial currency guess", async () => {
+    await handleUpdate(update(1, "Income KHR"));
+    await handleUpdate(update(2, "Use Cash KHR (KHR)"));
+    await handleUpdate(update(3, "500 gift"));
+    expect(db.tables.transactions[0]).toMatchObject({ amount: 500, currency: "KHR", account_id: "cash", exchange_rate: 1 / 4100, base_amount: 12 });
+    expect(db.reads).toContain("exchange_rates");
+  });
+  test("a message arriving during wallet selection cannot save into the previous or default wallet", async () => {
+    let release!: () => void;
+    db.walletReadGate = new Promise<void>((resolve) => { release = resolve; });
+    const selecting = handleUpdate(update(1, "Use Wing USD (USD)"));
+    await vi.waitFor(() => expect(db.reads).toContain("accounts"));
+    await handleUpdate(update(2, "Spent $5 coffee"));
+    expect(db.tables.transactions).toHaveLength(0);
+    release();
+    await selecting;
+    db.walletReadGate = null;
+    await handleUpdate(update(3, "Spent $5 coffee"));
+    expect(db.tables.transactions[0]).toMatchObject({ account_id: "wing" });
     expect(db.unsafeQueries).toEqual([]);
   });
   test("expired and foreign entry modes cannot silently choose currency or direction", async () => {

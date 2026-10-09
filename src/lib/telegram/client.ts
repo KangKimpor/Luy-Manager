@@ -40,7 +40,8 @@ export const MAIN_KEYBOARD: ReplyKeyboard = [
   ["Expense USD", "Income USD"],
   ["Expense KHR", "Income KHR"],
   ["Transfer", "Undo", "Cancel"],
-  ["Accounts", "Recent", "Budgets"],
+  ["Choose account", "Accounts"],
+  ["Recent", "Budgets"],
   ["Summary today", "Summary month", "Rate"],
   ["Help"],
 ];

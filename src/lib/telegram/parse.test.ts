@@ -256,6 +256,11 @@ describe("confidence is bounded", () => {
 });
 
 describe("command menu and explicit account selection", () => {
+  test("account buttons never parse account-name amounts as ledger writes", () => {
+    expect(parseMessage("Choose account")).toMatchObject({ kind: "choose-account" });
+    expect(parseMessage("Use My $5 Income wallet (KHR)")).toMatchObject({ kind: "select-account", name: "My $5 Income wallet", currency: "KHR" });
+    expect(needsConfirmation(parseMessage("Use Wing USD (USD)"))).toBe(false);
+  });
   test.each(["Accounts", "/accounts", "/balance@LuyManagerBot"])("%s reads balances", (text) => {
     expect(parseMessage(text).kind).toBe("accounts");
   });
