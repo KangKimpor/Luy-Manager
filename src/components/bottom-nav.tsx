@@ -12,7 +12,7 @@ export function BottomNav() {
   if (pathname === "/login") return null;
 
   return (
-    <nav aria-label="Main" className="bg-surface border-surface-variant pb-safe shadow-nav fixed inset-x-0 bottom-0 z-40 rounded-t-3xl border-t lg:hidden">
+    <nav aria-label="Main" className="bg-surface border-surface-variant pb-safe px-safe shadow-nav fixed inset-x-0 bottom-0 z-40 rounded-t-3xl border-t lg:hidden">
       <div className="mx-auto grid h-navbar max-w-xl grid-cols-5 items-center px-2">
         {MAIN_NAV.map((item, index) => {
           const active = isNavActive(pathname, item.href);

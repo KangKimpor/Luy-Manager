@@ -19,6 +19,7 @@ import {
   CONFIRM_THRESHOLD,
   parseMessage,
   type RecordIntent,
+  type EntryMode,
   type TelegramIntent,
   type TransferIntent,
 } from "./parse";
@@ -58,7 +59,13 @@ const PENDING_TTL_MINUTES = 10;
 const HELP = [
   "<b>Luy Manager</b>",
   "",
-  "Log money by just typing it:",
+  "Fast entry:",
+  "• <code>-$5 coffee</code> or <code>+ $600 salary</code>",
+  "• <code>/e $5 coffee</code> or <code>/i $600 salary</code>",
+  "• Tap <b>Expense USD</b>, <b>Income USD</b> or a KHR button once, then send <code>5 coffee</code> or <code>600 salary</code>.",
+  "The selected mode lasts 10 minutes. Cancel clears it. Explicit currencies always win.",
+  "",
+  "Other entries:",
   "• <code>Spent $5 coffee</code>",
   "• <code>Spent 12000 riel lunch</code>",
   "• <code>Salary $600</code>",
@@ -72,9 +79,9 @@ const HELP = [
   "• <code>Accounts</code>, <code>Recent</code>, <code>Rate</code>",
   "• <code>Undo last transaction</code>",
   "",
-  "Always say the currency when you can. <code>5</code> on its own could be $5 or 5៛, so I will ask.",
+  "Without a selected mode, say the currency. <code>5</code> could be $5 or 5៛, so I will ask.",
   "Transfers record movements in your ledger. Your bank moves the actual funds.",
-  "Use the menu buttons or /expense, /income and /transfer for examples.",
+  "Use the menu buttons to switch direction or currency.",
 ].join("\n");
 
 /* -------------------------------------------------------------------------- */
@@ -344,7 +351,7 @@ async function saveRecord(
 
   const transactionId = (data as { id: string }).id;
   const parts = [
-    `Saved ${describeAmount(intent.amount)}`,
+    `Saved ${intent.type}: ${describeAmount(intent.amount)}`,
     `in ${escapeHtml(account.name)}`,
     category ? `as ${escapeHtml(category.name)}` : "with no category",
   ];
@@ -624,6 +631,18 @@ async function takePending(
 /* Entry point                                                                 */
 /* -------------------------------------------------------------------------- */
 
+async function entryMode(admin: Admin, chatId: number, userId: string): Promise<EntryMode | null> {
+  const { data, error } = await admin.from("telegram_logs").select("parsed")
+    .eq("user_id", userId).eq("chat_id", chatId).eq("direction", "inbound")
+    .contains("parsed", { kind: "entry" })
+    .gte("created_at", new Date(Date.now() - PENDING_TTL_MINUTES * 60_000).toISOString())
+    .order("created_at", { ascending: false }).limit(1).maybeSingle();
+  if (error) throw new Error("Could not read the selected entry mode.");
+  const mode = (data as { parsed?: { mode?: EntryMode } } | null)?.parsed?.mode;
+  return mode && (mode.type === "expense" || mode.type === "income") &&
+    (mode.currency === "USD" || mode.currency === "KHR") ? mode : null;
+}
+
 /**
  * Handle one Telegram update, end to end.
  *
@@ -637,7 +656,7 @@ export async function handleUpdate(update: unknown): Promise<void> {
 
   const { webhookSecret } = requireTelegramEnv();
   const admin = createAdminClient();
-  const intent = parseMessage(inbound.text);
+  let intent = parseMessage(inbound.text);
   let linkedUserId: string | null = null;
   let inboundLogId: string | null = null;
 
@@ -746,15 +765,29 @@ export async function handleUpdate(update: unknown): Promise<void> {
       return;
     }
 
+    if (intent.kind === "entry" && intent.mode) {
+      await takePending(admin, inbound.chatId, userId, true);
+      await reply(admin, inbound.chatId, userId,
+        `<b>${intent.mode.type === "income" ? "Income" : "Expense"} ${intent.mode.currency}</b> for 10 minutes.\nSend just <code>${intent.mode.currency === "KHR" ? "6000 coffee" : "5 coffee"}</code>.\nUse the buttons to switch, or Cancel to clear. Explicit currencies override this choice.`);
+      return;
+    }
+
+    if (/^[\d$]/.test(inbound.text.trim())) {
+      intent = parseMessage(inbound.text, await entryMode(admin, inbound.chatId, userId));
+    }
+
     const context = await loadContext(admin, userId);
 
     if (intent.kind === "cancel") {
       const pending = await takePending(admin, inbound.chatId, userId, true);
+      const cleared = await admin.from("telegram_logs").update({ parsed: { kind: "entry", mode: null } })
+        .eq("id", inboundLogId).eq("user_id", userId).eq("chat_id", inbound.chatId);
+      if (cleared.error) throw new Error("Could not clear entry mode.");
       await reply(
         admin,
         inbound.chatId,
         userId,
-        pending ? "Discarded." : "There is nothing waiting to be confirmed.",
+        pending ? "Discarded. Entry mode cleared." : "Entry mode cleared. Nothing was saved.",
       );
       return;
     }

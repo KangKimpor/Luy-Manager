@@ -10,7 +10,7 @@ const USER = "11111111-2222-3333-4444-555555555555";
 const OTHER = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee";
 const CHAT = 100;
 type Row = Record<string, unknown>;
-type Predicate = { key: string; operator: "eq" | "is" | "gte" | "lt" | "lte"; value: unknown };
+type Predicate = { key: string; operator: "eq" | "is" | "gte" | "lt" | "lte" | "contains"; value: unknown };
 
 /** In-memory PostgREST boundary: uniqueness and conditional updates are atomic. */
 class TestDatabase {
@@ -51,6 +51,7 @@ class TestQuery {
   insert(payload: Row | Row[]) { this.operation = "insert"; this.payload = Array.isArray(payload) ? payload : [payload]; return this; }
   update(payload: Row) { this.operation = "update"; this.payload = [payload]; return this; }
   eq(key: string, value: unknown) { this.predicates.push({ key, value, operator: "eq" }); return this; }
+  contains(key: string, value: unknown) { this.predicates.push({ key, value, operator: "contains" }); return this; }
   is(key: string, value: unknown) { this.predicates.push({ key, value, operator: "is" }); return this; }
   gte(key: string, value: unknown) { this.predicates.push({ key, value, operator: "gte" }); return this; }
   lt(key: string, value: unknown) { this.predicates.push({ key, value, operator: "lt" }); return this; }
@@ -76,6 +77,7 @@ class TestQuery {
       }
     } else {
       let rows = this.db.tables[this.table].filter((row) => this.predicates.every(({ key, operator, value }) => {
+        if (operator === "contains") return row[key] && Object.entries(value as Row).every(([field, expected]) => (row[key] as Row)[field] === expected);
         if (operator === "eq") return row[key] === value;
         if (operator === "is") return (row[key] ?? null) === value;
         if (operator === "gte") return String(row[key]) >= String(value);
@@ -109,6 +111,33 @@ beforeEach(() => {
 });
 
 describe("retry-safe Telegram ledger writes", () => {
+  test("one mode selection supports repeated quick entries, currency override and safe cancellation", async () => {
+    await handleUpdate(update(1, "Expense KHR"));
+    await Promise.all([handleUpdate(update(2, "6000 coffee")), handleUpdate(update(2, "6000 coffee"))]);
+    await handleUpdate(update(3, "$5 coffee"));
+    await handleUpdate(update(4, "Income USD"));
+    await handleUpdate(update(5, "600 salary"));
+    expect(db.tables.transactions).toMatchObject([
+      { user_id: USER, account_id: "cash", amount: -6000, currency: "KHR" },
+      { user_id: USER, account_id: "aba", amount: -500, currency: "USD" },
+      { user_id: USER, account_id: "aba", amount: 60000, currency: "USD", type: "income" },
+    ]);
+    await handleUpdate(update(6, "Cancel"));
+    await handleUpdate(update(7, "5 coffee"));
+    expect(db.tables.transactions).toHaveLength(3);
+    expect(mocks.sent.mock.calls.at(-1)?.[1]).toContain("yes");
+    expect(db.unsafeQueries).toEqual([]);
+  });
+  test("expired and foreign entry modes cannot silently choose currency or direction", async () => {
+    db.tables.telegram_logs.push(
+      { id: "expired", user_id: USER, chat_id: CHAT, direction: "inbound", created_at: new Date(Date.now() - 11 * 60_000).toISOString(), parsed: { kind: "entry", mode: { type: "income", currency: "USD" } } },
+      { id: "foreign-mode", user_id: OTHER, chat_id: CHAT, direction: "inbound", created_at: new Date().toISOString(), parsed: { kind: "entry", mode: { type: "income", currency: "USD" } } },
+    );
+    await handleUpdate(update(1, "5 coffee"));
+    expect(db.tables.transactions).toHaveLength(0);
+    expect(mocks.sent.mock.calls.at(-1)?.[1]).toContain("expense");
+    expect(db.unsafeQueries).toEqual([]);
+  });
   test("concurrent duplicate deliveries create one signed expense even if replies fail", async () => {
     mocks.sent.mockResolvedValue({ ok: false, error: "Delivery failed" });
     await Promise.all([handleUpdate(update(1, "Spent $5 coffee")), handleUpdate(update(1, "Spent $5 coffee"))]);

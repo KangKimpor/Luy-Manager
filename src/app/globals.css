@@ -154,6 +154,8 @@
     color: var(--color-ink);
     min-height: 100svh;
     overflow-x: clip;
+    /* One-finger scrolling stays native; app gestures do not initiate zoom. */
+    touch-action: pan-x pan-y;
   }
 
   /*
@@ -205,17 +207,24 @@
   padding-bottom: env(safe-area-inset-bottom, 0px);
 }
 
+@utility px-safe {
+  padding-left: env(safe-area-inset-left, 0px);
+  padding-right: env(safe-area-inset-right, 0px);
+}
+
 
 @layer base {
   button, a, summary, select { -webkit-tap-highlight-color: transparent; }
   button:not(:disabled), summary { cursor: pointer; }
+  /* Native fieldsets otherwise force horizontally scrolling chips wider than the phone. */
+  fieldset { min-inline-size: 0; }
   input:not([type="checkbox"]):not([type="radio"]), select, textarea {
     font-size: 1rem;
     min-height: 2.75rem;
     transition: border-color 150ms, box-shadow 150ms;
   }
   input:focus, select:focus, textarea:focus { border-color: var(--color-brand); }
-  input, select, textarea { scroll-margin-block: 7rem; }
+  input, select, textarea { max-inline-size: 100%; scroll-margin-block: 7rem; }
   button:not(:disabled):active { transform: scale(0.97); }
   button { transition-duration: 150ms; }
   summary { list-style: none; }
@@ -223,6 +232,26 @@
 }
 
 .feedback-enter { animation: feedback-in 220ms ease-out; }
+.feedback-enter[role="status"] > svg { animation: saved-check 420ms cubic-bezier(0.2, 0.7, 0.2, 1); }
+.feedback-enter[role="alert"] { animation: feedback-in 220ms ease-out, error-nudge 260ms ease-out; }
+.amount-tick { animation: amount-in 140ms ease-out; }
+button[aria-pressed="true"] { animation: choice-in 220ms ease-out; }
+.tap-feedback { position: relative; overflow: hidden; }
+.tap-feedback::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: currentColor;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 220ms ease-out;
+}
+.tap-feedback:active::after { opacity: 0.1; }
+@keyframes amount-in { from { opacity: 0.6; transform: translateY(3px); } }
+@keyframes choice-in { 50% { transform: scale(1.04); } }
+@keyframes saved-check { from { opacity: 0; transform: scale(0.6) rotate(-15deg); } 65% { transform: scale(1.15); } }
+@keyframes error-nudge { 25% { transform: translateX(-3px); } 75% { transform: translateX(3px); } }
 @keyframes feedback-in {
   from { opacity: 0; transform: translateY(4px) scale(0.98); }
   to { opacity: 1; transform: translateY(0) scale(1); }
@@ -281,4 +310,11 @@ details[open] summary svg { transform: rotate(180deg); }
   /* Unlayered so text-sm utilities cannot bring Safari's focus zoom back. */
   input:not([type="checkbox"]):not([type="radio"]), select, textarea { font-size: 16px; }
   .app-main { padding-bottom: calc(var(--spacing-navbar) + env(safe-area-inset-bottom, 0px) + 1.75rem); }
+}
+
+@media (max-width: 1023px) {
+  .safe-gutters {
+    padding-left: max(1.25rem, env(safe-area-inset-left, 0px));
+    padding-right: max(1.25rem, env(safe-area-inset-right, 0px));
+  }
 }

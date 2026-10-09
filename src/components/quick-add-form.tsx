@@ -221,7 +221,7 @@ export function QuickAddForm({
         <legend className="text-ink-muted mb-2 text-sm font-medium">
           Account
         </legend>
-        <div className="flex flex-wrap gap-2">
+        <div className="scroll-row flex gap-2 pb-2">
           {accounts.map((account) => (
             <button
               key={account.accountId}
@@ -229,7 +229,7 @@ export function QuickAddForm({
               aria-pressed={accountId === account.accountId}
               onClick={() => selectAccount(account)}
               className={cn(
-                "rounded-xl flex min-h-11 items-center gap-1.5 border px-3 text-sm font-medium transition-colors",
+                "rounded-xl flex min-h-11 shrink-0 items-center gap-1.5 border px-3 text-sm font-medium transition-colors",
                 accountId === account.accountId
                   ? "border-brand bg-brand-soft text-brand"
                   : "border-border-subtle bg-surface text-ink-muted",
@@ -247,7 +247,7 @@ export function QuickAddForm({
         <legend className="text-ink-muted mb-2 text-sm font-medium">
           Category <span className="normal-case">(optional)</span>
         </legend>
-        <div className="flex flex-wrap gap-2">
+        <div className="scroll-row flex gap-2 pb-2">
           {relevantCategories.map((category) => (
             <button
               key={category.id}
@@ -255,7 +255,7 @@ export function QuickAddForm({
               aria-pressed={categoryId === category.id}
               onClick={() => { setSaved(null); setCategoryId(categoryId === category.id ? null : category.id); }}
               className={cn(
-                "rounded-xl min-h-11 border px-3 text-sm font-medium transition-colors",
+                "rounded-xl min-h-11 shrink-0 border px-3 text-sm font-medium transition-colors",
                 categoryId === category.id
                   ? "border-brand bg-brand-soft text-brand"
                   : "border-border-subtle bg-surface text-ink-muted",

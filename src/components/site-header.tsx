@@ -67,7 +67,7 @@ export function SiteHeader() {
 
   return (
     <header className="bg-surface-muted pt-safe fixed inset-x-0 top-0 z-40 lg:left-60">
-      <div className="mx-auto flex h-appbar max-w-xl items-center justify-between gap-3 px-5 lg:max-w-none lg:px-10 xl:px-14">
+      <div className="safe-gutters mx-auto flex h-appbar max-w-xl items-center justify-between gap-3 px-5 lg:max-w-none lg:px-10 xl:px-14">
         <div className="flex min-w-0 items-center gap-3">
           {isRoot ? (
             <span className="bg-brand text-surface flex size-10 shrink-0 items-center justify-center rounded-2xl shadow-fab lg:hidden"><Wallet size={21} aria-hidden="true" /></span>

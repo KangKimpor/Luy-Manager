@@ -83,7 +83,7 @@ export function TransactionFilters({
           }}
           className="flex gap-2"
         >
-          <div className="relative flex-1">
+          <div className="relative min-w-0 flex-1">
             <Search
               size={15}
               aria-hidden="true"

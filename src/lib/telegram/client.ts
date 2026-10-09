@@ -37,7 +37,9 @@ export interface InboundMessage {
 export type ReplyKeyboard = readonly (readonly string[])[];
 
 export const MAIN_KEYBOARD: ReplyKeyboard = [
-  ["Expense", "Income", "Transfer"],
+  ["Expense USD", "Income USD"],
+  ["Expense KHR", "Income KHR"],
+  ["Transfer", "Undo", "Cancel"],
   ["Accounts", "Recent", "Budgets"],
   ["Summary today", "Summary month", "Rate"],
   ["Help"],
@@ -129,7 +131,7 @@ export async function sendMessage(
           keyboard: keyboard.map((row) => row.map((label) => ({ text: label }))),
           resize_keyboard: true,
           is_persistent: true,
-          input_field_placeholder: "Spent $5 coffee from ABA",
+          input_field_placeholder: "-$5 coffee or +$600 salary",
         },
       }),
       signal: AbortSignal.timeout(8_000),

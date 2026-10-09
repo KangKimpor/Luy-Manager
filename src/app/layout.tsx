@@ -56,8 +56,8 @@ export const viewport: Viewport = {
   themeColor: APP_COLORS.background,
   width: "device-width",
   initialScale: 1,
-  // Not locking maximumScale: preventing pinch-zoom fails WCAG 1.4.4, and a
-  // finance app is exactly the kind of thing people zoom into to check a figure.
+  maximumScale: 1,
+  userScalable: false,
   viewportFit: "cover",
 };
 
@@ -91,7 +91,7 @@ export default function RootLayout({
         */}
         <main
           id="main"
-          className="app-main mx-auto min-w-0 max-w-xl px-5 pb-28 lg:mr-0 lg:ml-60 lg:max-w-none lg:px-10 lg:pb-12 xl:px-14"
+          className="app-main safe-gutters mx-auto min-w-0 max-w-xl px-5 pb-28 lg:mr-0 lg:ml-60 lg:max-w-none lg:px-10 lg:pb-12 xl:px-14"
           style={{
             paddingTop: "calc(var(--spacing-appbar) + env(safe-area-inset-top, 0px) + 1rem)",
           }}

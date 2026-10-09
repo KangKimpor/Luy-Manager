@@ -71,6 +71,11 @@ const RIEL_MAGNITUDE_THRESHOLD = 1000;
 
 export type RecordType = "expense" | "income" | "refund";
 
+export interface EntryMode {
+  type: "expense" | "income";
+  currency: CurrencyCode;
+}
+
 export interface RecordIntent {
   kind: "record";
   type: RecordType;
@@ -99,6 +104,7 @@ export interface TransferIntent {
 export type TelegramIntent =
   | RecordIntent
   | TransferIntent
+  | { kind: "entry"; mode: EntryMode | null; confidence: number }
   | { kind: "undo"; confidence: number }
   /** Answers to a confirmation the bot asked for. See needsConfirmation. */
   | { kind: "confirm"; confidence: number }
@@ -162,7 +168,7 @@ interface AmountMatch {
  * a marker is looked for on both sides of the number because "$5" and "5 dollars"
  * are equally common.
  */
-export function extractAmount(text: string): AmountMatch | null {
+export function extractAmount(text: string, selectedCurrency?: CurrencyCode): AmountMatch | null {
   const lower = text.toLowerCase();
 
   // A partial match in "-5", "$5.999" or "5,00" would silently change the
@@ -188,8 +194,8 @@ export function extractAmount(text: string): AmountMatch | null {
   const bare = lower.match(new RegExp(NUMBER.source));
   if (bare) {
     const digits = Number(bare[1].replace(/,/g, ""));
-    const unit: CurrencyCode = digits >= RIEL_MAGNITUDE_THRESHOLD ? "KHR" : "USD";
-    return build(bare[1], unit, bare[0], true);
+    const unit: CurrencyCode = selectedCurrency ?? (digits >= RIEL_MAGNITUDE_THRESHOLD ? "KHR" : "USD");
+    return build(bare[1], unit, bare[0], !selectedCurrency);
   }
 
   return null;
@@ -231,14 +237,23 @@ function describeRemainder(text: string, consumed: string, verb: RegExp): string
  * the user's own data (which account, which category) is resolved by the caller,
  * which is what makes this exhaustively testable.
  */
-export function parseMessage(input: string): TelegramIntent {
+export function parseMessage(input: string, mode?: EntryMode | null): TelegramIntent {
   const text = input.trim().replace(/\s+/g, " ").replace(
+    /^\/(e|i)(?:@\w+)?\b/i,
+    (_, command: string) => command.toLowerCase() === "e" ? "expense" : "income",
+  ).replace(
+    /^([+-])\s*(?=\$?\s*\d)/,
+    (_, sign: string) => sign === "+" ? "income " : "expense ",
+  ).replace(
     /^\/(expense|income|refund|transfer|summary|report|budgets?|accounts?|balance|recent|transactions|rate|undo|cancel|confirm)(?:@\w+)?\b/i,
     "$1",
   );
   if (text === "") return { kind: "unknown", text: "", confidence: 1 };
 
   const lower = text.toLowerCase();
+
+  const entry = lower.match(/^(expense|income) (usd|khr)$/);
+  if (entry) return { kind: "entry", mode: { type: entry[1] as EntryMode["type"], currency: entry[2].toUpperCase() as CurrencyCode }, confidence: 1 };
 
   // Deep-link payload from tapping "Connect Telegram". Checked first because the
   // token is opaque and could contain anything.
@@ -330,7 +345,10 @@ export function parseMessage(input: string): TelegramIntent {
   const accountMatch = text.match(/\s+(?:from|using|in)\s+(.+)$/i);
   const recordText = accountMatch ? text.slice(0, accountMatch.index) : text;
   const recordLower = recordText.toLowerCase();
-  const found = extractAmount(recordText);
+  // Only an amount-first entry uses the explicitly selected mode. Commands and
+  // natural-language operations keep their own meaning, including transfers.
+  const selectedMode = /^[\d$]/.test(recordText) ? mode : null;
+  const found = extractAmount(recordText, selectedMode?.currency);
   if (!found) return { kind: "unknown", text, confidence: 1 };
 
   // A message with two figures is not one transaction. Do not quietly save the
@@ -343,8 +361,12 @@ export function parseMessage(input: string): TelegramIntent {
   let type: RecordType;
   let verb: RegExp;
   let stated = true;
+  const explicitType = recordLower.match(/^(expense|income|refund)\b/)?.[1] as RecordType | undefined;
 
-  if (REFUND_VERBS.test(recordLower)) {
+  if (selectedMode || explicitType) {
+    type = selectedMode?.type ?? explicitType!;
+    verb = selectedMode ? /$^/ : new RegExp(`^${type}\\b`);
+  } else if (REFUND_VERBS.test(recordLower)) {
     type = "refund";
     verb = REFUND_VERBS;
   } else if (INCOME_VERBS.test(recordLower)) {

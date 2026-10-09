@@ -188,11 +188,12 @@ export default async function SettingsPage() {
           <div className="bg-surface-muted space-y-3 rounded-2xl p-4">
             <p className="text-ink text-xs font-semibold">A few things to try</p>
             <ul className="text-ink-muted space-y-2 text-xs">
-              <li><code>Spent $5 coffee</code></li>
-              <li><code>Income $500 salary</code></li>
+              <li><code>-$5 coffee</code></li>
+              <li><code>+$500 salary</code></li>
               <li><code>Transfer $20 ABA to Cash</code></li>
               <li><code>/accounts</code>, <code>/recent</code>, <code>/budget</code></li>
             </ul>
+            <p className="text-ink-muted text-xs">Choose Expense USD, Income USD or KHR in Telegram, then send just an amount and note. Cancel clears the mode.</p>
             <p className="text-ink-faint flex items-start gap-2 text-xs leading-relaxed"><ArrowRightLeft size={14} className="mt-0.5 shrink-0" aria-hidden="true" />Transfers update your ledger. Use your bank to move the money itself.</p>
           </div>
         </CardBody>

@@ -16,6 +16,29 @@ function record(text: string) {
   return intent;
 }
 
+test("fast shortcuts keep explicit direction and still confirm an unstated currency", () => {
+  for (const text of ["-$5 coffee", "/e $5 coffee", "-6000r coffee"]) {
+    const intent = parseMessage(text);
+    expect(intent).toMatchObject({ kind: "record", type: "expense", confidence: 1 });
+    expect(needsConfirmation(intent)).toBe(false);
+  }
+  expect(parseMessage("+$600 salary")).toMatchObject({ kind: "record", type: "income", amount: { minor: 60000, currency: "USD" } });
+  expect(parseMessage("-$5 salary")).toMatchObject({ kind: "record", type: "expense" });
+  expect(parseMessage("/i 600 salary")).toMatchObject({ kind: "record", type: "income" });
+  expect(needsConfirmation(parseMessage("/i 600 salary"))).toBe(true);
+});
+
+test("an explicit entry mode supplies direction and currency only for amount-first entries", () => {
+  const mode = { type: "expense", currency: "KHR" } as const;
+  expect(parseMessage("Expense KHR")).toMatchObject({ kind: "entry", mode });
+  expect(parseMessage("6000 coffee", mode)).toMatchObject({ kind: "record", type: "expense", amount: { minor: 6000, currency: "KHR" }, confidence: 1 });
+  expect(parseMessage("$5 salary", mode)).toMatchObject({ kind: "record", type: "expense", amount: { minor: 500, currency: "USD" } });
+  expect(parseMessage("Income $50 salary", mode)).toMatchObject({ kind: "record", type: "income" });
+  expect(parseMessage("Transfer $100", mode).kind).toBe("unknown");
+  expect(parseMessage("6.5 coffee", mode).kind).toBe("unknown");
+  expect(parseMessage("6000 coffee 3000 lunch", mode).kind).toBe("unknown");
+});
+
 describe("PRD Section 9 examples", () => {
   test("Spent $5 coffee", () => {
     const intent = record("Spent $5 coffee");

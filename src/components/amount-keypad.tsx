@@ -122,7 +122,7 @@ export function AmountDisplay({
             aria-label={label}
             className={cn("tabular break-all text-4xl font-semibold tracking-tight", TONE_CLASS[tone])}
           >
-            {formatMoney(amount)}
+            <span key={`${amount.currency}:${amount.minor}`} className="amount-tick inline-block max-w-full">{formatMoney(amount)}</span>
           </output>
           {trailing}
         </div>
