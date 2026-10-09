@@ -38,7 +38,7 @@ export function RateStrip({
   return (
     <div
       className={cn(
-        "rounded-card border px-3 py-2",
+        "min-w-0 rounded-card border px-3 py-2",
         needsAttention
           ? "border-warning/30 bg-warning-soft"
           : "border-surface-variant bg-surface-container-low",
