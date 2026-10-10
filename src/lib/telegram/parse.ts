@@ -117,6 +117,7 @@ export type TelegramIntent =
   /** Answers to a confirmation the bot asked for. See needsConfirmation. */
   | { kind: "confirm"; confidence: number }
   | { kind: "cancel"; confidence: number }
+  | { kind: "discard"; confidence: number }
   | { kind: "budget"; confidence: number }
   | { kind: "accounts"; confidence: number }
   | { kind: "recent"; confidence: number }
@@ -288,7 +289,8 @@ export function parseMessage(input: string, mode?: EntryMode | null): TelegramIn
     return { kind: "confirm", confidence: 1 };
   }
 
-  if (/^(n|no|nope|cancel|stop|discard|wrong)[.!]?$/i.test(lower)) {
+  if (/^discard[.!]?$/i.test(lower)) return { kind: "discard", confidence: 1 };
+  if (/^(n|no|nope|cancel|stop|wrong)[.!]?$/i.test(lower)) {
     return { kind: "cancel", confidence: 1 };
   }
 

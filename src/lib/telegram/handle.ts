@@ -230,7 +230,7 @@ async function loadContext(admin: Admin, profile: LinkedProfile, intent: Telegra
   const userId = profile.id;
   const writing = kind === "record" || kind === "transfer";
   const needsBalances = kind === "accounts" || kind === "transfer";
-  const needsAccounts = writing || needsBalances || kind === "recent" || kind === "entry" || kind === "start-entry" || kind === "back" || kind === "choose-account" || kind === "select-account";
+  const needsAccounts = writing || needsBalances || kind === "recent" || kind === "entry" || kind === "start-entry" || kind === "back" || kind === "discard" || kind === "choose-account" || kind === "select-account";
   // Same-currency rows do not use a rate. Amount-first entries still need one
   // because their selected mode can change the currency while these reads run.
   const needsRate = intent.kind === "record" ? mayChangeCurrency || intent.amount.currency !== (profile.base_currency ?? "USD")
@@ -889,14 +889,17 @@ export async function handleUpdate(update: unknown, deliver: ReplySender = sendM
         await respond(admin, inbound.chatId, userId, "There is nothing waiting to be confirmed.");
         return;
       }
-      const context = await loadContext(admin, profile, pending.intent);
-      await execute(admin, context, inbound.chatId, inboundLogId, pending.intent, deliver);
+      const [context, mode] = await Promise.all([
+        loadContext(admin, profile, pending.intent),
+        entryMode(admin, inbound.chatId, userId, inboundLogId),
+      ]);
+      await execute(admin, context, inbound.chatId, inboundLogId, pending.intent, deliver, mode);
       return;
     }
 
-    const readsMode = amountFirst || intent.kind === "record" || intent.kind === "entry" || intent.kind === "start-entry" || intent.kind === "back" || intent.kind === "choose-account" || intent.kind === "select-account";
-    const clearsPending = intent.kind === "record" || intent.kind === "transfer" || intent.kind === "entry" || intent.kind === "start-entry" || intent.kind === "select-account";
-    const [context, mode] = await Promise.all([
+    const readsMode = amountFirst || intent.kind === "record" || intent.kind === "entry" || intent.kind === "start-entry" || intent.kind === "back" || intent.kind === "discard" || intent.kind === "choose-account" || intent.kind === "select-account";
+    const clearsPending = intent.kind === "record" || intent.kind === "transfer" || intent.kind === "entry" || intent.kind === "start-entry" || intent.kind === "select-account" || intent.kind === "discard";
+    const [context, mode, clearedOffer] = await Promise.all([
       preparedContext(),
       readsMode ? entryMode(admin, inbound.chatId, userId, inboundLogId, intent.kind === "entry" || intent.kind === "start-entry" || intent.kind === "select-account") : null,
       // Invalidate an old offer before saving its replacement, while the wallet
@@ -906,6 +909,15 @@ export async function handleUpdate(update: unknown, deliver: ReplySender = sendM
     if (amountFirst) intent = parseMessage(inbound.text, mode);
     if (intent.kind === "record" && mode?.accountId && !intent.accountHint && (!mode.autoAccount || intent.amount.currency === mode.currency)) {
       intent = { ...intent, resolvedAccountId: mode.accountId };
+    }
+
+    if (intent.kind === "discard") {
+      const selected = context.accounts.find((account) => account.accountId === mode?.accountId && account.isActive && account.currency === mode.currency);
+      const message = clearedOffer ? "Preview discarded. Nothing was saved." : "There is no preview to discard.";
+      await respond(admin, inbound.chatId, userId,
+        message + (mode && selected ? `\n${entryPrompt(mode, selected)}` : ""),
+        mode && selected ? entryKeyboard(mode, context.accounts) : MAIN_KEYBOARD);
+      return;
     }
 
     if (intent.kind === "back") {

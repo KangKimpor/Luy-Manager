@@ -128,6 +128,28 @@ beforeEach(() => {
 });
 
 describe("retry-safe Telegram ledger writes", () => {
+  test("Discard cancels only the preview, keeps the wallet, and cannot be confirmed later", async () => {
+    await handleUpdate(update(1, "Use Wing USD (USD)"));
+    await handleUpdate(update(2, "Spent 5 coffee"));
+    expect(mocks.sent.mock.calls.at(-1)?.[1]).toContain("Wallet: Wing USD");
+    expect(mocks.sent.mock.calls.at(-1)?.[2]).toEqual([["Save", "Discard"]]);
+    await handleUpdate(update(3, "Discard"));
+    expect(mocks.sent.mock.calls.at(-1)?.[1]).toContain("Expense · Wing USD · USD");
+    await handleUpdate(update(4, "Save"));
+    expect(db.tables.transactions).toHaveLength(0);
+    await handleUpdate(update(5, "5 coffee"));
+    expect(db.tables.transactions[0]).toMatchObject({ account_id: "wing", amount: -500 });
+    expect(db.unsafeQueries).toEqual([]);
+  });
+  test("Save restores the focused entry controls after committing the preview", async () => {
+    await handleUpdate(update(1, "Use Wing USD (USD)"));
+    await handleUpdate(update(2, "Spent 5 coffee"));
+    await Promise.all([handleUpdate(update(3, "Save")), handleUpdate(update(3, "Save"))]);
+    expect(db.tables.transactions).toHaveLength(1);
+    expect(mocks.sent.mock.calls.at(-1)?.[1]).toContain("Next: <b>Expense · Wing USD · USD");
+    expect(mocks.sent.mock.calls.at(-1)?.[2]?.flat()).toContain("Income");
+    expect(db.unsafeQueries).toEqual([]);
+  });
   test("one Expense tap selects the preferred wallet and the next message saves without another selector", async () => {
     db.tables.settings[0].default_account_id = "wing";
     await handleUpdate(update(1, "Expense"));

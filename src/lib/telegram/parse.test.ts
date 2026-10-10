@@ -225,6 +225,10 @@ describe("messages the parser should refuse", () => {
 });
 
 describe("answers to a confirmation prompt", () => {
+  test("Discard dismisses a preview while Cancel ends quick entry", () => {
+    expect(parseMessage("Discard").kind).toBe("discard");
+    expect(parseMessage("Cancel").kind).toBe("cancel");
+  });
   test.each(["yes", "y", "Yep", "confirm", "OK", "save", "correct"])("%s confirms", (text) => {
     expect(parseMessage(text).kind).toBe("confirm");
   });

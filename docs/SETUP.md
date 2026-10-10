@@ -422,7 +422,9 @@ Undo last transaction
 **Name the currency whenever you can.** A bare `5` is either $5 or 5៛, a roughly
 4000x difference, so the bot shows an amount and wallet preview and waits for **Save**
 instead of guessing. The same happens when you omit the verb, as in `Fuel $20`.
-**Discard** cancels the preview. The older `yes` and `no` replies still work.
+**Discard** cancels only the preview and keeps the current wallet and entry type.
+**Save** returns to quick entry after recording it. The older `yes` and `no`
+replies still work.
 An explicit currency can override an automatically selected wallet. A wallet you
 choose yourself stays fixed until you switch it, so an incompatible currency is
 refused instead of saving to a different account silently.
