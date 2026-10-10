@@ -20,6 +20,7 @@ import {
   sum,
 } from "@/lib/money";
 import { loadUsdKhrRate } from "@/lib/rates/repository";
+import { queueTelegramReportRefresh } from "@/lib/telegram/report-refresh";
 import {
   firstIssue,
   parseMoney,
@@ -55,12 +56,13 @@ function failed(error: unknown): ActionResult<never> {
 }
 
 /** Every page whose numbers depend on the ledger. */
-function revalidateLedger(): void {
+function revalidateLedger(userId: string): void {
   revalidatePath("/");
   revalidatePath("/accounts");
   revalidatePath("/transactions");
   revalidatePath("/budgets");
   revalidatePath("/reports");
+  queueTelegramReportRefresh(userId);
 }
 
 /** The currency the user's own reports are denominated in. */
@@ -212,7 +214,7 @@ export async function createTransaction(
       }
     }
 
-    revalidateLedger();
+    revalidateLedger(context.userId);
     return { ok: true, data: { id: transactionId } };
   } catch (error) {
     return failed(error);
@@ -329,7 +331,7 @@ export async function updateTransaction(
 
     if (error) return { ok: false, error: error.message };
 
-    revalidateLedger();
+    revalidateLedger(context.userId);
     return { ok: true, data: { id } };
   } catch (error) {
     return failed(error);
@@ -357,6 +359,7 @@ export async function deleteTransaction(id: string): Promise<ActionResult<undefi
       .from("transactions")
       .select("id, transfer_group_id")
       .eq("id", transactionId)
+      .eq("user_id", context.userId)
       .maybeSingle();
 
     if (readError) return { ok: false, error: readError.message };
@@ -365,17 +368,20 @@ export async function deleteTransaction(id: string): Promise<ActionResult<undefi
     const groupId = (existing as { transfer_group_id: string | null }).transfer_group_id;
     const deletedAt = new Date().toISOString();
 
-    const query = context.supabase.from("transactions").update({ deleted_at: deletedAt });
+    const query = context.supabase.from("transactions").update({ deleted_at: deletedAt }).eq("user_id", context.userId);
 
     // One statement either way, so both legs of a transfer are marked together and
     // the deferred balance check sees a consistent group at commit.
-    const { error } = groupId
-      ? await query.eq("transfer_group_id", groupId)
-      : await query.eq("id", transactionId);
+    const { data: changed, error } = await (groupId
+      ? query.eq("transfer_group_id", groupId)
+      : query.eq("id", transactionId)).select("id");
 
     if (error) return { ok: false, error: error.message };
+    if (!(changed ?? []).some((row) => row.id === transactionId)) {
+      return { ok: false, error: "That transaction could not be deleted. Reload Activity and try again." };
+    }
 
-    revalidateLedger();
+    revalidateLedger(context.userId);
     return { ok: true, data: undefined };
   } catch (error) {
     return failed(error);
@@ -391,24 +397,29 @@ export async function restoreTransaction(id: string): Promise<ActionResult<undef
     const context = await dataContext();
     if (!context) return { ok: false, error: "Connect Supabase to restore transactions." };
 
-    const { data: existing } = await context.supabase
+    const { data: existing, error: readError } = await context.supabase
       .from("transactions")
       .select("id, transfer_group_id")
       .eq("id", transactionId)
+      .eq("user_id", context.userId)
       .maybeSingle();
 
+    if (readError) return { ok: false, error: readError.message };
     if (!existing) return { ok: false, error: "That transaction no longer exists." };
 
     const groupId = (existing as { transfer_group_id: string | null }).transfer_group_id;
-    const query = context.supabase.from("transactions").update({ deleted_at: null });
+    const query = context.supabase.from("transactions").update({ deleted_at: null }).eq("user_id", context.userId);
 
-    const { error } = groupId
-      ? await query.eq("transfer_group_id", groupId)
-      : await query.eq("id", transactionId);
+    const { data: changed, error } = await (groupId
+      ? query.eq("transfer_group_id", groupId)
+      : query.eq("id", transactionId)).select("id");
 
     if (error) return { ok: false, error: error.message };
+    if (!(changed ?? []).some((row) => row.id === transactionId)) {
+      return { ok: false, error: "That transaction could not be restored. Reload Activity and try again." };
+    }
 
-    revalidateLedger();
+    revalidateLedger(context.userId);
     return { ok: true, data: undefined };
   } catch (error) {
     return failed(error);
@@ -486,7 +497,7 @@ export async function createTransfer(
 
     if (error) return { ok: false, error: error.message };
 
-    revalidateLedger();
+    revalidateLedger(context.userId);
     return { ok: true, data: { transferGroupId } };
   } catch (error) {
     return failed(error);

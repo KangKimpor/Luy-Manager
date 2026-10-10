@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, test, vi } from "vitest";
-import { entryKeyboard, isFromTelegram, MAIN_KEYBOARD, MORE_KEYBOARD, messagePayload, readMessage, sendMessage } from "./client";
+import { editMessage, entryKeyboard, isFromTelegram, MAIN_KEYBOARD, MORE_KEYBOARD, messagePayload, readMessage, sendMessage } from "./client";
 import { parseMessage } from "./parse";
 
 const update = { update_id: 12, message: { text: "Spent $5 coffee", chat: { id: 100, type: "private" }, from: { id: 100, is_bot: false } } };
@@ -65,4 +65,39 @@ test("Telegram's JSON refusal is detected even on HTTP 200", async () => {
   vi.stubEnv("TELEGRAM_BOT_TOKEN", "test-token"); vi.stubEnv("TELEGRAM_WEBHOOK_SECRET", "test-secret");
   vi.stubGlobal("fetch", vi.fn().mockResolvedValue(Response.json({ ok: false })));
   expect((await sendMessage(100, "Saved.")).ok).toBe(false);
+});
+
+test("only a verified message id from the addressed chat can become a refresh target", async () => {
+  vi.stubEnv("TELEGRAM_BOT_TOKEN", "test-token"); vi.stubEnv("TELEGRAM_WEBHOOK_SECRET", "test-secret");
+  vi.stubGlobal("fetch", vi.fn()
+    .mockResolvedValueOnce(Response.json({ ok: true, result: { message_id: 123, chat: { id: 100 } } }))
+    .mockResolvedValueOnce(Response.json({ ok: true, result: { message_id: 123, chat: { id: 200 } } })));
+  expect(await sendMessage(100, "Report")).toEqual({ ok: true, messageId: 123 });
+  expect(await sendMessage(100, "Report")).toEqual({ ok: true });
+});
+
+test("report edits preserve the existing keyboard and use the specified message", async () => {
+  vi.stubEnv("TELEGRAM_BOT_TOKEN", "test-token"); vi.stubEnv("TELEGRAM_WEBHOOK_SECRET", "test-secret");
+  const request = vi.fn().mockResolvedValue(Response.json({ ok: true }));
+  vi.stubGlobal("fetch", request);
+  expect((await editMessage(100, 123, "Out: $0.00")).ok).toBe(true);
+  const payload = JSON.parse(request.mock.calls[0][1].body);
+  expect(payload).toMatchObject({ chat_id: 100, message_id: 123, text: "Out: $0.00", parse_mode: "HTML" });
+  expect(payload).not.toHaveProperty("reply_markup");
+});
+
+test("an unchanged edit is successful and a missing report can be replaced", async () => {
+  vi.stubEnv("TELEGRAM_BOT_TOKEN", "test-token"); vi.stubEnv("TELEGRAM_WEBHOOK_SECRET", "test-secret");
+  vi.stubGlobal("fetch", vi.fn()
+    .mockResolvedValueOnce(Response.json({ ok: false, description: "Bad Request: message is not modified" }, { status: 400 }))
+    .mockResolvedValueOnce(Response.json({ ok: false, description: "Bad Request: message to edit not found" }, { status: 400 })));
+  expect(await editMessage(100, 123, "Report")).toEqual({ ok: true });
+  expect(await editMessage(100, 123, "Report")).toMatchObject({ ok: false, missing: true });
+});
+
+test("an edit transport failure never exposes the token or throws", async () => {
+  vi.stubEnv("TELEGRAM_BOT_TOKEN", "private-token"); vi.stubEnv("TELEGRAM_WEBHOOK_SECRET", "test-secret");
+  vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("https://api.telegram.org/botprivate-token/editMessageText")));
+  const result = await editMessage(100, 123, "Report");
+  expect(result.ok).toBe(false); expect(JSON.stringify(result)).not.toContain("private-token");
 });

@@ -27,6 +27,7 @@ import {
 import { loadBotRate } from "./rates";
 import { clearMenuMetadata, readMenuMetadata } from "./menu-cache";
 import { reportingWindow, validTimezone } from "./reporting";
+import { reportRequest, type ReportRequest } from "./report-state";
 
 /**
  * The bot's brain: an intent plus a chat id, turned into a ledger write and a reply.
@@ -142,17 +143,21 @@ async function reply(
   text: string,
   keyboard: ReplyKeyboard = MAIN_KEYBOARD,
   deliver: ReplySender = sendMessage,
+  report?: { request: ReportRequest; at: string; timezone: string },
 ): Promise<boolean> {
   // A confirmation must be delivered before Yes becomes valid. Webhook replies
   // have no delivery receipt, so those prompts keep the verified API request.
-  const sender: ReplySender = keyboard === CONFIRM_KEYBOARD ? sendMessage : deliver;
+  // Refreshable reports need the API's message id; a webhook response has no receipt.
+  const sender: ReplySender = keyboard === CONFIRM_KEYBOARD || report ? sendMessage : deliver;
   const sent = await sender(chatId, text, keyboard);
   const writeLog = () => log(admin, {
     chatId,
     userId,
     direction: "outbound",
     text,
-    parsed: sent.viaWebhook ? { delivery: "webhook-response-unverified" } : null,
+    parsed: report && sent.ok && sent.messageId
+      ? { kind: "report", messageId: sent.messageId, ...report }
+      : sent.viaWebhook ? { delivery: "webhook-response-unverified" } : null,
     error: sent.ok ? null : sent.error,
   });
   if (sent.viaWebhook) after(async () => { await writeLog(); });
@@ -196,8 +201,7 @@ interface UserContext {
 }
 
 /** Report reads share the same network window as wallet, rate and claim reads. */
-async function loadReport(admin: Admin, profile: LinkedProfile, intent: TelegramIntent): Promise<UserContext["report"]> {
-  const now = new Date();
+async function loadReport(admin: Admin, profile: LinkedProfile, intent: TelegramIntent, now: Date): Promise<UserContext["report"]> {
   const context = { supabase: admin, userId: profile.id };
   if (intent.kind === "summary") {
     const { from, to } = reportingWindow(now, intent.window, validTimezone(profile.timezone));
@@ -226,7 +230,7 @@ async function loadReport(admin: Admin, profile: LinkedProfile, intent: Telegram
   return { transactions: [], budgets: [], now };
 }
 
-async function loadContext(admin: Admin, profile: LinkedProfile, intent: TelegramIntent, mayChangeCurrency = false): Promise<UserContext> {
+async function loadContext(admin: Admin, profile: LinkedProfile, intent: TelegramIntent, mayChangeCurrency = false, now = new Date()): Promise<UserContext> {
   const { kind } = intent;
   const userId = profile.id;
   const writing = kind === "record" || kind === "transfer";
@@ -264,7 +268,7 @@ async function loadContext(admin: Admin, profile: LinkedProfile, intent: Telegra
       .eq("user_id", userId)
       .is("deleted_at", null) : { data: [], error: null },
     needsRate ? loadBotRate(admin, userId) : fallbackSnapshot(),
-    loadReport(admin, profile, intent),
+    loadReport(admin, profile, intent, now),
   ]);
 
   if (settings.error || accounts.error || categories.error) {
@@ -522,9 +526,15 @@ function summarise(context: UserContext, window: "today" | "month"): string {
   const { rate } = context.rate;
   const flow = summarizeCashFlow(transactions, context.baseCurrency, rate);
 
-  const label = window === "today" ? "Today" : "This month";
+  const dateFormat = new Intl.DateTimeFormat("en-GB", {
+    timeZone: context.timezone, ...(window === "today" ? { day: "numeric" } : {}), month: "short", year: "numeric",
+  });
+  const date = dateFormat.format(context.report.now);
+  const label = date === dateFormat.format(new Date())
+    ? window === "today" ? "Today" : "This month"
+    : window === "today" ? "Day summary" : "Month summary";
   return [
-    `<b>${label}</b>`,
+    `<b>${label} · ${escapeHtml(date)}</b>`,
     `In: ${describeAmount(flow.income)}`,
     `Out: ${describeAmount(flow.expense)}`,
     `Net: ${describeAmount(flow.net)}`,
@@ -575,6 +585,34 @@ function recentTransactions(context: UserContext): string {
     const date = new Intl.DateTimeFormat("en-GB", { timeZone: context.timezone, day: "numeric", month: "short" }).format(new Date(transaction.occurredAt));
     return `• ${escapeHtml(date)}: ${describeAmount(money(transaction.amount, transaction.currency))} ${transaction.type}\n  ${escapeHtml(account?.name ?? "Account")}${transaction.notes ? `, ${escapeHtml(transaction.notes.slice(0, 100))}` : ""}`;
   })].join("\n");
+}
+
+function reportText(context: UserContext, request: Exclude<ReportRequest, { kind: "ledger" }>): string {
+  if (request.kind === "summary") return summarise(context, request.window);
+  if (request.kind === "accounts") return accountSummary(context);
+  if (request.kind === "budget") return budgetSummary(context);
+  return recentTransactions(context);
+}
+
+/** Reuse the command readers so a background refresh cannot diverge from the bot. */
+export async function renderTelegramReport(admin: Admin, profile: LinkedProfile, request: ReportRequest, at = new Date()): Promise<string> {
+  if (request.kind !== "ledger") {
+    const intent: TelegramIntent = { ...request, confidence: 1 };
+    return reportText(await loadContext(admin, profile, intent, false, at), request);
+  }
+  // Older webhook replies have no message id. Replace their stale snapshot with
+  // one current overview, then keep editing that overview instead of flooding chat.
+  const now = new Date();
+  const [month, recent] = await Promise.all([
+    loadContext(admin, profile, { kind: "summary", window: "month", confidence: 1 }, false, now),
+    loadContext(admin, profile, { kind: "recent", confidence: 1 }, false, now),
+  ]);
+  const { from, to } = reportingWindow(now, "today", month.timezone);
+  const today = { ...month, report: { ...month.report, transactions: month.report.transactions.filter(transaction => {
+    const time = new Date(transaction.occurredAt).getTime();
+    return time >= from.getTime() && time < to.getTime();
+  }) } };
+  return ["<b>Updated from the web</b>", summarise(today, "today"), summarise(month, "month"), recentTransactions(recent)].join("\n\n");
 }
 
 function operationGuide(operation: "expense" | "income" | "refund" | "transfer"): string {
@@ -1015,20 +1053,11 @@ export async function handleUpdate(update: unknown, deliver: ReplySender = sendM
       return;
     }
 
-    if (intent.kind === "budget") {
-      await respond(admin, inbound.chatId, userId, budgetSummary(context));
-      return;
-    }
-    if (intent.kind === "summary") {
-      await respond(admin, inbound.chatId, userId, summarise(context, intent.window));
-      return;
-    }
-    if (intent.kind === "accounts") {
-      await respond(admin, inbound.chatId, userId, accountSummary(context));
-      return;
-    }
-    if (intent.kind === "recent") {
-      await respond(admin, inbound.chatId, userId, recentTransactions(context));
+    const request = reportRequest(intent);
+    if (request) {
+      await reply(admin, inbound.chatId, userId, reportText(context, request), MAIN_KEYBOARD, deliver, {
+        request, at: context.report.now.toISOString(), timezone: context.timezone,
+      });
       return;
     }
     await respond(

@@ -1,18 +1,34 @@
 import { beforeEach, describe, expect, test, vi } from "vitest";
 import type { AccountBalance } from "@/lib/domain/types";
 
-const mocks = vi.hoisted(() => ({ admin: null as unknown, sent: vi.fn(), after: [] as Array<() => Promise<void>> }));
+const mocks = vi.hoisted(() => ({ admin: null as unknown, sent: vi.fn(), edited: vi.fn(), auth: vi.fn(), context: vi.fn(), revalidate: vi.fn(), after: [] as Array<() => Promise<void>> }));
 vi.mock("next/server", () => ({ after: (task: () => Promise<void>) => mocks.after.push(task) }));
+vi.mock("next/cache", () => ({ revalidatePath: mocks.revalidate }));
+vi.mock("@/lib/auth", async (original) => ({ ...await original<typeof import("@/lib/auth")>(), requireUserId: mocks.auth }));
+vi.mock("@/lib/data/client", async (original) => ({ ...await original<typeof import("@/lib/data/client")>(), dataContext: mocks.context }));
 vi.mock("@/lib/supabase/admin", () => ({ createAdminClient: () => mocks.admin }));
-vi.mock("./client", async (original) => ({ ...await original<typeof import("./client")>(), sendMessage: mocks.sent }));
+vi.mock("./client", async (original) => ({ ...await original<typeof import("./client")>(), sendMessage: mocks.sent, editMessage: mocks.edited }));
+import { deleteTransaction, restoreTransaction } from "@/app/actions/transactions";
 import { handleUpdate, namedAccount } from "./handle";
 import { clearMenuMetadata } from "./menu-cache";
+import { refreshTelegramReports } from "./report-sync";
 
 const USER = "11111111-2222-3333-4444-555555555555";
 const OTHER = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee";
 const CHAT = 100;
 type Row = Record<string, unknown>;
 type Predicate = { key: string; operator: "eq" | "neq" | "is" | "gte" | "lt" | "lte" | "contains"; value: unknown };
+
+function containsJson(actual: unknown, expected: Row): boolean {
+  if (!actual || typeof actual !== "object") return false;
+  return Object.entries(expected).every(([key, value]) => value && typeof value === "object"
+    ? containsJson((actual as Row)[key], value as Row) : (actual as Row)[key] === value);
+}
+
+function orderValue(row: Row, key: string): unknown {
+  const [column, field] = key.split("->>");
+  return field ? (row[column] as Row | null)?.[field] : row[column];
+}
 
 /** In-memory PostgREST boundary: uniqueness and conditional updates are atomic. */
 class TestDatabase {
@@ -35,7 +51,7 @@ class TestDatabase {
   };
   constructor() {
     this.tables.accounts = this.tables.account_balances.map((row) => ({
-      ...row, id: row.account_id, opening_balance: 0,
+      ...row, id: row.account_id, opening_balance: row.current_balance,
     }));
   }
   unsafeQueries: string[] = [];
@@ -44,6 +60,7 @@ class TestDatabase {
   claimGate: Promise<void> | null = null;
   rateReadGate: Promise<void> | null = null;
   failClaim = false;
+  dropTransactionUpdates = false;
   sequence = 0;
   from(table: string) { return new TestQuery(this, table); }
 }
@@ -88,9 +105,16 @@ class TestQuery {
         this.db.tables[this.table].push(...rows);
         result = { data: this.singular ? rows[0] : rows, error: null };
       }
+    } else if (this.operation === "update" && this.table === "transactions" && this.db.dropTransactionUpdates) {
+      result = { data: [], error: null };
     } else {
-      let rows = this.db.tables[this.table].filter((row) => this.predicates.every(({ key, operator, value }) => {
-        if (operator === "contains") return row[key] && Object.entries(value as Row).every(([field, expected]) => (row[key] as Row)[field] === expected);
+      const source: Row[] = this.table === "account_balances" ? this.db.tables.account_balances.map(row => {
+        const account = this.db.tables.accounts.find(account => account.id === row.account_id)!;
+        const ledger = this.db.tables.transactions.filter(transaction => transaction.account_id === row.account_id && transaction.user_id === row.user_id && transaction.deleted_at === null);
+        return { ...row, is_active: account.is_active, current_balance: Number(account.opening_balance) + ledger.reduce((total, transaction) => total + Number(transaction.amount), 0), transaction_count: ledger.length };
+      }) : this.db.tables[this.table];
+      let rows = source.filter((row) => this.predicates.every(({ key, operator, value }) => {
+        if (operator === "contains") return containsJson(row[key], value as Row);
         if (operator === "eq") return row[key] === value;
         if (operator === "neq") return row[key] !== value;
         if (operator === "is") return (row[key] ?? null) === value;
@@ -100,14 +124,17 @@ class TestQuery {
       }));
       rows.sort((left, right) => {
         for (const { key, ascending } of this.sorting) {
-          const comparison = String(left[key]).localeCompare(String(right[key]));
+          const comparison = String(orderValue(left, key)).localeCompare(String(orderValue(right, key)));
           if (comparison) return ascending ? comparison : -comparison;
         }
         return 0;
       });
       const count = this.counted ? rows.length : null;
       rows = rows.slice(this.offset, this.offset + Math.min(this.maximum, 1000));
-      if (this.operation === "update") for (const row of rows) Object.assign(row, this.payload[0]);
+      if (this.operation === "update") for (const row of rows) {
+        Object.assign(row, this.payload[0]);
+        if (this.table === "transactions") row.updated_at = new Date(Date.now() + ++this.db.sequence).toISOString();
+      }
       result = { data: this.singular ? rows[0] ?? null : rows, error: null, count };
     }
     const ready = this.operation === "select" && this.table === "accounts" ? this.db.walletReadGate
@@ -126,7 +153,12 @@ beforeEach(() => {
   vi.useRealTimers(); vi.stubEnv("TELEGRAM_WEBHOOK_SECRET", "test-secret"); vi.stubEnv("TELEGRAM_BOT_TOKEN", "test-token");
   db = new TestDatabase(); mocks.admin = db;
   mocks.after = [];
-  mocks.sent.mockReset().mockResolvedValue({ ok: true });
+  mocks.auth.mockReset().mockResolvedValue(USER);
+  mocks.context.mockReset().mockResolvedValue({ userId: USER, supabase: db });
+  mocks.revalidate.mockReset();
+  mocks.edited.mockReset().mockResolvedValue({ ok: true });
+  let messageId = 1000;
+  mocks.sent.mockReset().mockImplementation(async () => ({ ok: true, messageId: ++messageId }));
 });
 
 describe("retry-safe Telegram ledger writes", () => {
@@ -503,6 +535,230 @@ describe("retry-safe Telegram ledger writes", () => {
     expect(mocks.sent.mock.calls[0][1]).toContain("$1,205.00");
     expect(db.unsafeQueries).toEqual([]);
     vi.useRealTimers();
+  });
+});
+
+describe("web and Telegram ledger consistency", () => {
+  const DELETED = "10101010-1010-4010-8010-101010101010";
+  const REMAINING = "20202020-2020-4020-8020-202020202020";
+  const FOREIGN = "30303030-3030-4030-8030-303030303030";
+
+  function ledger(currency: "USD" | "KHR" = "USD") {
+    vi.useFakeTimers(); vi.setSystemTime(new Date("2026-10-10T09:00:00Z"));
+    vi.stubEnv("SUPABASE_SERVICE_ROLE_KEY", "test-role");
+    db.tables.profiles[0].base_currency = currency;
+    const common = { user_id: USER, account_id: currency === "USD" ? "aba" : "cash", category_id: "coffee", type: "expense", currency,
+      occurred_at: "2026-10-10T02:00:00Z", updated_at: "2026-10-10T02:00:00Z", deleted_at: null, created_via: "telegram" };
+    db.tables.transactions = [
+      { ...common, id: DELETED, amount: currency === "USD" ? -500 : -4000, notes: "delete-me-web" },
+      { ...common, id: REMAINING, amount: currency === "USD" ? -700 : -12000, notes: "keep-me-web" },
+      { ...common, id: FOREIGN, user_id: OTHER, account_id: "foreign", notes: "private-other-user", amount: -999999 },
+    ];
+    db.tables.budgets = [{ id: "budget", user_id: USER, category_id: "coffee", name: "Coffee budget", amount: 100000, currency,
+      period: "monthly", starts_on: "2026-10-01", alert_threshold: "0.8", is_active: true, deleted_at: null }];
+  }
+
+  async function finishBackground() {
+    for (const task of mocks.after.splice(0)) await task();
+  }
+
+  test.each(["USD", "KHR"] as const)("a web delete and restore update %s summaries, history, budgets, and balances", async currency => {
+    ledger(currency);
+    const total = currency === "USD" ? "$12.00" : "16,000៛";
+    const remaining = currency === "USD" ? "$7.00" : "12,000៛";
+    for (const [id, command] of ["Summary today", "Summary month", "Recent", "Budgets", "Accounts"].entries()) {
+      await handleUpdate(update(id + 1, command));
+    }
+    expect(mocks.sent.mock.calls[0][1]).toContain(`Out: ${total}`);
+    expect(mocks.sent.mock.calls[2][1]).toContain("delete-me-web");
+    const originalBalances = mocks.sent.mock.calls[4][1];
+    mocks.sent.mockClear();
+    expect(await deleteTransaction(DELETED)).toEqual({ ok: true, data: undefined });
+    expect(db.tables.transactions[0].deleted_at).not.toBeNull();
+    expect(db.tables.transactions[2].deleted_at).toBeNull();
+    expect(mocks.edited).not.toHaveBeenCalled();
+    await finishBackground();
+    expect(mocks.sent).not.toHaveBeenCalled();
+    expect(mocks.edited).toHaveBeenCalledTimes(5);
+    const edited = mocks.edited.mock.calls.map(call => call[2] as string);
+    expect(edited.filter(text => text.includes(`Out: ${remaining}`))).toHaveLength(2);
+    expect(edited.find(text => text.includes("Recent transactions"))).not.toContain("delete-me-web");
+    expect(edited.find(text => text.includes("Budget progress"))).toContain(`${remaining} of`);
+    expect(edited.find(text => text.includes("Your accounts"))).not.toBe(originalBalances);
+    expect(edited.join("\n")).not.toContain("private-other-user");
+    for (const [id, command] of ["Summary today", "Summary month", "Recent", "Budgets"].entries()) {
+      await handleUpdate(update(id + 20, command));
+    }
+    expect(mocks.sent.mock.calls[0][1]).toContain(`Out: ${remaining}`);
+    expect(mocks.sent.mock.calls[1][1]).toContain("1 transaction");
+    expect(mocks.sent.mock.calls[2][1]).not.toContain("delete-me-web");
+    expect(mocks.sent.mock.calls[3][1]).toContain(`${remaining} of`);
+    expect(await restoreTransaction(DELETED)).toEqual({ ok: true, data: undefined });
+    mocks.edited.mockClear();
+    await finishBackground();
+    const restored = mocks.edited.mock.calls.map(call => call[2] as string);
+    expect(restored.filter(text => text.includes(`Out: ${total}`))).toHaveLength(2);
+    expect(restored.find(text => text.includes("Recent transactions"))).toContain("delete-me-web");
+    expect(restored.find(text => text.includes("Your accounts"))).toBe(originalBalances);
+    expect(db.unsafeQueries).toEqual([]);
+  });
+
+  test("a legacy webhook reply is replaced by one current overview that subsequent changes edit", async () => {
+    ledger();
+    db.tables.telegram_logs.push({ id: "legacy", user_id: USER, chat_id: CHAT, direction: "outbound", message_text: "Out: $12.00", parsed: null, error_message: null, created_at: "2026-10-10T03:00:00Z" });
+    expect((await deleteTransaction(DELETED)).ok).toBe(true);
+    await finishBackground();
+    expect(mocks.sent).toHaveBeenCalledTimes(1);
+    expect(mocks.sent.mock.calls[0][1]).toContain("Updated from the web");
+    expect(mocks.sent.mock.calls[0][1]).toContain("Out: $7.00");
+    expect(mocks.sent.mock.calls[0][1]).not.toContain("delete-me-web");
+    expect((await restoreTransaction(DELETED)).ok).toBe(true);
+    await finishBackground();
+    expect(mocks.sent).toHaveBeenCalledTimes(1);
+    expect(mocks.edited.mock.calls[0][2]).toContain("Out: $12.00");
+    expect(mocks.edited.mock.calls[0][2]).toContain("delete-me-web");
+  });
+
+  test("both transfer legs disappear from Telegram and a foreign group member stays untouched", async () => {
+    ledger();
+    const group = "40404040-4040-4040-8040-404040404040";
+    db.tables.transactions[0] = { ...db.tables.transactions[0], type: "transfer", transfer_group_id: group, amount: -500 };
+    db.tables.transactions[1] = { ...db.tables.transactions[1], type: "transfer", transfer_group_id: group, account_id: "wing", amount: 500 };
+    db.tables.transactions[2].transfer_group_id = group;
+    await handleUpdate(update(1, "Recent"));
+    expect((await deleteTransaction(DELETED)).ok).toBe(true);
+    await finishBackground();
+    expect(db.tables.transactions.slice(0, 2).every(row => row.deleted_at !== null)).toBe(true);
+    expect(db.tables.transactions[2].deleted_at).toBeNull();
+    expect(mocks.edited.mock.calls[0][2]).toContain("no transactions");
+    expect((await restoreTransaction(REMAINING)).ok).toBe(true);
+    await finishBackground();
+    expect(db.tables.transactions.slice(0, 2).every(row => row.deleted_at === null)).toBe(true);
+    expect(mocks.edited.mock.calls.at(-1)?.[2]).toContain("transfer");
+    expect(db.unsafeQueries).toEqual([]);
+  });
+
+  test("zero affected rows never claim success or schedule a Telegram update", async () => {
+    ledger(); db.dropTransactionUpdates = true;
+    expect((await deleteTransaction(DELETED)).ok).toBe(false);
+    expect((await restoreTransaction(DELETED)).ok).toBe(false);
+    expect(db.tables.transactions[0].deleted_at).toBeNull();
+    expect(mocks.after).toHaveLength(0);
+    expect(mocks.revalidate).not.toHaveBeenCalled();
+  });
+
+  test("anonymous and foreign-row deletes cannot change the ledger or Telegram", async () => {
+    ledger(); mocks.auth.mockRejectedValueOnce(new Error("Sign in"));
+    expect((await deleteTransaction(DELETED)).ok).toBe(false);
+    expect((await deleteTransaction(FOREIGN)).ok).toBe(false);
+    expect((await restoreTransaction(FOREIGN)).ok).toBe(false);
+    expect(db.tables.transactions.every(row => row.deleted_at === null)).toBe(true);
+    expect(mocks.after).toHaveLength(0);
+  });
+
+  test("a disconnected or relinked chat never receives another owner's financial reports", async () => {
+    ledger(); db.tables.profiles[0].telegram_chat_id = null;
+    expect((await deleteTransaction(DELETED)).ok).toBe(true);
+    await finishBackground();
+    expect(mocks.sent).not.toHaveBeenCalled(); expect(mocks.edited).not.toHaveBeenCalled();
+    db.tables.profiles[0].telegram_chat_id = CHAT + 1;
+    db.tables.telegram_logs.push({ user_id: USER, chat_id: CHAT, direction: "outbound", error_message: null, message_text: "Old chat", created_at: "2026-10-10T03:00:00Z",
+      parsed: { kind: "report", messageId: 99, request: { kind: "recent" }, at: "2026-10-10T03:00:00Z" } });
+    db.tables.telegram_logs.push({ user_id: OTHER, chat_id: CHAT + 1, direction: "outbound", error_message: null, message_text: "Foreign", created_at: "2026-10-10T03:00:00Z",
+      parsed: { kind: "report", messageId: 98, request: { kind: "recent" }, at: "2026-10-10T03:00:00Z" } });
+    await refreshTelegramReports(USER);
+    expect(mocks.edited).not.toHaveBeenCalled();
+    expect(mocks.sent.mock.calls[0][0]).toBe(CHAT + 1);
+    expect(mocks.sent.mock.calls[0][1]).not.toContain("private-other-user");
+    expect(db.unsafeQueries).toEqual([]);
+  });
+
+  test.each([null, CHAT + 1])("a chat unlinked during report reads (%s) receives no background data", async chatId => {
+    ledger(); await handleUpdate(update(1, "Summary today"));
+    mocks.sent.mockClear(); db.reads = [];
+    let release!: () => void;
+    db.rateReadGate = new Promise<void>(resolve => { release = resolve; });
+    expect((await deleteTransaction(DELETED)).ok).toBe(true);
+    const refreshing = finishBackground();
+    await vi.waitFor(() => expect(db.reads).toContain("exchange_rates"));
+    db.tables.profiles[0].telegram_chat_id = chatId;
+    release();
+    await refreshing;
+    expect(mocks.sent).not.toHaveBeenCalled();
+    expect(mocks.edited).not.toHaveBeenCalled();
+    expect(db.tables.transactions[0].deleted_at).not.toBeNull();
+    expect(db.unsafeQueries).toEqual([]);
+  });
+
+  test("Telegram delivery failure cannot roll back or disguise a committed deletion", async () => {
+    ledger(); await handleUpdate(update(1, "Summary today"));
+    mocks.edited.mockResolvedValue({ ok: false, error: "Delivery failed" });
+    expect((await deleteTransaction(DELETED)).ok).toBe(true);
+    await finishBackground();
+    expect(db.tables.transactions[0].deleted_at).not.toBeNull();
+    expect(db.tables.telegram_logs.some(row => row.error_message === "Delivery failed")).toBe(true);
+  });
+
+  test("a deleted Telegram message gets a new report rather than leaving stale data", async () => {
+    ledger(); await handleUpdate(update(1, "Recent"));
+    mocks.edited.mockResolvedValueOnce({ ok: false, missing: true });
+    expect((await deleteTransaction(DELETED)).ok).toBe(true);
+    await finishBackground();
+    expect(mocks.sent).toHaveBeenCalledTimes(3);
+    expect(mocks.sent.mock.calls[2][1]).not.toContain("delete-me-web");
+    expect((await restoreTransaction(DELETED)).ok).toBe(true);
+    await finishBackground();
+    expect(mocks.edited.mock.calls.some(call => call[1] === 1003)).toBe(true);
+  });
+
+  test("a concurrent web deletion during delivery cannot leave the final report behind", async () => {
+    ledger(); await handleUpdate(update(1, "Summary today"));
+    mocks.edited.mockImplementationOnce(async () => {
+      db.tables.transactions[1].deleted_at = "2026-10-10T09:01:00Z";
+      db.tables.transactions[1].updated_at = "2026-10-10T09:01:00Z";
+      return { ok: true };
+    });
+    expect((await deleteTransaction(DELETED)).ok).toBe(true);
+    await finishBackground();
+    expect(mocks.edited).toHaveBeenCalledTimes(3);
+    expect(mocks.edited.mock.calls.at(-1)?.[2]).toContain("Out: $0.00");
+    expect(mocks.edited.mock.calls.at(-1)?.[2]).toContain("0 transactions");
+  });
+
+  test("refreshing a previous day's summary keeps its original timezone and date window", async () => {
+    ledger(); await handleUpdate(update(1, "Summary today"));
+    vi.setSystemTime(new Date("2026-10-11T09:00:00Z"));
+    db.tables.profiles[0].timezone = "America/Los_Angeles";
+    expect((await deleteTransaction(DELETED)).ok).toBe(true);
+    await finishBackground();
+    expect(mocks.edited.mock.calls[0][2]).toContain("10 Oct 2026");
+    expect(mocks.edited.mock.calls[0][2]).toContain("Out: $7.00");
+    expect(mocks.edited.mock.calls[0][2]).toContain("Asia/Phnom_Penh");
+  });
+
+  test("frequent history updates do not prevent an older budget report from refreshing", async () => {
+    ledger(); await handleUpdate(update(1, "Budgets"));
+    const at = new Date().toISOString();
+    for (let index = 0; index < 220; index++) db.tables.telegram_logs.push({
+      id: `history-audit-${index}`, user_id: USER, chat_id: CHAT, direction: "outbound", error_message: null,
+      message_text: "Older history", created_at: new Date(Date.now() + 1000 + index).toISOString(),
+      parsed: { kind: "report", messageId: 900, request: { kind: "recent" }, at, timezone: "Asia/Phnom_Penh" },
+    });
+    expect((await deleteTransaction(DELETED)).ok).toBe(true);
+    await finishBackground();
+    expect(mocks.edited.mock.calls.some(call => String(call[2]).includes("$7.00 of"))).toBe(true);
+  });
+
+  test("report refreshes require valid message ids and never target malformed log data", async () => {
+    ledger();
+    db.tables.telegram_logs.push({ user_id: USER, chat_id: CHAT, direction: "outbound", error_message: null,
+      message_text: "Malformed", created_at: new Date().toISOString(),
+      parsed: { kind: "report", messageId: -5, request: { kind: "recent" }, at: new Date().toISOString(), timezone: "Asia/Phnom_Penh" },
+    });
+    expect((await deleteTransaction(DELETED)).ok).toBe(true);
+    await finishBackground();
+    expect(mocks.edited).not.toHaveBeenCalled();
+    expect(mocks.sent.mock.calls[0][1]).toContain("Out: $7.00");
   });
 });
 

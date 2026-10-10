@@ -79,7 +79,7 @@ export function messagePayload(chatId: number, text: string, keyboard: ReplyKeyb
 }
 
 export type ReplySender = (chatId: number, text: string, keyboard?: ReplyKeyboard) =>
-  Promise<{ ok: boolean; error?: string; viaWebhook?: true }>;
+  Promise<{ ok: boolean; error?: string; viaWebhook?: true; messageId?: number }>;
 
 /**
  * Pull the one message shape this bot acts on out of an update.
@@ -147,7 +147,7 @@ export async function sendMessage(
   chatId: number,
   text: string,
   keyboard: ReplyKeyboard = MAIN_KEYBOARD,
-): Promise<{ ok: boolean; error?: string }> {
+): Promise<{ ok: boolean; error?: string; messageId?: number }> {
   try {
     const { botToken } = requireTelegramEnv();
     const response = await fetch(`${API_BASE}/bot${botToken}/sendMessage`, {
@@ -160,11 +160,35 @@ export async function sendMessage(
     if (!response.ok) {
       return { ok: false, error: `Telegram returned ${response.status}` };
     }
-    const payload = await response.json() as { ok?: boolean };
-    return payload.ok === true ? { ok: true } : { ok: false, error: "Telegram refused the reply." };
+    const payload = await response.json() as { ok?: boolean; result?: { message_id?: number; chat?: { id?: number } } };
+    if (payload.ok !== true) return { ok: false, error: "Telegram refused the reply." };
+    const messageId = payload.result?.message_id;
+    return Number.isSafeInteger(messageId) && (messageId ?? 0) > 0 && payload.result?.chat?.id === chatId
+      ? { ok: true, messageId } : { ok: true };
   } catch {
     // Network errors can contain the full request URL, which contains the token.
     return { ok: false, error: "Could not deliver the Telegram reply." };
+  }
+}
+
+/** Editing a report must never turn a committed web mutation into a failure. */
+export async function editMessage(chatId: number, messageId: number, text: string): Promise<{ ok: boolean; missing?: boolean; error?: string }> {
+  try {
+    const { botToken } = requireTelegramEnv();
+    const response = await fetch(`${API_BASE}/bot${botToken}/editMessageText`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ chat_id: chatId, message_id: messageId, text, parse_mode: "HTML", link_preview_options: { is_disabled: true } }),
+      signal: AbortSignal.timeout(8_000),
+    });
+    const payload = await response.json() as { ok?: boolean; description?: string };
+    if (response.ok && payload.ok === true) return { ok: true };
+    const description = typeof payload.description === "string" ? payload.description : "";
+    if (response.status === 400 && description.includes("message is not modified")) return { ok: true };
+    const missing = response.status === 400 && /message to edit not found|message can't be edited/.test(description);
+    return { ok: false, missing, error: `Telegram could not update the report (${response.status}).` };
+  } catch {
+    return { ok: false, error: "Could not update the Telegram report." };
   }
 }
 
