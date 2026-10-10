@@ -169,6 +169,7 @@
       animation-delay: 0ms !important;
       animation-duration: 0.01ms !important;
       animation-iteration-count: 1 !important;
+      transition-delay: 0ms !important;
       transition-duration: 0.01ms !important;
       scroll-behavior: auto !important;
     }
@@ -226,17 +227,30 @@
   }
   input:focus, select:focus, textarea:focus { border-color: var(--color-brand); }
   input, select, textarea { max-inline-size: 100%; scroll-margin-block: 7rem; }
-  button:not(:disabled):active { transform: scale(0.97); }
-  button { transition-duration: 150ms; }
   summary { list-style: none; }
   summary::-webkit-details-marker { display: none; }
 }
 
-.feedback-enter { animation: feedback-in 220ms ease-out; }
-.feedback-enter[role="status"] > svg { animation: saved-check 420ms cubic-bezier(0.2, 0.7, 0.2, 1); }
-.feedback-enter[role="alert"] { animation: feedback-in 220ms ease-out, error-nudge 260ms ease-out; }
-.amount-tick { animation: amount-in 140ms ease-out; }
-button[aria-pressed="true"] { animation: choice-in 220ms ease-out; }
+:root {
+  --motion-quick: 160ms;
+  --motion-enter: 300ms;
+  --motion-ease: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* Independent scale and translate let presses respond during an entrance. */
+button {
+  transition-property: background-color, color, border-color, box-shadow, transform, scale, opacity;
+  transition-duration: var(--motion-quick);
+  transition-timing-function: var(--motion-ease);
+}
+button:not(:disabled):active { scale: 0.97; }
+.feedback-enter { animation: feedback-in 260ms var(--motion-ease) backwards; }
+.feedback-enter[role="status"] > svg { animation: saved-check 320ms var(--motion-ease); }
+.amount-tick { animation: amount-in 100ms var(--motion-ease); }
+button[aria-pressed="true"] { animation: choice-in 220ms var(--motion-ease); }
+.link-pending { opacity: 0; transition: opacity 100ms ease-out; }
+/* A short wait avoids flashing a loading border on an already warmed route. */
+.link-pending[data-pending="true"] { opacity: 0.45; transition-delay: 120ms; }
 .tap-feedback { position: relative; overflow: hidden; }
 .tap-feedback::after {
   content: "";
@@ -246,16 +260,19 @@ button[aria-pressed="true"] { animation: choice-in 220ms ease-out; }
   background: currentColor;
   opacity: 0;
   pointer-events: none;
-  transition: opacity 220ms ease-out;
+  transition: opacity var(--motion-quick) var(--motion-ease);
 }
-.tap-feedback:active::after { opacity: 0.1; }
-@keyframes amount-in { from { opacity: 0.6; transform: translateY(3px); } }
-@keyframes choice-in { 50% { transform: scale(1.04); } }
-@keyframes saved-check { from { opacity: 0; transform: scale(0.6) rotate(-15deg); } 65% { transform: scale(1.15); } }
-@keyframes error-nudge { 25% { transform: translateX(-3px); } 75% { transform: translateX(3px); } }
+.tap-feedback:active::after { opacity: 0.06; }
+@keyframes amount-in { from { translate: 0 1px; } to { translate: 0 0; } }
+@keyframes choice-in { from { translate: 0 1px; } to { translate: 0 0; } }
+@keyframes saved-check {
+  from { opacity: 0.7; transform: scale(0.85) rotate(-8deg); }
+  65% { opacity: 1; transform: scale(1.06) rotate(0); }
+  to { opacity: 1; transform: scale(1) rotate(0); }
+}
 @keyframes feedback-in {
-  from { opacity: 0; transform: translateY(4px) scale(0.98); }
-  to { opacity: 1; transform: translateY(0) scale(1); }
+  from { opacity: 0.8; translate: 0 4px; }
+  to { opacity: 1; translate: 0 0; }
 }
 
 body:has(.login-page) .app-main {
@@ -264,22 +281,30 @@ body:has(.login-page) .app-main {
   padding-top: 3rem !important;
 }
 
-/* Keep the original fade and stagger, with short delays so navigation feels immediate. */
-.page-enter { animation: page-in 160ms cubic-bezier(0.2, 0.7, 0.2, 1) both; }
-.stagger-children > * { animation: item-in 180ms cubic-bezier(0.2, 0.7, 0.2, 1) backwards; }
-.stagger-children > :nth-child(2) { animation-delay: 12ms; }
-.stagger-children > :nth-child(3) { animation-delay: 24ms; }
-.stagger-children > :nth-child(4) { animation-delay: 36ms; }
-.stagger-children > :nth-child(5) { animation-delay: 48ms; }
-.stagger-children > :nth-child(n+6) { animation-delay: 60ms; }
-.card-interactive { transition: transform 140ms ease, box-shadow 140ms ease, border-color 140ms ease; }
-.card-interactive:active { transform: scale(0.985); }
-.progress-fill { transform-origin: left; animation: progress-in 300ms cubic-bezier(0.2, 0.7, 0.2, 1) both; }
-.nav-icon { transition: transform 140ms cubic-bezier(0.2, 0.7, 0.2, 1), background-color 140ms ease; }
-[aria-current="page"] .nav-icon { animation: nav-in 150ms ease-out; }
-.form-enter { animation: item-in 140ms ease-out backwards; }
-details[open] > :not(summary) { animation: item-in 120ms ease-out; }
-details summary svg { transition: transform 140ms ease; }
+/* Animate a group or its rows once. Nested fades and translations compound into flicker. */
+.page-enter { animation: page-in var(--motion-enter) var(--motion-ease) backwards; }
+.page-enter.stagger-children,
+.page-enter:has(.stagger-children),
+.page-enter:has(.form-enter),
+.page-enter .page-enter { animation: none; }
+.stagger-children > * { --enter-delay: 0ms; }
+.stagger-children > :nth-child(2) { --enter-delay: 20ms; }
+.stagger-children > :nth-child(3) { --enter-delay: 40ms; }
+.stagger-children > :nth-child(4) { --enter-delay: 60ms; }
+.stagger-children > :nth-child(n+5) { --enter-delay: 80ms; }
+.stagger-children > :not(.stagger-children):not(:has(.stagger-children)) {
+  animation: item-in var(--motion-enter) var(--motion-ease) var(--enter-delay) backwards;
+}
+.card-interactive {
+  transition: transform var(--motion-enter) var(--motion-ease), scale var(--motion-quick) var(--motion-ease), box-shadow var(--motion-enter) var(--motion-ease), border-color var(--motion-quick) var(--motion-ease), background-color var(--motion-quick) var(--motion-ease), color var(--motion-quick) var(--motion-ease);
+}
+.card-interactive:active { scale: 0.985; }
+.progress-fill { transform-origin: left; animation: progress-in 380ms var(--motion-ease) backwards; }
+.nav-icon { transition: background-color 220ms var(--motion-ease); }
+[aria-current="page"] .nav-icon { animation: nav-in 320ms var(--motion-ease); }
+.form-enter { animation: item-in 220ms var(--motion-ease) backwards; }
+details[open] > :not(summary):not(.stagger-children):not(:has(.stagger-children)) { animation: item-in 220ms var(--motion-ease) backwards; }
+details summary svg { transition: transform 220ms var(--motion-ease); }
 details[open] summary svg { transform: rotate(180deg); }
 .hero-orbit { position: relative; isolation: isolate; overflow: hidden; }
 .hero-orbit::before, .hero-orbit::after {
@@ -296,16 +321,21 @@ details[open] summary svg { transform: rotate(180deg); }
   animation: orbit-drift 10s ease-in-out 2;
 }
 .hero-orbit::after { right: -4rem; top: -5rem; animation-delay: -3s; }
-.skeleton { background: var(--color-surface-container); animation: skeleton-fade 1.4s ease-in-out infinite alternate; }
+.skeleton { background: var(--color-surface-container); animation: skeleton-fade 1.6s ease-in-out infinite alternate; }
 @media (hover: hover) and (pointer: fine) {
-  .card-interactive:hover { transform: translateY(-3px); box-shadow: 0 10px 28px rgb(20 44 50 / 0.07); border-color: var(--color-border-subtle); }
+  .card-interactive:hover { transform: translateY(-2px); box-shadow: 0 10px 28px rgb(20 44 50 / 0.07); border-color: var(--color-border-subtle); }
 }
-@keyframes page-in { from { opacity: 0; } to { opacity: 1; } }
-@keyframes item-in { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
-@keyframes nav-in { 50% { transform: translateY(-3px) scale(1.08); } }
+/* Content stays readable from the first frame while the small movement settles. */
+@keyframes page-in { from { opacity: 0.88; } to { opacity: 1; } }
+@keyframes item-in { from { opacity: 0.8; translate: 0 6px; } to { opacity: 1; translate: 0 0; } }
+@keyframes nav-in {
+  from { scale: 0.96; translate: 0 0; }
+  60% { scale: 1.03; translate: 0 -1.5px; }
+  to { scale: 1; translate: 0 0; }
+}
 @keyframes progress-in { from { transform: scaleX(0); } to { transform: scaleX(1); } }
 @keyframes orbit-drift { 50% { transform: translate(-12px, 12px); } }
-@keyframes skeleton-fade { to { opacity: 0.45; } }
+@keyframes skeleton-fade { to { opacity: 0.7; } }
 
 @media (max-width: 639px) {
   /* Unlayered so text-sm utilities cannot bring Safari's focus zoom back. */

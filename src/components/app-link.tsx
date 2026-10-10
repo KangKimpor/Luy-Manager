@@ -6,7 +6,7 @@ import { cn } from "@/lib/utils";
 
 function Pending() {
   const { pending } = useLinkStatus();
-  return pending ? <span className="pointer-events-none absolute inset-0 animate-pulse rounded-[inherit] border-2 border-brand" aria-hidden="true" /> : null;
+  return <span className="link-pending pointer-events-none absolute inset-0 rounded-[inherit] border-2 border-brand" data-pending={pending || undefined} aria-hidden="true" />;
 }
 
 export function AppLink({ children, className, prefetch = true, ...props }: ComponentProps<typeof Link>) {
