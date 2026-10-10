@@ -40,6 +40,8 @@ class TestDatabase {
   unsafeQueries: string[] = [];
   reads: string[] = [];
   walletReadGate: Promise<void> | null = null;
+  claimGate: Promise<void> | null = null;
+  rateReadGate: Promise<void> | null = null;
   failClaim = false;
   sequence = 0;
   from(table: string) { return new TestQuery(this, table); }
@@ -107,8 +109,10 @@ class TestQuery {
       if (this.operation === "update") for (const row of rows) Object.assign(row, this.payload[0]);
       result = { data: this.singular ? rows[0] ?? null : rows, error: null, count };
     }
-    const ready = this.table === "accounts" && this.operation === "select" && this.db.walletReadGate ? this.db.walletReadGate : Promise.resolve();
-    return ready.then(() => resolve(structuredClone(result)));
+    const ready = this.operation === "select" && this.table === "accounts" ? this.db.walletReadGate
+      : this.operation === "select" && this.table === "exchange_rates" ? this.db.rateReadGate
+      : this.operation === "insert" && this.table === "telegram_logs" && this.payload[0].direction === "inbound" ? this.db.claimGate : null;
+    return (ready ?? Promise.resolve()).then(() => resolve(structuredClone(result)));
   }
 }
 
@@ -124,6 +128,29 @@ beforeEach(() => {
 });
 
 describe("retry-safe Telegram ledger writes", () => {
+  test("wallet data loads while the durable claim is in flight, but no money is saved before it succeeds", async () => {
+    let release!: () => void;
+    db.claimGate = new Promise<void>((resolve) => { release = resolve; });
+    const handling = handleUpdate(update(1, "Spent $5 coffee"));
+    await vi.waitFor(() => expect(db.reads).toContain("accounts"));
+    expect(db.tables.transactions).toHaveLength(0);
+    expect(mocks.sent).not.toHaveBeenCalled();
+    release();
+    await handling;
+    expect(db.tables.transactions).toHaveLength(1);
+    expect(db.unsafeQueries).toEqual([]);
+  });
+  test("summary transactions load while exchange rates are in flight", async () => {
+    let release!: () => void;
+    db.rateReadGate = new Promise<void>((resolve) => { release = resolve; });
+    const handling = handleUpdate(update(1, "Summary month"));
+    await vi.waitFor(() => expect(db.reads).toContain("transactions"));
+    expect(mocks.sent).not.toHaveBeenCalled();
+    release();
+    await handling;
+    expect(mocks.sent.mock.calls.at(-1)?.[1]).toContain("This month");
+    expect(db.unsafeQueries).toEqual([]);
+  });
   test.each([
     ["Cancel", []], ["Undo", ["transactions"]], ["Rate", ["exchange_rates"]],
     ["Accounts", ["settings", "account_balances"]], ["Recent", ["accounts", "transactions"]],
