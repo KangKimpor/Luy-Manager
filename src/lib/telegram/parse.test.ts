@@ -195,8 +195,8 @@ describe("linking and help", () => {
     expect(parseMessage("/start@LuyBot tok")).toMatchObject({ kind: "link", token: "tok" });
   });
 
-  test("bare /start asks for help rather than linking", () => {
-    expect(parseMessage("/start").kind).toBe("help");
+  test("bare /start opens the entry menu without attempting a link", () => {
+    expect(parseMessage("/start").kind).toBe("back");
   });
 
   test("/help", () => {
@@ -267,8 +267,18 @@ describe("command menu and explicit account selection", () => {
   test.each(["Recent", "Transactions", "/recent", "History"])("%s reads history", (text) => {
     expect(parseMessage(text).kind).toBe("recent");
   });
-  test.each(["Expense", "Income", "Transfer", "/refund"])("%s asks for the operation details", (text) => {
+  test.each(["Transfer", "/refund"])("%s asks for the operation details", (text) => {
     expect(parseMessage(text).kind).toBe("guide");
+  });
+  test.each(["Expense", "Income", "/expense", "/income"])("%s starts a quick entry instead of showing syntax instructions", (text) => {
+    expect(parseMessage(text)).toMatchObject({ kind: "start-entry", type: text.replace("/", "").toLowerCase(), confidence: 1 });
+  });
+  test.each(["Back", "Menu", "/start", "/start@luy_bot"])("%s returns to the current entry menu", (text) => {
+    expect(parseMessage(text).kind).toBe("back");
+  });
+  test("the advanced actions menu is read-only", () => {
+    expect(parseMessage("More")).toMatchObject({ kind: "more", confidence: 1 });
+    expect(needsConfirmation(parseMessage("More"))).toBe(false);
   });
   test("slash commands with a bot suffix keep the stated direction", () => {
     expect(record("/income@LuyManagerBot $600 salary")).toMatchObject({ type: "income", amount: { minor: 60000, currency: "USD" } });

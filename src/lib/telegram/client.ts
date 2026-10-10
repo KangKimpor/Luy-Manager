@@ -1,6 +1,7 @@
 import { createHash, timingSafeEqual } from "node:crypto";
 
 import { requireTelegramEnv } from "./env";
+import type { EntryMode } from "./parse";
 
 /**
  * The outbound half of the bot: talking to the Telegram Bot API, and deciding
@@ -37,16 +38,30 @@ export interface InboundMessage {
 export type ReplyKeyboard = readonly (readonly string[])[];
 
 export const MAIN_KEYBOARD: ReplyKeyboard = [
-  ["Expense USD", "Income USD"],
-  ["Expense KHR", "Income KHR"],
-  ["Transfer", "Undo", "Cancel"],
-  ["Choose account", "Accounts"],
-  ["Recent", "Budgets"],
-  ["Summary today", "Summary month", "Rate"],
-  ["Help"],
+  ["Expense", "Income"],
+  ["Accounts", "Recent"],
+  ["Summary today", "More"],
 ];
 
-export const CONFIRM_KEYBOARD: ReplyKeyboard = [["Yes", "No"]];
+export const MORE_KEYBOARD: ReplyKeyboard = [
+  ["Transfer", "Budgets"],
+  ["Summary today", "Summary month"],
+  ["Rate", "Help"],
+  ["Undo", "Back"],
+];
+
+export const CONFIRM_KEYBOARD: ReplyKeyboard = [["Save", "Discard"]];
+
+/** Keep the controls relevant to the current entry instead of repeating every report. */
+export function entryKeyboard(mode: EntryMode, wallets: readonly { accountId: string; name: string; currency: string; isActive: boolean }[] = []): ReplyKeyboard {
+  const others = wallets.filter((wallet) => wallet.isActive && wallet.accountId !== mode.accountId);
+  const shortcuts = others.slice(0, 2).map((wallet) => `Use ${wallet.name} (${wallet.currency})`);
+  return [
+    [mode.type === "expense" ? "Income" : "Expense", `${mode.type === "expense" ? "Expense" : "Income"} ${mode.currency === "USD" ? "KHR" : "USD"}`],
+    ...(shortcuts.length ? [shortcuts] : []),
+    ...(others.length > 2 ? [["Choose account", "Undo"], ["More", "Cancel"]] : [["Undo", "More"], ["Cancel"]]),
+  ];
+}
 
 export function messagePayload(chatId: number, text: string, keyboard: ReplyKeyboard = MAIN_KEYBOARD) {
   return {
@@ -58,7 +73,7 @@ export function messagePayload(chatId: number, text: string, keyboard: ReplyKeyb
       keyboard: keyboard.map((row) => row.map((label) => ({ text: label }))),
       resize_keyboard: true,
       is_persistent: true,
-      input_field_placeholder: "-$5 coffee or +$600 salary",
+      input_field_placeholder: keyboard === MAIN_KEYBOARD ? "-$5 coffee or +$600 salary" : "Type an amount and description",
     },
   };
 }
