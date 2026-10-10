@@ -6,7 +6,7 @@ import { readTransactionsInRange } from "@/lib/data/transactions";
 import { currentPeriod, summarizeBudgets } from "@/lib/domain/budgets";
 import { buildTransaction, summarizeCashFlow } from "@/lib/domain/transactions";
 import { planTransfer, transferInserts } from "@/lib/domain/transfers";
-import type { AccountBalance, Category } from "@/lib/domain/types";
+import type { AccountBalance, Budget, Category, Transaction } from "@/lib/domain/types";
 // CurrencyCode comes from the money layer; domain/types imports it rather than
 // re-exporting it.
 import { formatMoney, money, type CurrencyCode, type Money } from "@/lib/money";
@@ -183,6 +183,38 @@ interface UserContext {
   categories: Category[];
   timezone: string;
   rate: RateSnapshot;
+  report: { transactions: Transaction[]; budgets: Budget[]; now: Date };
+}
+
+/** Report reads share the same network window as wallet, rate and claim reads. */
+async function loadReport(admin: Admin, profile: LinkedProfile, intent: TelegramIntent): Promise<UserContext["report"]> {
+  const now = new Date();
+  const context = { supabase: admin, userId: profile.id };
+  if (intent.kind === "summary") {
+    const { from, to } = reportingWindow(now, intent.window, validTimezone(profile.timezone));
+    const transactions = await readTransactionsInRange(context, from, new Date(to.getTime() - 1));
+    return { transactions, budgets: [], now };
+  }
+  if (intent.kind === "recent") {
+    const { data, error } = await admin.from("transactions").select(TRANSACTION_COLUMNS)
+      .eq("user_id", profile.id).is("deleted_at", null)
+      .order("occurred_at", { ascending: false }).order("id", { ascending: false }).limit(8);
+    if (error) throw new Error("Could not read recent transactions.");
+    return { transactions: mapRows(asRows(data), toTransaction, "transactions"), budgets: [], now };
+  }
+  if (intent.kind === "budget") {
+    const { data, error } = await admin.from("budgets").select(BUDGET_COLUMNS)
+      .eq("user_id", profile.id).is("deleted_at", null).eq("is_active", true);
+    if (error) throw new Error("Could not read your budgets.");
+    const budgets = mapRows(asRows(data), toBudget, "budgets");
+    if (budgets.length === 0) return { transactions: [], budgets, now };
+    const periods = budgets.map((budget) => currentPeriod(budget, now));
+    const from = new Date(Math.min(...periods.map((period) => period.from.getTime())));
+    const to = new Date(Math.max(...periods.map((period) => period.to.getTime())) - 1);
+    const transactions = await readTransactionsInRange(context, from, to);
+    return { transactions, budgets, now };
+  }
+  return { transactions: [], budgets: [], now };
 }
 
 async function loadContext(admin: Admin, profile: LinkedProfile, intent: TelegramIntent, mayChangeCurrency = false): Promise<UserContext> {
@@ -194,10 +226,10 @@ async function loadContext(admin: Admin, profile: LinkedProfile, intent: Telegra
   // Same-currency rows do not use a rate. Amount-first entries still need one
   // because their selected mode can change the currency while these reads run.
   const needsRate = intent.kind === "record" ? mayChangeCurrency || intent.amount.currency !== (profile.base_currency ?? "USD")
-    : kind === "transfer" || kind === "budget" || kind === "summary";
+    : kind === "transfer" || kind === "budget" || kind === "summary" || kind === "rate";
   // Read commands should not wait on data they never use, or fail because an
   // unrelated part of the ledger is unavailable.
-  const [settings, accounts, categories, rate] = await Promise.all([
+  const [settings, accounts, categories, rate, report] = await Promise.all([
     writing || kind === "accounts"
       ? admin.from("settings").select("default_account_id").eq("user_id", userId).maybeSingle()
       : { data: null, error: null },
@@ -212,6 +244,7 @@ async function loadContext(admin: Admin, profile: LinkedProfile, intent: Telegra
       .eq("user_id", userId)
       .is("deleted_at", null) : { data: [], error: null },
     needsRate ? loadBotRate(admin, userId) : fallbackSnapshot(),
+    loadReport(admin, profile, intent),
   ]);
 
   if (settings.error || accounts.error || categories.error) {
@@ -234,6 +267,7 @@ async function loadContext(admin: Admin, profile: LinkedProfile, intent: Telegra
     categories: mapRows(asRows(categories.data), toCategory, "categories"),
     timezone: validTimezone(profile.timezone),
     rate,
+    report,
   };
 }
 
@@ -462,16 +496,8 @@ async function saveTransfer(
 /* Read-only answers                                                           */
 /* -------------------------------------------------------------------------- */
 
-async function summarise(
-  admin: Admin,
-  context: UserContext,
-  window: "today" | "month",
-): Promise<string> {
-  const { from, to } = reportingWindow(new Date(), window, context.timezone);
-
-  const transactions = await readTransactionsInRange(
-    { supabase: admin, userId: context.userId }, from, new Date(to.getTime() - 1),
-  );
+function summarise(context: UserContext, window: "today" | "month"): string {
+  const { transactions } = context.report;
   const { rate } = context.rate;
   const flow = summarizeCashFlow(transactions, context.baseCurrency, rate);
 
@@ -485,24 +511,9 @@ async function summarise(
   ].join("\n");
 }
 
-async function budgetSummary(admin: Admin, context: UserContext): Promise<string> {
-  const { data, error } = await admin
-    .from("budgets")
-    .select(BUDGET_COLUMNS)
-    .eq("user_id", context.userId)
-    .is("deleted_at", null)
-    .eq("is_active", true);
-  if (error) throw new Error("Could not read your budgets.");
-  const budgets = mapRows(asRows(data), toBudget, "budgets");
+function budgetSummary(context: UserContext): string {
+  const { budgets, transactions, now } = context.report;
   if (budgets.length === 0) return "You have no active budgets. Add one in the app.";
-
-  const now = new Date();
-  const periods = budgets.map((budget) => currentPeriod(budget, now));
-  const from = new Date(Math.min(...periods.map((period) => period.from.getTime())));
-  const to = new Date(Math.max(...periods.map((period) => period.to.getTime())));
-  const transactions = await readTransactionsInRange(
-    { supabase: admin, userId: context.userId }, from, new Date(to.getTime() - 1),
-  );
   const progress = summarizeBudgets(budgets, transactions, context.rate.rate, now);
   const lines = progress.slice(0, 12).map((entry) => {
     const name = entry.budget.name ??
@@ -529,12 +540,8 @@ function accountKeyboard(accounts: readonly BotAccount[], currency?: CurrencyCod
   ];
 }
 
-async function recentTransactions(admin: Admin, context: UserContext): Promise<string> {
-  const { data, error } = await admin.from("transactions").select(TRANSACTION_COLUMNS)
-    .eq("user_id", context.userId).is("deleted_at", null)
-    .order("occurred_at", { ascending: false }).order("id", { ascending: false }).limit(8);
-  if (error) throw new Error("Could not read recent transactions.");
-  const transactions = mapRows(asRows(data), toTransaction, "transactions");
+function recentTransactions(context: UserContext): string {
+  const { transactions } = context.report;
   if (transactions.length === 0) return "Your ledger has no transactions yet. Try <code>Spent $5 coffee</code>.";
   return ["<b>Recent transactions</b>", ...transactions.map((transaction) => {
     const account = context.accounts.find((entry) => entry.accountId === transaction.accountId);
@@ -715,6 +722,20 @@ export async function handleUpdate(update: unknown, deliver: ReplySender = sendM
   try {
     const profile = await profileForChat(admin, inbound.chatId);
     linkedUserId = profile?.id ?? null;
+    const amountFirst = /^[\d$]/.test(inbound.text.trim());
+    // Only reads run ahead of the durable claim. State changes and financial
+    // writes still wait for it. Settle errors immediately so a rejected read on
+    // a duplicate delivery cannot escape as an unhandled rejection.
+    const readAhead = profile && !["link", "help", "guide", "cancel", "undo", "confirm"].includes(intent.kind)
+      ? loadContext(admin, profile, intent, amountFirst).then(
+        (context) => ({ ok: true as const, context }),
+        () => ({ ok: false as const }),
+      ) : null;
+    const preparedContext = async () => {
+      const prepared = await readAhead;
+      if (!prepared?.ok) throw new Error("Could not load your ledger.");
+      return prepared.context;
+    };
     // Uniqueness is enforced by Postgres, so two concurrent webhook deliveries
     // cannot both pass this check. Without a durable claim, even Undo repeats.
     const claim = await admin.from("telegram_logs").insert({
@@ -838,7 +859,7 @@ export async function handleUpdate(update: unknown, deliver: ReplySender = sendM
       return;
     }
     if (intent.kind === "rate") {
-      const rate = await loadBotRate(admin, userId);
+      const { rate } = await preparedContext();
       await respond(admin, inbound.chatId, userId, `<b>USD / KHR</b>\n$1 = ${escapeHtml(rate.rate.rate.toLocaleString("en-US"))} riel\n${escapeHtml(describeFreshness(rate))}.`);
       return;
     }
@@ -854,11 +875,10 @@ export async function handleUpdate(update: unknown, deliver: ReplySender = sendM
       return;
     }
 
-    const amountFirst = /^[\d$]/.test(inbound.text.trim());
     const readsMode = amountFirst || intent.kind === "record" || intent.kind === "entry" || intent.kind === "choose-account" || intent.kind === "select-account";
     const clearsPending = intent.kind === "record" || intent.kind === "transfer" || intent.kind === "entry" || intent.kind === "select-account";
     const [context, mode] = await Promise.all([
-      loadContext(admin, profile, intent, amountFirst),
+      preparedContext(),
       readsMode ? entryMode(admin, inbound.chatId, userId, inboundLogId, intent.kind === "entry" || intent.kind === "select-account") : null,
       // Invalidate an old offer before saving its replacement, while the wallet
       // and mode reads are in flight rather than adding another serial wait.
@@ -936,11 +956,11 @@ export async function handleUpdate(update: unknown, deliver: ReplySender = sendM
     }
 
     if (intent.kind === "budget") {
-      await respond(admin, inbound.chatId, userId, await budgetSummary(admin, context));
+      await respond(admin, inbound.chatId, userId, budgetSummary(context));
       return;
     }
     if (intent.kind === "summary") {
-      await respond(admin, inbound.chatId, userId, await summarise(admin, context, intent.window));
+      await respond(admin, inbound.chatId, userId, summarise(context, intent.window));
       return;
     }
     if (intent.kind === "accounts") {
@@ -948,7 +968,7 @@ export async function handleUpdate(update: unknown, deliver: ReplySender = sendM
       return;
     }
     if (intent.kind === "recent") {
-      await respond(admin, inbound.chatId, userId, await recentTransactions(admin, context));
+      await respond(admin, inbound.chatId, userId, recentTransactions(context));
       return;
     }
     await respond(

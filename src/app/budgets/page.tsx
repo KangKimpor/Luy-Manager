@@ -6,13 +6,11 @@ import { MoneyAmount } from "@/components/money-amount";
 import { buttonVariants } from "@/components/ui/button";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { isDemoMode } from "@/lib/auth";
-import { listBudgets } from "@/lib/data/budgets";
+import { listBudgetProgress } from "@/lib/data/budgets";
 import { categoryLookup } from "@/lib/data/reference";
-import { listTransactionsInRange } from "@/lib/data/transactions";
 import { readDisplayCurrency } from "@/lib/display-currency";
-import { summarizeBudgets, totalRemaining } from "@/lib/domain/budgets";
+import { totalRemaining } from "@/lib/domain/budgets";
 import { absolute } from "@/lib/money";
-import { trailingMonths } from "@/lib/period";
 import { loadUsdKhrRate } from "@/lib/rates/repository";
 import { CHART_COLORS } from "@/lib/theme";
 import { cn } from "@/lib/utils";
@@ -22,9 +20,8 @@ import { cn } from "@/lib/utils";
  *
  * Each budget's window comes from its own anchor day rather than the calendar
  * month, so a budget set up on the 15th runs 15th to 14th. That means the
- * transactions loaded here have to span more than the current month (a budget
- * anchored mid-month reaches back into the previous one), hence a trailing window
- * rather than `monthPeriod`.
+ * transactions loaded here cover the actual active periods, including annual
+ * budgets, without reading an arbitrary year of history for every visit.
  */
 
 const TONE = {
@@ -36,19 +33,14 @@ const TONE = {
 } as const;
 
 export default async function BudgetsPage() {
-  // Annual budgets can begin in the previous year's calendar month. A thirteen
-  // month bound includes the full period, including a mid-month anchor day.
-  const window = trailingMonths(13);
-
-  const [displayCurrency, { rate }, budgets, transactions, categories] = await Promise.all([
+  const ratePromise = loadUsdKhrRate();
+  const [displayCurrency, { rate }, progress, categories] = await Promise.all([
     readDisplayCurrency(),
-    loadUsdKhrRate(),
-    listBudgets(),
-    listTransactionsInRange(window.from, window.to),
+    ratePromise,
+    ratePromise.then(({ rate }) => listBudgetProgress(rate)),
     categoryLookup(),
   ]);
 
-  const progress = summarizeBudgets(budgets, transactions, rate);
   const remaining = totalRemaining(progress, displayCurrency, rate);
   const editable = !isDemoMode();
   const categoryBudgetCount = progress.filter((entry) => entry.budget.categoryId !== null).length;

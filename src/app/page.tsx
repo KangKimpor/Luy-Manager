@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import { ArrowRightLeft, ArrowUpRight, ChartNoAxesCombined, Plus, Wallet } from "lucide-react";
 import Link from "next/link";
 
@@ -10,17 +11,16 @@ import { RateStrip } from "@/components/rate-strip";
 import { TransactionList } from "@/components/transaction-list";
 import { isDemoMode } from "@/lib/auth";
 import { accountLookup, listAccountBalances } from "@/lib/data/accounts";
-import { listBudgets } from "@/lib/data/budgets";
+import { listBudgetProgress } from "@/lib/data/budgets";
 import { categoryLookup } from "@/lib/data/reference";
 import { listTransactionsInRange } from "@/lib/data/transactions";
 import { otherCurrency, readDisplayCurrency } from "@/lib/display-currency";
 import { summarizeNetWorth } from "@/lib/domain/accounts";
-import { summarizeBudgets } from "@/lib/domain/budgets";
 import {
   spendingByCategory,
   summarizeCashFlow,
 } from "@/lib/domain/transactions";
-import { monthFromParam, monthParam, shiftMonth, trailingMonths } from "@/lib/period";
+import { monthFromParam, monthParam, shiftMonth } from "@/lib/period";
 import { loadUsdKhrRate } from "@/lib/rates/repository";
 
 /**
@@ -39,17 +39,14 @@ export default async function DashboardPage(props: {
 }) {
   const { month } = await props.searchParams;
   const period = monthFromParam(month);
-  const budgetWindow = trailingMonths(13);
 
-  const [displayCurrency, snapshot, accounts, transactions, categories, budgets, budgetTransactions, lookup] =
+  const [displayCurrency, snapshot, accounts, transactions, categories, lookup] =
     await Promise.all([
       readDisplayCurrency(),
       loadUsdKhrRate(),
       listAccountBalances(),
       listTransactionsInRange(period.from, period.to),
       categoryLookup(),
-      listBudgets(),
-      listTransactionsInRange(budgetWindow.from, budgetWindow.to),
       accountLookup(),
     ]);
 
@@ -69,9 +66,6 @@ export default async function DashboardPage(props: {
     rate,
   ).netWorth;
 
-  // Budget windows are independent of the dashboard month filter. Include a full
-  // annual window even when an anchor day begins in the previous calendar month.
-  const budgetProgress = summarizeBudgets(budgets, budgetTransactions, rate);
   const categoryTotals = spendingByCategory(transactions, displayCurrency, rate);
 
   const previous = shiftMonth(period, -1);
@@ -98,7 +92,7 @@ export default async function DashboardPage(props: {
           { href: "/add?type=transfer", label: "Transfer", icon: ArrowRightLeft },
           { href: "/accounts", label: "Accounts", icon: Wallet },
         ].map(({ href, label, icon: Icon }) => (
-          <Link key={href} href={href} className="card-interactive flex min-h-20 flex-col items-center justify-center gap-2 rounded-card border border-surface-variant bg-surface px-2 py-4 text-center text-xs font-semibold text-ink shadow-card sm:flex-row sm:text-sm">
+          <Link prefetch={true} key={href} href={href} className="card-interactive flex min-h-20 flex-col items-center justify-center gap-2 rounded-card border border-surface-variant bg-surface px-2 py-4 text-center text-xs font-semibold text-ink shadow-card sm:flex-row sm:text-sm">
             <Icon size={19} className="text-brand" aria-hidden="true" />{label}
           </Link>
         ))}
@@ -110,9 +104,11 @@ export default async function DashboardPage(props: {
       <div className="stagger-children grid items-start gap-5 lg:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)]">
         <TransactionList transactions={transactions} categories={categories} accounts={lookup} limit={5} />
         <div className="space-y-5">
-          {budgetProgress.length > 0 ? <BudgetSummaryCard progress={budgetProgress} categories={categories} limit={3} /> : null}
+          <Suspense fallback={<div className="skeleton h-48 rounded-card" role="status" aria-label="Loading budgets" />}>
+            <DashboardBudgets categories={categories} snapshot={snapshot} />
+          </Suspense>
           <CategoryBreakdown totals={categoryTotals} categories={categories} limit={4} />
-          <Link href="/reports" className="card-interactive group block rounded-card border border-brand/10 bg-brand-soft p-5">
+          <Link prefetch={true} href="/reports" className="card-interactive group block rounded-card border border-brand/10 bg-brand-soft p-5">
             <span className="mb-4 flex size-10 items-center justify-center rounded-2xl bg-surface text-brand"><ChartNoAxesCombined size={20} aria-hidden="true" /></span>
             <span className="block font-semibold text-ink">A little clarity goes a long way.</span>
             <span className="mt-1.5 block text-sm leading-relaxed text-ink-muted">See how your spending and balance change over time.</span>
@@ -122,4 +118,14 @@ export default async function DashboardPage(props: {
       </div>
     </div>
   );
+}
+
+// Longer budget windows stream separately so the current month's figures and
+// quick actions are usable while an annual budget is still loading.
+async function DashboardBudgets({ categories, snapshot }: {
+  categories: Awaited<ReturnType<typeof categoryLookup>>;
+  snapshot: Awaited<ReturnType<typeof loadUsdKhrRate>>;
+}) {
+  const progress = await listBudgetProgress(snapshot.rate);
+  return progress.length > 0 ? <BudgetSummaryCard progress={progress} categories={categories} limit={3} /> : null;
 }

@@ -14,7 +14,7 @@ const nextConfig: NextConfig = {
   // edit made in the app shows up immediately. Only changes made elsewhere (the
   // Telegram bot) can lag, by at most this long.
   experimental: {
-    staleTimes: { dynamic: 30, static: 60 },
+    staleTimes: { dynamic: 30, static: 30 },
   },
   headers() {
     return [
