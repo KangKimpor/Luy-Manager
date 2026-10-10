@@ -28,6 +28,8 @@ import { loadBotRate } from "./rates";
 import { clearMenuMetadata, readMenuMetadata } from "./menu-cache";
 import { reportingWindow, validTimezone } from "./reporting";
 import { reportRequest, type ReportRequest } from "./report-state";
+import { readLedgerRevision } from "./ledger-revision";
+import { queueTelegramReportRefresh } from "./report-refresh";
 
 /**
  * The bot's brain: an intent plus a chat id, turned into a ledger write and a reply.
@@ -792,9 +794,14 @@ export async function handleUpdate(update: unknown, deliver: ReplySender = sendM
     // Only reads run ahead of the durable claim. State changes and financial
     // writes still wait for it. Settle errors immediately so a rejected read on
     // a duplicate delivery cannot escape as an unhandled rejection.
+    const initialIntent = intent;
     const readAhead = profile && !["link", "help", "guide", "cancel", "undo", "confirm"].includes(intent.kind)
-      ? loadContext(admin, profile, intent, amountFirst).then(
-        (context) => ({ ok: true as const, context }),
+      ? (async () => {
+        const ledgerRevision = reportRequest(initialIntent) ? await readLedgerRevision(admin, profile.id) : null;
+        const context = await loadContext(admin, profile, initialIntent, amountFirst);
+        return { context, ledgerRevision };
+      })().then(
+        (prepared) => ({ ok: true as const, ...prepared }),
         () => ({ ok: false as const }),
       ) : null;
     const preparedContext = async () => {
@@ -1055,10 +1062,30 @@ export async function handleUpdate(update: unknown, deliver: ReplySender = sendM
 
     const request = reportRequest(intent);
     if (request) {
-      await reply(admin, inbound.chatId, userId, reportText(context, request), MAIN_KEYBOARD, deliver, {
-        request, at: context.report.now.toISOString(), timezone: context.timezone,
-      });
-      return;
+      const prepared = await readAhead;
+      let ledgerRevision = prepared?.ok ? prepared.ledgerRevision : null;
+      let current = context;
+      for (let attempt = 0; attempt < 3; attempt++) {
+        const revision = await readLedgerRevision(admin, userId);
+        if (revision === ledgerRevision) {
+          const sent = await reply(admin, inbound.chatId, userId, reportText(current, request), MAIN_KEYBOARD, deliver, {
+            request, at: current.report.now.toISOString(), timezone: current.timezone,
+          });
+          // A web refresh can finish before this message has its delivery id.
+          // Once it is logged, repair any deletion that happened during delivery.
+          if (sent) {
+            try {
+              if (revision !== await readLedgerRevision(admin, userId)) queueTelegramReportRefresh(userId);
+            } catch {
+              queueTelegramReportRefresh(userId);
+            }
+          }
+          return;
+        }
+        if (attempt === 2) throw new Error("The ledger is changing. Request the report again.");
+        ledgerRevision = revision;
+        current = await loadContext(admin, profile, intent, false, context.report.now);
+      }
     }
     await respond(
       admin,

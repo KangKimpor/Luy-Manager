@@ -5,20 +5,13 @@ import { isServiceRoleConfigured } from "@/lib/supabase/env";
 import { editMessage, sendMessage } from "./client";
 import { isTelegramConfigured } from "./env";
 import { renderTelegramReport } from "./handle";
+import { readLedgerRevision } from "./ledger-revision";
 import { readReportState, reportKey, type ReportRequest, type ReportState } from "./report-state";
 import { validTimezone } from "./reporting";
 
 type Admin = ReturnType<typeof createAdminClient>;
 type Profile = { id: string; telegram_chat_id: number; base_currency: CurrencyCode; timezone: string };
 const jobs = new Map<string, { rerun: boolean; running: Promise<void> }>();
-
-async function revision(admin: Admin, userId: string): Promise<string> {
-  // Include deleted rows: a deletion is itself a ledger revision.
-  const { data, error } = await admin.from("transactions").select("updated_at")
-    .eq("user_id", userId).order("updated_at", { ascending: false }).limit(1).maybeSingle();
-  if (error) throw new Error("Could not check the ledger revision.");
-  return (data as { updated_at: string } | null)?.updated_at ?? "";
-}
 
 async function stillLinked(admin: Admin, profile: Profile): Promise<boolean> {
   const { data, error } = await admin.from("profiles").select("id")
@@ -110,9 +103,9 @@ export async function refreshTelegramReports(userId: string): Promise<void> {
         // Another server instance may finish a deletion during Telegram delivery.
         // Re-read after delivery and repair a report calculated before that change.
         for (let attempt = 0; attempt < 3; attempt++) {
-          const before = await revision(admin, userId);
+          const before = await readLedgerRevision(admin, userId);
           await refreshOnce(admin, profile);
-          if (before === await revision(admin, userId)) break;
+          if (before === await readLedgerRevision(admin, userId)) break;
         }
       } while (job.rerun);
     } catch {

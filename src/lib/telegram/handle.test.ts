@@ -297,7 +297,7 @@ describe("retry-safe Telegram ledger writes", () => {
   });
   test.each([
     ["Cancel", []], ["Undo", ["transactions"]], ["Rate", ["exchange_rates"]],
-    ["Accounts", ["settings", "account_balances"]], ["Recent", ["accounts", "transactions"]],
+    ["Accounts", ["settings", "account_balances", "transactions"]], ["Recent", ["accounts", "transactions"]],
     ["Expense USD", ["settings", "accounts"]], ["Expense", ["settings", "accounts"]], ["Choose account", ["accounts"]],
     ["Summary month", ["exchange_rates", "transactions"]],
   ])("%s only reads the data its answer needs", async (command, tables) => {
@@ -561,6 +561,70 @@ describe("web and Telegram ledger consistency", () => {
   async function finishBackground() {
     for (const task of mocks.after.splice(0)) await task();
   }
+
+  test("a 6000 riel coffee summary waiting on rates cannot arrive stale after a web deletion", async () => {
+    ledger();
+    db.tables.transactions = [{ ...db.tables.transactions[0], amount: -6000, currency: "KHR", account_id: "cash", notes: "coffee" }];
+    db.tables.exchange_rates.find(row => row.user_id === USER)!.rate = "4050";
+    let release!: () => void;
+    db.rateReadGate = new Promise<void>(resolve => { release = resolve; });
+    const summary = handleUpdate(update(1, "Summary today"));
+    await vi.waitFor(() => expect(db.reads).toContain("exchange_rates"));
+    db.rateReadGate = null;
+    expect((await deleteTransaction(DELETED)).ok).toBe(true);
+    await finishBackground();
+    release();
+    await summary;
+    const reply = mocks.sent.mock.calls.at(-1)?.[1];
+    expect(reply).toContain("Out: $0.00");
+    expect(reply).toContain("0 transactions");
+    expect(reply).not.toContain("$1.48");
+    expect(db.unsafeQueries).toEqual([]);
+  });
+
+  test("a deletion during delivery repairs the 6000 riel coffee reply once its message id exists", async () => {
+    ledger();
+    db.tables.transactions = [{ ...db.tables.transactions[0], amount: -6000, currency: "KHR", account_id: "cash", notes: "coffee" }];
+    db.tables.exchange_rates.find(row => row.user_id === USER)!.rate = "4050";
+    let release!: () => void;
+    const sending = new Promise<void>(resolve => { release = resolve; });
+    mocks.sent.mockImplementationOnce(async () => { await sending; return { ok: true, messageId: 2000 }; });
+    const summary = handleUpdate(update(1, "Summary today"));
+    await vi.waitFor(() => expect(mocks.sent).toHaveBeenCalledTimes(1));
+    expect(mocks.sent.mock.calls[0][1]).toContain("Out: $1.48");
+    expect((await deleteTransaction(DELETED)).ok).toBe(true);
+    await finishBackground();
+    expect(mocks.edited).not.toHaveBeenCalled();
+    release();
+    await summary;
+    expect(mocks.after).toHaveLength(1);
+    await finishBackground();
+    expect(mocks.edited).toHaveBeenCalledWith(CHAT, 2000, expect.stringContaining("Out: $0.00"));
+    expect(mocks.edited.mock.calls[0][2]).toContain("0 transactions");
+    expect(db.unsafeQueries).toEqual([]);
+  });
+
+  test.each([
+    ["Summary month", "Out: $0.00"], ["Recent", "no transactions"],
+    ["Budgets", "$0.00 of"], ["Accounts", "0៛"],
+  ])("%s waiting for its inbound claim rereads a deleted coffee entry", async (command, expected) => {
+    ledger();
+    db.tables.transactions = [{ ...db.tables.transactions[0], amount: -6000, currency: "KHR", account_id: "cash", notes: "coffee" }];
+    db.tables.exchange_rates.find(row => row.user_id === USER)!.rate = "4050";
+    let release!: () => void;
+    db.claimGate = new Promise<void>(resolve => { release = resolve; });
+    const reporting = handleUpdate(update(1, command));
+    await vi.waitFor(() => expect(db.reads).toContain(command === "Accounts" ? "account_balances" : command === "Recent" ? "accounts" : "exchange_rates"));
+    expect((await deleteTransaction(DELETED)).ok).toBe(true);
+    await finishBackground();
+    release();
+    await reporting;
+    const reply = mocks.sent.mock.calls.at(-1)?.[1];
+    expect(reply).toContain(expected);
+    expect(reply).not.toContain("6,000");
+    expect(reply).not.toContain("$1.48");
+    expect(db.unsafeQueries).toEqual([]);
+  });
 
   test.each(["USD", "KHR"] as const)("a web delete and restore update %s summaries, history, budgets, and balances", async currency => {
     ledger(currency);
