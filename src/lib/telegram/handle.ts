@@ -13,12 +13,11 @@ import { formatMoney, money, type CurrencyCode, type Money } from "@/lib/money";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { describeFreshness, fallbackSnapshot, type RateSnapshot } from "@/lib/rates/repository";
 
-import { CONFIRM_KEYBOARD, escapeHtml, MAIN_KEYBOARD, readMessage, sendMessage, type ReplyKeyboard, type ReplySender } from "./client";
+import { CONFIRM_KEYBOARD, entryKeyboard, escapeHtml, MAIN_KEYBOARD, MORE_KEYBOARD, readMessage, sendMessage, type ReplyKeyboard, type ReplySender } from "./client";
 import { requireTelegramEnv } from "./env";
 import { verifyLinkToken } from "./link";
 import {
   needsConfirmation,
-  CONFIRM_THRESHOLD,
   parseMessage,
   type RecordIntent,
   type EntryMode,
@@ -58,14 +57,23 @@ type Admin = ReturnType<typeof createAdminClient>;
 /** A pending intent older than this is stale; the user has moved on. */
 const PENDING_TTL_MINUTES = 10;
 
+const WELCOME = [
+  "<b>Luy Manager</b>",
+  "Tap <b>Expense</b> or <b>Income</b>, then type the amount and description. Your wallet and currency appear before you enter an amount.",
+  "",
+  "Or send <code>-$5 coffee</code> or <code>+60000r salary</code> directly.",
+  "More has transfers, budgets and reports.",
+].join("\n");
+
 const HELP = [
   "<b>Luy Manager</b>",
   "",
   "Fast entry:",
   "• <code>-$5 coffee</code> or <code>+ $600 salary</code>",
   "• <code>/e $5 coffee</code> or <code>/i $600 salary</code>",
-  "• Tap <b>Expense USD</b>, <b>Income USD</b> or a KHR button once, then send <code>5 coffee</code> or <code>600 salary</code>.",
-  "• Tap an account button to choose where entries go. <b>Choose account</b> switches wallets.",
+  "• Tap <b>Expense</b> or <b>Income</b>. I select your wallet and show its currency. Then send <code>5 coffee</code> or <code>600 salary</code>.",
+  "• <b>Choose account</b> changes the wallet in one selection. Switching wallets also switches currency. The entry buttons let you change direction or currency directly.",
+  "• After saving, keep typing amounts for the same wallet. <b>Undo</b> removes the last transaction.",
   "The selected mode and account last 10 minutes. Cancel clears them. Explicit currencies and account names always win.",
   "",
   "Other entries:",
@@ -222,7 +230,7 @@ async function loadContext(admin: Admin, profile: LinkedProfile, intent: Telegra
   const userId = profile.id;
   const writing = kind === "record" || kind === "transfer";
   const needsBalances = kind === "accounts" || kind === "transfer";
-  const needsAccounts = writing || needsBalances || kind === "recent" || kind === "entry" || kind === "choose-account" || kind === "select-account";
+  const needsAccounts = writing || needsBalances || kind === "recent" || kind === "entry" || kind === "start-entry" || kind === "back" || kind === "discard" || kind === "choose-account" || kind === "select-account";
   // Same-currency rows do not use a rate. Amount-first entries still need one
   // because their selected mode can change the currency while these reads run.
   const needsRate = intent.kind === "record" ? mayChangeCurrency || intent.amount.currency !== (profile.base_currency ?? "USD")
@@ -230,7 +238,7 @@ async function loadContext(admin: Admin, profile: LinkedProfile, intent: Telegra
   // Read commands should not wait on data they never use, or fail because an
   // unrelated part of the ledger is unavailable.
   const [settings, accounts, categories, rate, report] = await Promise.all([
-    writing || kind === "accounts"
+    writing || kind === "accounts" || kind === "entry" || kind === "start-entry"
       ? admin.from("settings").select("default_account_id").eq("user_id", userId).maybeSingle()
       : { data: null, error: null },
     needsAccounts ? admin
@@ -533,11 +541,17 @@ function accountSummary(context: UserContext): string {
 }
 
 function accountKeyboard(accounts: readonly BotAccount[], currency?: CurrencyCode): ReplyKeyboard {
-  return [
-    ...accounts.filter((account) => account.isActive && (!currency || account.currency === currency))
-      .map((account) => [`Use ${account.name} (${account.currency})`]),
-    ...MAIN_KEYBOARD,
-  ];
+  const labels = accounts.filter((account) => account.isActive && (!currency || account.currency === currency))
+    .map((account) => `Use ${account.name} (${account.currency})`);
+  const rows: string[][] = [];
+  for (let index = 0; index < labels.length; index += 2) rows.push(labels.slice(index, index + 2));
+  return [...rows, ["Back", "Cancel"]];
+}
+
+function entryPrompt(mode: EntryMode, account: BotAccount): string {
+  const example = mode.currency === "KHR" ? mode.type === "income" ? "60000 salary" : "6000 coffee"
+    : mode.type === "income" ? "600 salary" : "5 coffee";
+  return `<b>${mode.type === "income" ? "Income" : "Expense"} · ${escapeHtml(account.name)} · ${mode.currency}</b>\nSend <code>${example}</code>. Keep sending amounts for this wallet for 10 minutes.\nTap a wallet button to switch. Cancel ends quick entry.`;
 }
 
 function recentTransactions(context: UserContext): string {
@@ -559,7 +573,7 @@ function operationGuide(operation: "expense" | "income" | "refund" | "transfer")
   };
   return [operation === "transfer" ? "Record money you already moved between your accounts:" : `Send the ${operation} amount, currency and description:`,
     `<code>${examples[operation]}</code>`, "", "Send /accounts to see the exact account names.",
-    operation === "transfer" ? "This records the ledger movement. Your bank moves the actual funds." : "An unclear currency or direction will need Yes or No before saving."].join("\n");
+    operation === "transfer" ? "This records the ledger movement. Your bank moves the actual funds." : "If the currency or direction is unclear, check the preview and tap Save or Discard."].join("\n");
 }
 
 async function undoLast(admin: Admin, context: Pick<UserContext, "userId">): Promise<string> {
@@ -697,6 +711,7 @@ async function entryMode(admin: Admin, chatId: number, userId: string, currentLo
   const mode = parsed?.mode;
   return mode && (mode.type === "expense" || mode.type === "income") &&
     (mode.currency === "USD" || mode.currency === "KHR") &&
+    (mode.autoAccount === undefined || typeof mode.autoAccount === "boolean") &&
     (mode.accountId === undefined || typeof mode.accountId === "string") ? mode : null;
 }
 
@@ -745,7 +760,7 @@ export async function handleUpdate(update: unknown, deliver: ReplySender = sendM
       direction: "inbound",
       message_text: intent.kind === "link" ? "/start [connect token]" : inbound.text,
       parsed: intent.kind === "link" ? { kind: "link" }
-        : intent.kind === "entry" || intent.kind === "select-account" ? { kind: "entry", selecting: true } : intent,
+        : intent.kind === "entry" || intent.kind === "start-entry" || intent.kind === "select-account" ? { kind: "entry", selecting: true } : intent,
     }).select("id").single();
     if (claim.error?.code === "23505") return;
     if (claim.error || !claim.data) {
@@ -809,7 +824,7 @@ export async function handleUpdate(update: unknown, deliver: ReplySender = sendM
         admin,
         inbound.chatId,
         verified.userId,
-        `Connected. ${HELP}`,
+        `Connected. ${WELCOME}`,
       );
       return;
     }
@@ -827,7 +842,7 @@ export async function handleUpdate(update: unknown, deliver: ReplySender = sendM
     }
 
     if (intent.kind === "help") {
-      await respond(admin, inbound.chatId, userId, HELP);
+      await respond(admin, inbound.chatId, userId, HELP, MORE_KEYBOARD);
       return;
     }
 
@@ -835,8 +850,12 @@ export async function handleUpdate(update: unknown, deliver: ReplySender = sendM
       await respond(admin, inbound.chatId, userId, "Send a text message or a photo with an amount in its caption. I cannot transcribe voice messages or read receipt photos yet. Try <code>Spent $5 coffee</code>.");
       return;
     }
+    if (intent.kind === "more") {
+      await respond(admin, inbound.chatId, userId, "<b>More actions</b>\nChoose a report or transfer. Back returns to your quick entry.", MORE_KEYBOARD);
+      return;
+    }
     if (intent.kind === "guide") {
-      await respond(admin, inbound.chatId, userId, operationGuide(intent.operation));
+      await respond(admin, inbound.chatId, userId, operationGuide(intent.operation), MORE_KEYBOARD);
       return;
     }
 
@@ -870,53 +889,81 @@ export async function handleUpdate(update: unknown, deliver: ReplySender = sendM
         await respond(admin, inbound.chatId, userId, "There is nothing waiting to be confirmed.");
         return;
       }
-      const context = await loadContext(admin, profile, pending.intent);
-      await execute(admin, context, inbound.chatId, inboundLogId, pending.intent, deliver);
+      const [context, mode] = await Promise.all([
+        loadContext(admin, profile, pending.intent),
+        entryMode(admin, inbound.chatId, userId, inboundLogId),
+      ]);
+      await execute(admin, context, inbound.chatId, inboundLogId, pending.intent, deliver, mode);
       return;
     }
 
-    const readsMode = amountFirst || intent.kind === "record" || intent.kind === "entry" || intent.kind === "choose-account" || intent.kind === "select-account";
-    const clearsPending = intent.kind === "record" || intent.kind === "transfer" || intent.kind === "entry" || intent.kind === "select-account";
-    const [context, mode] = await Promise.all([
+    const readsMode = amountFirst || intent.kind === "record" || intent.kind === "entry" || intent.kind === "start-entry" || intent.kind === "back" || intent.kind === "discard" || intent.kind === "choose-account" || intent.kind === "select-account";
+    const clearsPending = intent.kind === "record" || intent.kind === "transfer" || intent.kind === "entry" || intent.kind === "start-entry" || intent.kind === "select-account" || intent.kind === "discard";
+    const [context, mode, clearedOffer] = await Promise.all([
       preparedContext(),
-      readsMode ? entryMode(admin, inbound.chatId, userId, inboundLogId, intent.kind === "entry" || intent.kind === "select-account") : null,
+      readsMode ? entryMode(admin, inbound.chatId, userId, inboundLogId, intent.kind === "entry" || intent.kind === "start-entry" || intent.kind === "select-account") : null,
       // Invalidate an old offer before saving its replacement, while the wallet
       // and mode reads are in flight rather than adding another serial wait.
       clearsPending ? takePending(admin, inbound.chatId, userId, true) : null,
     ]);
     if (amountFirst) intent = parseMessage(inbound.text, mode);
-    if (intent.kind === "record" && mode?.accountId && !intent.accountHint) {
+    if (intent.kind === "record" && mode?.accountId && !intent.accountHint && (!mode.autoAccount || intent.amount.currency === mode.currency)) {
       intent = { ...intent, resolvedAccountId: mode.accountId };
     }
 
-    if (intent.kind === "choose-account") {
+    if (intent.kind === "discard") {
+      const selected = context.accounts.find((account) => account.accountId === mode?.accountId && account.isActive && account.currency === mode.currency);
+      const message = clearedOffer ? "Preview discarded. Nothing was saved." : "There is no preview to discard.";
       await respond(admin, inbound.chatId, userId,
-        `Choose a wallet for your next entries${mode ? ` (${mode.type}, ${mode.currency})` : ""}.\nTap a Use button below. No money is saved by choosing an account.`,
+        message + (mode && selected ? `\n${entryPrompt(mode, selected)}` : ""),
+        mode && selected ? entryKeyboard(mode, context.accounts) : MAIN_KEYBOARD);
+      return;
+    }
+
+    if (intent.kind === "back") {
+      const selected = context.accounts.find((account) => account.accountId === mode?.accountId && account.isActive && account.currency === mode.currency);
+      await respond(admin, inbound.chatId, userId,
+        mode && selected ? entryPrompt(mode, selected) : WELCOME,
+        mode && selected ? entryKeyboard(mode, context.accounts) : MAIN_KEYBOARD);
+      return;
+    }
+
+    if (intent.kind === "choose-account") {
+      const selected = context.accounts.find((account) => account.accountId === mode?.accountId && account.isActive);
+      await respond(admin, inbound.chatId, userId,
+        `<b>Choose a wallet</b>${selected ? `\nCurrent: ${escapeHtml(selected.name)} · ${selected.currency}` : ""}\nTap a wallet below. Its currency is selected too.`,
         accountKeyboard(context.accounts));
       return;
     }
 
-    if ((intent.kind === "entry" && intent.mode) || intent.kind === "select-account") {
-      const requestedMode = intent.kind === "entry" ? intent.mode : null;
+    if ((intent.kind === "entry" && intent.mode) || intent.kind === "start-entry" || intent.kind === "select-account") {
+      const requestedCurrency = intent.kind === "entry" ? intent.mode!.currency : undefined;
+      const previous = context.accounts.find((account) => account.accountId === mode?.accountId && account.isActive && (!requestedCurrency || account.currency === requestedCurrency));
       const selected = intent.kind === "select-account"
         ? namedAccount(context.accounts, intent.name, intent.currency)
-        : context.accounts.find((account) => account.accountId === mode?.accountId && account.isActive && account.currency === requestedMode!.currency);
-      if (intent.kind === "select-account" && !selected) {
+        : previous ?? context.accounts.find((account) => account.accountId === context.defaultAccountId && account.isActive && (!requestedCurrency || account.currency === requestedCurrency))
+          ?? context.accounts.find((account) => account.isActive && account.currency === (requestedCurrency ?? context.baseCurrency))
+          ?? (!requestedCurrency ? context.accounts.find((account) => account.isActive) : null);
+      if (!selected) {
         const cleared = await admin.from("telegram_logs").update({ parsed: { kind: "entry", mode: null } })
           .eq("id", inboundLogId).eq("user_id", userId).eq("chat_id", inbound.chatId);
         if (cleared.error) throw new Error("Could not clear the invalid account selection.");
-        await respond(admin, inbound.chatId, userId, "That account is unavailable or its name is ambiguous. Choose an active wallet below.", accountKeyboard(context.accounts));
+        const message = intent.kind === "select-account" ? "That account is unavailable or its name is ambiguous. Choose an active wallet below."
+          : requestedCurrency ? `You have no active ${requestedCurrency} wallet. Choose another wallet below, or add one in the app.`
+          : "You have no active wallets. Add an account in the app first.";
+        await respond(admin, inbound.chatId, userId, message, accountKeyboard(context.accounts));
         return;
       }
-      const nextMode: EntryMode = intent.kind === "entry" ? { ...intent.mode! }
-        : { type: mode?.type ?? "expense", currency: selected!.currency };
-      if (selected) nextMode.accountId = selected.accountId;
+      const nextMode: EntryMode = {
+        type: intent.kind === "start-entry" ? intent.type : intent.kind === "entry" ? intent.mode!.type : mode?.type ?? "expense",
+        currency: selected.currency,
+        accountId: selected.accountId,
+        autoAccount: intent.kind !== "select-account" && (!previous || mode?.autoAccount === true),
+      };
       const saved = await admin.from("telegram_logs").update({ parsed: { kind: "entry", mode: nextMode } })
         .eq("id", inboundLogId).eq("user_id", userId).eq("chat_id", inbound.chatId);
       if (saved.error) throw new Error("Could not select the entry account.");
-      await respond(admin, inbound.chatId, userId,
-        `<b>${nextMode.type === "income" ? "Income" : "Expense"} ${nextMode.currency}</b>${selected ? ` in <b>${escapeHtml(selected.name)}</b>` : ""} for 10 minutes.\n${selected ? "Send" : "Choose an account below, or send"} <code>${nextMode.currency === "KHR" ? "6000 coffee" : nextMode.type === "income" ? "600 salary" : "5 coffee"}</code>.\nChoose account switches wallets. Cancel clears the selection.`,
-        accountKeyboard(context.accounts, nextMode.currency));
+      await respond(admin, inbound.chatId, userId, entryPrompt(nextMode, selected), entryKeyboard(nextMode, context.accounts));
       return;
     }
 
@@ -940,7 +987,7 @@ export async function handleUpdate(update: unknown, deliver: ReplySender = sendM
           if (account) offered = { ...intent, resolvedAccountId: account.accountId };
         }
         await storePending(admin, inboundLogId, inbound.chatId, userId, offered);
-        const delivered = await respond(admin, inbound.chatId, userId, describePending(intent, context), CONFIRM_KEYBOARD);
+        const delivered = await respond(admin, inbound.chatId, userId, describePending(intent.kind === "record" ? offered : intent, context), CONFIRM_KEYBOARD);
         // The staged offer is a barrier while delivery is in flight. Yes cannot
         // execute unseen terms, and a failed offer never revives an older one.
         const activated = await admin.from("telegram_logs")
@@ -951,7 +998,7 @@ export async function handleUpdate(update: unknown, deliver: ReplySender = sendM
       }
       // Resending an ambiguous message with explicit currency replaces the old
       // offer. A later Yes must not resurrect the version the user corrected.
-      await execute(admin, context, inbound.chatId, inboundLogId, intent, deliver);
+      await execute(admin, context, inbound.chatId, inboundLogId, intent, deliver, mode);
       return;
     }
 
@@ -975,7 +1022,7 @@ export async function handleUpdate(update: unknown, deliver: ReplySender = sendM
       admin,
       inbound.chatId,
       userId,
-      `I did not understand that.\n\n${HELP}`,
+      `Try an amount and description, like <code>-$5 coffee</code>, or tap Expense or Income to start.\nHelp in More shows all examples.`,
     );
   } catch {
     // Logged rather than rethrown, for the retry reason above.
@@ -993,8 +1040,6 @@ export async function handleUpdate(update: unknown, deliver: ReplySender = sendM
 
 /** What the bot says when it is about to guess. */
 function describePending(intent: RecordIntent | TransferIntent, context: UserContext): string {
-  const percent = Math.round(intent.confidence * 100);
-
   if (intent.kind === "transfer") {
     const to = namedAccount(context.balances, intent.toHint, intent.receivedAmount?.currency);
     const from = namedAccount(context.balances, intent.fromHint, intent.amount.currency);
@@ -1006,22 +1051,23 @@ function describePending(intent: RecordIntent | TransferIntent, context: UserCon
       } catch { /* The execution path will explain an invalid account pair. */ }
     }
     return [
-      `I read that as a transfer of ${describeAmount(intent.amount)}`,
-      `from "${escapeHtml(intent.fromHint)}" to "${escapeHtml(intent.toHint)}".`,
+      "<b>Confirm transfer</b>",
+      `From: ${describeAmount(intent.amount)} · ${escapeHtml(from?.name ?? intent.fromHint)}`,
+      `To: ${escapeHtml(to?.name ?? intent.toHint)}`,
       received,
-      intent.confidence < CONFIRM_THRESHOLD ? `I am only ${percent}% sure.` : "Confirm the received amount before recording the movement.",
-      "Reply <b>yes</b> to save, <b>no</b> to discard, or send a new transfer with the actual received amount.",
-    ].join(" ");
+      "Check the amount received, then tap <b>Save</b> or <b>Discard</b>. If your bank credited a different amount, resend with the actual received amount.",
+    ].join("\n");
   }
 
-  const what = intent.descriptor === "" ? "no description" : `"${escapeHtml(intent.descriptor)}"`;
   const account = intent.resolvedAccountId ? context.accounts.find((entry) => entry.accountId === intent.resolvedAccountId) : null;
   return [
-    `I read that as ${intent.type} of ${describeAmount(intent.amount)} with ${what}.`,
-    ...(account || intent.accountHint ? [`Account: ${escapeHtml(account?.name ?? intent.accountHint!)}.`] : []),
+    `<b>Confirm ${intent.type}</b>`,
+    `Amount: <b>${describeAmount(intent.amount)}</b> (${intent.amount.currency})`,
+    `Wallet: ${escapeHtml(account?.name ?? intent.accountHint ?? "No matching wallet")}`,
+    ...(intent.descriptor ? [`Description: ${escapeHtml(intent.descriptor)}`] : []),
     "",
-    `I am only ${percent}% sure, usually because the currency or direction was not stated.`,
-    "Reply <b>yes</b> to save it, <b>no</b> to discard, or send it again with the currency spelled out.",
+    "The currency or direction was unclear. Check the details above.",
+    "Tap <b>Save</b> to record it or <b>Discard</b> to cancel. You can also resend it with corrections.",
   ].join("\n");
 }
 
@@ -1033,6 +1079,7 @@ async function execute(
   logId: string,
   intent: TelegramIntent,
   deliver: ReplySender,
+  mode?: EntryMode | null,
 ): Promise<void> {
   if (intent.kind === "record" || intent.kind === "transfer") {
     const result = intent.kind === "record" ? await saveRecord(admin, context, intent) : await saveTransfer(admin, context, intent);
@@ -1045,7 +1092,9 @@ async function execute(
       }).eq("id", logId).eq("user_id", context.userId).eq("chat_id", chatId);
       if (error) console.error("[telegram] Could not annotate the saved request.");
     });
-    await reply(admin, chatId, context.userId, result.message, MAIN_KEYBOARD, deliver);
+    const selected = mode && context.accounts.find((account) => account.accountId === mode.accountId && account.isActive && account.currency === mode.currency);
+    const next = mode && selected ? `\nNext: <b>${mode.type === "expense" ? "Expense" : "Income"} · ${escapeHtml(selected.name)} · ${mode.currency}</b>. Send another amount, or use the buttons below.` : "";
+    await reply(admin, chatId, context.userId, result.message + next, mode && selected ? entryKeyboard(mode, context.accounts) : MAIN_KEYBOARD, deliver);
     return;
   }
 

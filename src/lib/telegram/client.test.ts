@@ -1,7 +1,31 @@
 import { afterEach, describe, expect, test, vi } from "vitest";
-import { isFromTelegram, readMessage, sendMessage } from "./client";
+import { entryKeyboard, isFromTelegram, MAIN_KEYBOARD, MORE_KEYBOARD, messagePayload, readMessage, sendMessage } from "./client";
+import { parseMessage } from "./parse";
 
 const update = { update_id: 12, message: { text: "Spent $5 coffee", chat: { id: 100, type: "private" }, from: { id: 100, is_bot: false } } };
+
+test("all advertised buttons lead to supported actions and the home menu stays compact", () => {
+  const keyboard = entryKeyboard({ type: "expense", currency: "USD", accountId: "aba" }, [
+    { accountId: "aba", name: "ABA", currency: "USD", isActive: true },
+    { accountId: "cash", name: "Cash", currency: "KHR", isActive: true },
+  ]);
+  expect(MAIN_KEYBOARD.flat()).toHaveLength(6);
+  for (const label of [...MAIN_KEYBOARD.flat(), ...MORE_KEYBOARD.flat(), ...keyboard.flat()]) {
+    expect(parseMessage(label).kind, label).not.toBe("unknown");
+  }
+  expect(keyboard.flat()).toContain("Use Cash (KHR)");
+  expect(keyboard.flat()).not.toContain("Use ABA (USD)");
+  expect(messagePayload(100, "Ready", keyboard).reply_markup.keyboard).toEqual(keyboard.map((row) => row.map((text) => ({ text }))));
+});
+
+test("large wallet lists expose two shortcuts and the complete selector without a tall entry menu", () => {
+  const wallets = Array.from({ length: 10 }, (_, index) => ({ accountId: String(index), name: `Wallet ${index}`, currency: "USD", isActive: index !== 1 }));
+  const keyboard = entryKeyboard({ type: "income", currency: "USD", accountId: "0" }, wallets);
+  expect(keyboard).toHaveLength(4);
+  expect(keyboard.flat().filter((label) => label.startsWith("Use "))).toHaveLength(2);
+  expect(keyboard.flat()).toContain("Choose account");
+  expect(keyboard.flat()).not.toContain("Use Wallet 1 (USD)");
+});
 
 afterEach(() => { vi.unstubAllGlobals(); vi.unstubAllEnvs(); });
 

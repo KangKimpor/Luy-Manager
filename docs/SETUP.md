@@ -395,6 +395,18 @@ for a fresh link if it expires.
 
 ### 5.5 Use it
 
+Tap **Expense** or **Income** once. The bot shows your selected wallet and its
+currency, then you can type `5 coffee` or `600 salary`. After saving, type another
+amount to keep using the same wallet. Quick entry lasts ten minutes.
+
+Your preferred active wallet is selected first. Wallet buttons switch account and
+currency together in one tap. For larger account lists, **Choose account** opens
+the full selector in two columns. Switching between Expense and Income keeps
+your wallet. **Cancel** clears quick entry; **More** opens transfers, budgets,
+reports and help, and **Back** returns to your entry.
+
+You can also send complete entries directly, without touching the menus:
+
 ```
 Spent $5 coffee
 Spent 12000 riel lunch
@@ -408,8 +420,14 @@ Undo last transaction
 ```
 
 **Name the currency whenever you can.** A bare `5` is either $5 or 5៛, a roughly
-4000x difference, so the bot tells you what it understood and waits for `yes`
+4000x difference, so the bot shows an amount and wallet preview and waits for **Save**
 instead of guessing. The same happens when you omit the verb, as in `Fuel $20`.
+**Discard** cancels only the preview and keeps the current wallet and entry type.
+**Save** returns to quick entry after recording it. The older `yes` and `no`
+replies still work.
+An explicit currency can override an automatically selected wallet. A wallet you
+choose yourself stays fixed until you switch it, so an incompatible currency is
+refused instead of saving to a different account silently.
 
 Two limits worth knowing:
 

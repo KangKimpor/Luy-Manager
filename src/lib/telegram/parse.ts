@@ -75,6 +75,8 @@ export interface EntryMode {
   type: "expense" | "income";
   currency: CurrencyCode;
   accountId?: string;
+  /** A displayed default may follow an explicit currency; a chosen wallet must stay fixed. */
+  autoAccount?: boolean;
 }
 
 export interface RecordIntent {
@@ -106,12 +108,16 @@ export type TelegramIntent =
   | RecordIntent
   | TransferIntent
   | { kind: "entry"; mode: EntryMode | null; confidence: number }
+  | { kind: "start-entry"; type: EntryMode["type"]; confidence: number }
+  | { kind: "more"; confidence: number }
+  | { kind: "back"; confidence: number }
   | { kind: "choose-account"; confidence: number }
   | { kind: "select-account"; name: string; currency: CurrencyCode; confidence: number }
   | { kind: "undo"; confidence: number }
   /** Answers to a confirmation the bot asked for. See needsConfirmation. */
   | { kind: "confirm"; confidence: number }
   | { kind: "cancel"; confidence: number }
+  | { kind: "discard"; confidence: number }
   | { kind: "budget"; confidence: number }
   | { kind: "accounts"; confidence: number }
   | { kind: "recent"; confidence: number }
@@ -256,6 +262,9 @@ export function parseMessage(input: string, mode?: EntryMode | null): TelegramIn
   const lower = text.toLowerCase();
 
   const entry = lower.match(/^(expense|income) (usd|khr)$/);
+  if (/^(expense|income)$/.test(lower)) return { kind: "start-entry", type: lower as EntryMode["type"], confidence: 1 };
+  if (lower === "more") return { kind: "more", confidence: 1 };
+  if (/^\/?(back|menu|start|home)(@\w+)?$/.test(lower)) return { kind: "back", confidence: 1 };
   if (/^(choose|change) account$/.test(lower)) return { kind: "choose-account", confidence: 1 };
   const selection = text.match(/^Use (.+) \((USD|KHR)\)$/i);
   if (selection) return { kind: "select-account", name: selection[1], currency: selection[2].toUpperCase() as CurrencyCode, confidence: 1 };
@@ -266,7 +275,7 @@ export function parseMessage(input: string, mode?: EntryMode | null): TelegramIn
   const start = text.match(/^\/start(?:@\w+)?\s+(\S+)$/i);
   if (start) return { kind: "link", token: start[1], confidence: 1 };
 
-  if (/^\/?(start|help|menu)(@\w+)?$/i.test(lower) || /^\/?what can you do\??$/i.test(lower)) {
+  if (/^\/?help(@\w+)?$/i.test(lower) || /^\/?what can you do\??$/i.test(lower)) {
     return { kind: "help", confidence: 1 };
   }
 
@@ -280,7 +289,8 @@ export function parseMessage(input: string, mode?: EntryMode | null): TelegramIn
     return { kind: "confirm", confidence: 1 };
   }
 
-  if (/^(n|no|nope|cancel|stop|discard|wrong)[.!]?$/i.test(lower)) {
+  if (/^discard[.!]?$/i.test(lower)) return { kind: "discard", confidence: 1 };
+  if (/^(n|no|nope|cancel|stop|wrong)[.!]?$/i.test(lower)) {
     return { kind: "cancel", confidence: 1 };
   }
 
@@ -295,7 +305,7 @@ export function parseMessage(input: string, mode?: EntryMode | null): TelegramIn
     return { kind: "recent", confidence: 1 };
   }
   if (/^(?:exchange )?rate$/.test(lower)) return { kind: "rate", confidence: 1 };
-  if (/^(expense|income|refund|transfer)$/.test(lower)) {
+  if (/^(refund|transfer)$/.test(lower)) {
     return { kind: "guide", operation: lower as RecordType | "transfer", confidence: 1 };
   }
 

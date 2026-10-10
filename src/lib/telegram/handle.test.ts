@@ -128,6 +128,100 @@ beforeEach(() => {
 });
 
 describe("retry-safe Telegram ledger writes", () => {
+  test("Discard cancels only the preview, keeps the wallet, and cannot be confirmed later", async () => {
+    await handleUpdate(update(1, "Use Wing USD (USD)"));
+    await handleUpdate(update(2, "Spent 5 coffee"));
+    expect(mocks.sent.mock.calls.at(-1)?.[1]).toContain("Wallet: Wing USD");
+    expect(mocks.sent.mock.calls.at(-1)?.[2]).toEqual([["Save", "Discard"]]);
+    await handleUpdate(update(3, "Discard"));
+    expect(mocks.sent.mock.calls.at(-1)?.[1]).toContain("Expense · Wing USD · USD");
+    await handleUpdate(update(4, "Save"));
+    expect(db.tables.transactions).toHaveLength(0);
+    await handleUpdate(update(5, "5 coffee"));
+    expect(db.tables.transactions[0]).toMatchObject({ account_id: "wing", amount: -500 });
+    expect(db.unsafeQueries).toEqual([]);
+  });
+  test("Save restores the focused entry controls after committing the preview", async () => {
+    await handleUpdate(update(1, "Use Wing USD (USD)"));
+    await handleUpdate(update(2, "Spent 5 coffee"));
+    await Promise.all([handleUpdate(update(3, "Save")), handleUpdate(update(3, "Save"))]);
+    expect(db.tables.transactions).toHaveLength(1);
+    expect(mocks.sent.mock.calls.at(-1)?.[1]).toContain("Next: <b>Expense · Wing USD · USD");
+    expect(mocks.sent.mock.calls.at(-1)?.[2]?.flat()).toContain("Income");
+    expect(db.unsafeQueries).toEqual([]);
+  });
+  test("one Expense tap selects the preferred wallet and the next message saves without another selector", async () => {
+    db.tables.settings[0].default_account_id = "wing";
+    await handleUpdate(update(1, "Expense"));
+    expect(mocks.sent.mock.calls.at(-1)?.[1]).toContain("Expense · Wing USD · USD");
+    expect(db.tables.transactions).toHaveLength(0);
+    await handleUpdate(update(2, "5 coffee"));
+    expect(db.tables.transactions).toMatchObject([{ account_id: "wing", amount: -500, currency: "USD" }]);
+    expect(mocks.sent.mock.calls.at(-1)?.[1]).toContain("Next: <b>Expense · Wing USD · USD");
+    expect(mocks.sent.mock.calls.at(-1)?.[2]?.flat()).toContain("Income");
+    await handleUpdate(update(3, "3 coffee"));
+    expect(db.tables.transactions).toHaveLength(2);
+    expect(db.unsafeQueries).toEqual([]);
+  });
+  test("a preferred KHR wallet supplies its zero-decimal currency and Income stays in the chosen wallet", async () => {
+    db.tables.settings[0].default_account_id = "cash";
+    await handleUpdate(update(1, "Expense"));
+    expect(mocks.sent.mock.calls.at(-1)?.[1]).toContain("Cash KHR · KHR");
+    await handleUpdate(update(2, "6000 coffee"));
+    await handleUpdate(update(3, "Income"));
+    await handleUpdate(update(4, "60000 salary"));
+    expect(db.tables.transactions).toMatchObject([
+      { account_id: "cash", amount: -6000, currency: "KHR" },
+      { account_id: "cash", amount: 60000, currency: "KHR", type: "income" },
+    ]);
+  });
+  test("wallet shortcuts switch account and currency in one tap without a Choose account step", async () => {
+    await handleUpdate(update(1, "Expense"));
+    const shortcuts = mocks.sent.mock.calls.at(-1)?.[2]?.flat();
+    expect(shortcuts).toContain("Use Cash KHR (KHR)");
+    await handleUpdate(update(2, "Use Cash KHR (KHR)"));
+    expect(mocks.sent.mock.calls.at(-1)?.[1]).toContain("Expense · Cash KHR · KHR");
+    await handleUpdate(update(3, "6000 lunch"));
+    expect(db.tables.transactions[0]).toMatchObject({ account_id: "cash", currency: "KHR", amount: -6000 });
+    expect(db.unsafeQueries).toEqual([]);
+  });
+  test("the wallet selector uses two columns and Back restores the current entry without changing it", async () => {
+    await handleUpdate(update(1, "Income"));
+    await handleUpdate(update(2, "Choose account"));
+    expect(mocks.sent.mock.calls.at(-1)?.[1]).toContain("Current: ABA USD · USD");
+    expect(mocks.sent.mock.calls.at(-1)?.[2]?.[0]).toEqual(["Use ABA USD (USD)", "Use Wing USD (USD)"]);
+    await handleUpdate(update(3, "More"));
+    expect(mocks.sent.mock.calls.at(-1)?.[2]?.flat()).toContain("Transfer");
+    await handleUpdate(update(4, "Back"));
+    expect(mocks.sent.mock.calls.at(-1)?.[1]).toContain("Income · ABA USD · USD");
+    await handleUpdate(update(5, "20 gift"));
+    expect(db.tables.transactions[0]).toMatchObject({ account_id: "aba", type: "income", amount: 2000 });
+  });
+  test("an explicit currency can override an automatic wallet, while a manually chosen wallet stays fixed", async () => {
+    await handleUpdate(update(1, "Expense KHR"));
+    await handleUpdate(update(2, "$5 coffee"));
+    expect(db.tables.transactions[0]).toMatchObject({ account_id: "aba", currency: "USD", amount: -500 });
+    await handleUpdate(update(3, "Use Cash KHR (KHR)"));
+    await handleUpdate(update(4, "Income"));
+    await handleUpdate(update(5, "$10 gift"));
+    expect(db.tables.transactions).toHaveLength(1);
+    expect(mocks.sent.mock.calls.at(-1)?.[1]).toContain("does not hold USD");
+  });
+  test("an unavailable currency clears entry mode instead of leaving the previous wallet active", async () => {
+    await handleUpdate(update(1, "Expense"));
+    db.tables.accounts.find((account) => account.id === "cash")!.is_active = false;
+    await handleUpdate(update(2, "Expense KHR"));
+    expect(mocks.sent.mock.calls.at(-1)?.[1]).toContain("no active KHR wallet");
+    await handleUpdate(update(3, "5 coffee"));
+    expect(db.tables.transactions).toHaveLength(0);
+    expect(mocks.sent.mock.calls.at(-1)?.[2]).toEqual([["Save", "Discard"]]);
+  });
+  test("quick entry with no active wallets explains how to start and never saves money", async () => {
+    db.tables.accounts.forEach((account) => { account.is_active = false; });
+    await handleUpdate(update(1, "Income"));
+    expect(mocks.sent.mock.calls.at(-1)?.[1]).toContain("Add an account in the app first");
+    expect(db.tables.transactions).toHaveLength(0);
+  });
   test("wallet data loads while the durable claim is in flight, but no money is saved before it succeeds", async () => {
     let release!: () => void;
     db.claimGate = new Promise<void>((resolve) => { release = resolve; });
@@ -154,7 +248,7 @@ describe("retry-safe Telegram ledger writes", () => {
   test.each([
     ["Cancel", []], ["Undo", ["transactions"]], ["Rate", ["exchange_rates"]],
     ["Accounts", ["settings", "account_balances"]], ["Recent", ["accounts", "transactions"]],
-    ["Expense USD", ["accounts"]], ["Choose account", ["accounts"]],
+    ["Expense USD", ["settings", "accounts"]], ["Expense", ["settings", "accounts"]], ["Choose account", ["accounts"]],
     ["Summary month", ["exchange_rates", "transactions"]],
   ])("%s only reads the data its answer needs", async (command, tables) => {
     await handleUpdate(update(1, command));
@@ -206,14 +300,14 @@ describe("retry-safe Telegram ledger writes", () => {
     await handleUpdate(update(6, "Cancel"));
     await handleUpdate(update(7, "5 coffee"));
     expect(db.tables.transactions).toHaveLength(3);
-    expect(mocks.sent.mock.calls.at(-1)?.[1]).toContain("yes");
+    expect(mocks.sent.mock.calls.at(-1)?.[1]).toContain("Save");
     expect(db.unsafeQueries).toEqual([]);
   });
   test("wallet buttons select the account for expenses and incomes, including quick and explicit entries", async () => {
     await handleUpdate(update(1, "Expense USD"));
-    expect(mocks.sent.mock.calls.at(-1)?.[2]).toEqual(expect.arrayContaining([["Use Wing USD (USD)"]]));
+    expect(mocks.sent.mock.calls.at(-1)?.[2]?.flat()).toContain("Use Wing USD (USD)");
     expect(JSON.stringify(mocks.sent.mock.calls.at(-1)?.[2])).not.toContain("Other wallet");
-    expect(JSON.stringify(mocks.sent.mock.calls.at(-1)?.[2])).not.toContain("Cash KHR");
+    expect(mocks.sent.mock.calls.at(-1)?.[2]?.flat()).toContain("Use Cash KHR (KHR)");
     await handleUpdate(update(2, "Use Wing USD (USD)"));
     await Promise.all([handleUpdate(update(3, "5 coffee")), handleUpdate(update(3, "5 coffee"))]);
     await handleUpdate(update(4, "Income USD"));
