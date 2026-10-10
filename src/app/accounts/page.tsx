@@ -8,9 +8,10 @@ import {
   Wallet,
   type LucideIcon,
 } from "lucide-react";
-import Link from "next/link";
+import { AppLink as Link } from "@/components/app-link";
 
 import { AccountRowActions } from "@/components/account-row-actions";
+import { AccountExport } from "@/components/account-export";
 import { CurrencyToggle } from "@/components/currency-toggle";
 import { CurrencyBadge, MoneyAmount } from "@/components/money-amount";
 import { buttonVariants } from "@/components/ui/button";
@@ -222,6 +223,7 @@ export default async function AccountsPage() {
           </section>
         );
       })}
+      <AccountExport />
     </div>
   );
 }

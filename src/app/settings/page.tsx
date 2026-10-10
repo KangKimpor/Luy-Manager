@@ -193,7 +193,7 @@ export default async function SettingsPage() {
               <li><code>Transfer $20 ABA to Cash</code></li>
               <li><code>/accounts</code>, <code>/recent</code>, <code>/budget</code></li>
             </ul>
-            <p className="text-ink-muted text-xs">Choose Expense USD, Income USD or KHR in Telegram, then send just an amount and note. Cancel clears the mode.</p>
+            <p className="text-ink-muted text-xs">Tap Expense or Income, then send an amount and note. Your selected wallet and currency stay ready for the next entry. Cancel clears the mode.</p>
             <p className="text-ink-faint flex items-start gap-2 text-xs leading-relaxed"><ArrowRightLeft size={14} className="mt-0.5 shrink-0" aria-hidden="true" />Transfers update your ledger. Use your bank to move the money itself.</p>
           </div>
         </CardBody>

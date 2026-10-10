@@ -4,6 +4,7 @@ import { Analytics } from "@vercel/analytics/next";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 
 import { BottomNav } from "@/components/bottom-nav";
+import { NavigationPreload } from "@/components/navigation-preload";
 import { ServiceWorkerRegistration } from "@/components/service-worker";
 import { SiteHeader } from "@/components/site-header";
 import { Sidebar } from "@/components/sidebar";
@@ -100,6 +101,7 @@ export default function RootLayout({
         </main>
 
         <BottomNav />
+        <NavigationPreload />
         <ServiceWorkerRegistration />
         <Analytics />
         <SpeedInsights />

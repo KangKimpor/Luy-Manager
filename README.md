@@ -25,9 +25,12 @@ runs with no setup.
 | Reports | Done. 12-month cash flow, category split, net worth trend |
 | Offline | Service worker caching the shell only, never ledger data |
 | Telegram bot | Done. PRD decision 6 resolved as a rules parser, with a confidence threshold |
+| Account exports | Money Manager `.mmbak` and Excel `.xlsx`, from the Accounts page |
 | AI insights, OCR, forecasting | Phase 3 |
 
 ## Getting started
+
+Use Node.js 22.13 or newer. The `.mmbak` exporter uses Node's built-in SQLite support.
 
 ```bash
 npm install

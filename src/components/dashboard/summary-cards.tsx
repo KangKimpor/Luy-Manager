@@ -1,5 +1,5 @@
 import { ArrowDownRight, ArrowUpRight, Wallet } from "lucide-react";
-import Link from "next/link";
+import { AppLink as Link } from "@/components/app-link";
 
 import { MoneyAmount } from "@/components/money-amount";
 import { Card } from "@/components/ui/card";

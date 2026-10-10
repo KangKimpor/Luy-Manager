@@ -5,7 +5,7 @@ import { isDemoMode } from "@/lib/auth";
 import { listActiveAccountBalances } from "@/lib/data/accounts";
 import { listCategories } from "@/lib/data/reference";
 import { loadUsdKhrRate } from "@/lib/rates/repository";
-import Link from "next/link";
+import { AppLink as Link } from "@/components/app-link";
 
 /**
  * Entry point for adding an expense, income, or a transfer between accounts.

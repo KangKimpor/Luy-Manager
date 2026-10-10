@@ -6,6 +6,7 @@ vi.mock("next/server", () => ({ after: (task: () => Promise<void>) => mocks.afte
 vi.mock("@/lib/supabase/admin", () => ({ createAdminClient: () => mocks.admin }));
 vi.mock("./client", async (original) => ({ ...await original<typeof import("./client")>(), sendMessage: mocks.sent }));
 import { handleUpdate, namedAccount } from "./handle";
+import { clearMenuMetadata } from "./menu-cache";
 
 const USER = "11111111-2222-3333-4444-555555555555";
 const OTHER = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee";
@@ -121,6 +122,7 @@ function update(id: number, text: string) {
   return { update_id: id, message: { message_id: id, text, chat: { id: CHAT, type: "private" }, from: { id: CHAT, is_bot: false } } };
 }
 beforeEach(() => {
+  clearMenuMetadata();
   vi.useRealTimers(); vi.stubEnv("TELEGRAM_WEBHOOK_SECRET", "test-secret"); vi.stubEnv("TELEGRAM_BOT_TOKEN", "test-token");
   db = new TestDatabase(); mocks.admin = db;
   mocks.after = [];
@@ -128,6 +130,22 @@ beforeEach(() => {
 });
 
 describe("retry-safe Telegram ledger writes", () => {
+  test("wallet selectors reuse metadata but selections and saves reject a newly closed wallet", async () => {
+    await handleUpdate(update(1, "Expense"));
+    db.reads = [];
+    await handleUpdate(update(2, "Choose account"));
+    await handleUpdate(update(3, "Back"));
+    expect(db.reads).not.toContain("accounts");
+    db.tables.accounts.find((a) => a.id === "aba")!.is_active = false;
+    await handleUpdate(update(4, "5 coffee"));
+    expect(db.reads).toContain("accounts");
+    expect(db.tables.transactions).toHaveLength(0);
+    expect(mocks.sent.mock.calls.at(-1)?.[1]).toContain("unavailable");
+    await handleUpdate(update(5, "Use ABA USD (USD)"));
+    expect(db.tables.transactions).toHaveLength(0);
+    expect(mocks.sent.mock.calls.at(-1)?.[1]).toContain("unavailable");
+    expect(db.unsafeQueries).toEqual([]);
+  });
   test("Discard cancels only the preview, keeps the wallet, and cannot be confirmed later", async () => {
     await handleUpdate(update(1, "Use Wing USD (USD)"));
     await handleUpdate(update(2, "Spent 5 coffee"));

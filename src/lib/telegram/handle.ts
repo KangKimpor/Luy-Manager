@@ -25,6 +25,7 @@ import {
   type TransferIntent,
 } from "./parse";
 import { loadBotRate } from "./rates";
+import { clearMenuMetadata, readMenuMetadata } from "./menu-cache";
 import { reportingWindow, validTimezone } from "./reporting";
 
 /**
@@ -235,17 +236,28 @@ async function loadContext(admin: Admin, profile: LinkedProfile, intent: Telegra
   // because their selected mode can change the currency while these reads run.
   const needsRate = intent.kind === "record" ? mayChangeCurrency || intent.amount.currency !== (profile.base_currency ?? "USD")
     : kind === "transfer" || kind === "budget" || kind === "summary" || kind === "rate";
+  const menuOnly = ["entry", "start-entry", "choose-account", "select-account", "back", "discard"].includes(kind);
+  const changingMode = ["entry", "start-entry", "select-account"].includes(kind);
+  if (writing || kind === "accounts") clearMenuMetadata(userId);
+  const settingsQuery = () => admin.from("settings").select("default_account_id").eq("user_id", userId).maybeSingle();
+  const accountsQuery = () => {
+    let query = admin.from(needsBalances ? "account_balances" : "accounts")
+      .select(needsBalances ? ACCOUNT_BALANCE_COLUMNS : ACCOUNT_COLUMNS.replace("opening_balance, ", "")).eq("user_id", userId);
+    if (!needsBalances) query = query.is("deleted_at", null);
+    return query.order("sort_order", { ascending: true });
+  };
+  const checked = async <T extends { error: unknown }>(query: PromiseLike<T>): Promise<T> => {
+    const result = await query;
+    if (result.error) throw new Error("Could not read wallet metadata.");
+    return result;
+  };
   // Read commands should not wait on data they never use, or fail because an
   // unrelated part of the ledger is unavailable.
   const [settings, accounts, categories, rate, report] = await Promise.all([
     writing || kind === "accounts" || kind === "entry" || kind === "start-entry"
-      ? admin.from("settings").select("default_account_id").eq("user_id", userId).maybeSingle()
+      ? menuOnly ? readMenuMetadata(userId, "settings", () => checked(settingsQuery()), changingMode) : settingsQuery()
       : { data: null, error: null },
-    needsAccounts ? admin
-      .from(needsBalances ? "account_balances" : "accounts")
-      .select(needsBalances ? ACCOUNT_BALANCE_COLUMNS : ACCOUNT_COLUMNS)
-      .eq("user_id", userId)
-      .order("sort_order", { ascending: true }) : { data: [], error: null },
+    needsAccounts ? menuOnly ? readMenuMetadata(userId, "accounts", () => checked(accountsQuery()), changingMode) : accountsQuery() : { data: [], error: null },
     writing || kind === "budget" ? admin
       .from("categories")
       .select(CATEGORY_COLUMNS)
@@ -262,7 +274,8 @@ async function loadContext(admin: Admin, profile: LinkedProfile, intent: Telegra
   // A normal entry only needs wallet metadata. Computing balances scans the
   // ledger, so reserve that view for answers and transfer previews that use it.
   const balances = needsBalances ? mapRows(asRows(accounts.data), toAccountBalance, "account_balances") : [];
-  const wallets = needsBalances ? balances : mapRows(asRows(accounts.data), toAccount, "accounts")
+  // Opening balances are not used by the bot's metadata path and never enter its menu cache.
+  const wallets = needsBalances ? balances : mapRows(asRows(accounts.data).map((row) => ({ ...row, opening_balance: 0 })), toAccount, "accounts")
     .map((account) => ({ ...account, accountId: account.id }));
   return {
     userId,

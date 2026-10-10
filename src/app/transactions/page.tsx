@@ -1,5 +1,5 @@
 import { ChevronLeft, ChevronRight, Plus, Search } from "lucide-react";
-import Link from "next/link";
+import { AppLink as Link } from "@/components/app-link";
 
 import { TransactionFilters } from "@/components/transaction-filters";
 import { TransactionHistory } from "@/components/transaction-history";

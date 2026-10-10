@@ -2,7 +2,7 @@
 
 import { ChevronDown, Search, X } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
+import { useOptimistic, useState, useTransition } from "react";
 
 import { Card, CardBody } from "@/components/ui/card";
 import type { AccountBalance, Category } from "@/lib/domain/types";
@@ -44,6 +44,9 @@ export function TransactionFilters({
   const router = useRouter();
   const [search, setSearch] = useState(selected.q ?? "");
   const [pending, startTransition] = useTransition();
+  const [optimistic, select] = useOptimistic<Record<string, string | undefined>, Record<string, string | undefined>>(
+    { ...selected, month }, (current, patch) => ({ ...current, ...patch }),
+  );
 
   /** Rebuild the URL with one filter changed, dropping the page. */
   function go(patch: Record<string, string | undefined>) {
@@ -52,11 +55,7 @@ export function TransactionFilters({
     // month is part of the merge, not set separately, or a patch changing it would
     // be silently overwritten by the current value.
     const merged: Record<string, string | undefined> = {
-      month,
-      account: selected.account,
-      category: selected.category,
-      type: selected.type,
-      q: selected.q,
+      ...optimistic,
       ...patch,
     };
 
@@ -66,11 +65,14 @@ export function TransactionFilters({
 
     // Changing a filter must reset paging: page 4 of a narrower result set is
     // usually empty, which reads as "no transactions" rather than "wrong page".
-    startTransition(() => router.push(`/transactions?${params.toString()}`));
+    startTransition(() => {
+      select(patch);
+      router.push(`/transactions?${params.toString()}`);
+    });
   }
 
   const hasFilters = Boolean(
-    selected.account || selected.category || selected.type || selected.q,
+    optimistic.account || optimistic.category || optimistic.type || optimistic.q,
   );
 
   return (
@@ -107,12 +109,12 @@ export function TransactionFilters({
         </form>
 
         <div className="flex flex-wrap items-start justify-between gap-3">
-          <input type="month" value={month} onChange={(event) => { if (event.target.value) go({ month: event.target.value }); }} aria-label="Month" className="border-border-subtle bg-surface rounded-xl text-ink-muted min-h-11 max-w-full border px-3 text-sm" />
+          <input type="month" value={optimistic.month ?? month} onChange={(event) => { if (event.target.value) go({ month: event.target.value }); }} aria-label="Month" className="border-border-subtle bg-surface rounded-xl text-ink-muted min-h-11 max-w-full border px-3 text-sm" />
           <details open={hasFilters} className="min-w-0 flex-1 open:basis-full">
           <summary className="text-ink-muted flex min-h-11 items-center justify-end gap-2 text-sm font-medium">Filters{hasFilters ? " applied" : ""}<ChevronDown size={16} aria-hidden="true" /></summary>
         <div className="mt-3 flex flex-wrap gap-2">
           <select
-            value={selected.account ?? ""}
+            value={optimistic.account ?? ""}
             onChange={(event) => go({ account: event.target.value || undefined })}
             aria-label="Filter by account"
             className="border-border-subtle bg-surface rounded-pill text-ink-muted min-h-11 border px-3 text-xs"
@@ -126,7 +128,7 @@ export function TransactionFilters({
           </select>
 
           <select
-            value={selected.category ?? ""}
+            value={optimistic.category ?? ""}
             onChange={(event) => go({ category: event.target.value || undefined })}
             aria-label="Filter by category"
             className="border-border-subtle bg-surface rounded-pill text-ink-muted min-h-11 border px-3 text-xs"
@@ -140,7 +142,7 @@ export function TransactionFilters({
           </select>
 
           <select
-            value={selected.type ?? ""}
+            value={optimistic.type ?? ""}
             onChange={(event) => go({ type: event.target.value || undefined })}
             aria-label="Filter by type"
             className="border-border-subtle bg-surface rounded-pill text-ink-muted min-h-11 border px-3 text-xs"
@@ -158,7 +160,7 @@ export function TransactionFilters({
               type="button"
               onClick={() => {
                 setSearch("");
-                router.push(`/transactions?month=${month}`);
+                go({ account: undefined, category: undefined, type: undefined, q: undefined });
               }}
               className="rounded-pill text-ink-muted hover:text-ink flex min-h-11 items-center gap-1 px-2 text-xs font-medium"
             >

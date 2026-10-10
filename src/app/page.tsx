@@ -1,6 +1,6 @@
 import { Suspense } from "react";
 import { ArrowRightLeft, ArrowUpRight, ChartNoAxesCombined, Plus, Wallet } from "lucide-react";
-import Link from "next/link";
+import { AppLink as Link } from "@/components/app-link";
 
 import { CurrencyToggle } from "@/components/currency-toggle";
 import { BudgetSummaryCard } from "@/components/dashboard/budget-summary-card";

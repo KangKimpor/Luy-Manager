@@ -323,6 +323,29 @@ rather than quietly reporting wrong figures.
 
 ---
 
+### Account exports
+
+On **Accounts**, scroll to **Export your accounts** and choose **Money Manager
+.mmbak** or **Excel .xlsx**. Both include all accounts, including closed ones, and
+all non-deleted transaction history. Deleted entries are excluded.
+
+The workbook has Accounts, Transactions, Categories, Splits, Payments and Read me
+sheets. Amounts keep their native currency, and exact minor-unit columns remain
+text to avoid Excel's 15-digit rounding limit. No mixed-currency total is created.
+
+The `.mmbak` is a SQLite/Core Data database matching the supplied Money Manager
+iOS backup schema. It contains new records from Luy Manager, with opening balances
+as adjustment entries and both legs of every transfer. Native Money Manager has
+no separate refund type, so refunds appear as inflows. Closed-account status is
+noted in the account memo. Luy-only details, including splits, payments and
+original transaction types, are retained in each record's extension data. The
+reference backup's personal records and preferences are never included.
+
+Schema, integrity, native amounts and transfer reconciliation are tested. A
+restore in the Money Manager device app still needs verification on that device.
+Use Node.js 22.13 or newer locally; the runtime requirement is also in package.json.
+Downloads require the current session and use private, no-store responses.
+
 ## 5. Telegram bot
 
 Log money by messaging a bot: `Spent $5 coffee`. Fully implemented; it needs your
@@ -404,6 +427,10 @@ currency together in one tap. For larger account lists, **Choose account** opens
 the full selector in two columns. Switching between Expense and Income keeps
 your wallet. **Cancel** clears quick entry; **More** opens transfers, budgets,
 reports and help, and **Back** returns to your entry.
+
+Selectors reuse owner-scoped wallet metadata for up to 15 seconds. Selecting a
+wallet, changing entry mode, checking balances and saving transactions always
+read fresh data. Financial writes still wait for the durable update claim.
 
 You can also send complete entries directly, without touching the menus:
 

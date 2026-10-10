@@ -1,5 +1,5 @@
 import { ArrowLeftRight, TriangleAlert } from "lucide-react";
-import Link from "next/link";
+import { AppLink as Link } from "@/components/app-link";
 import type { ReactNode } from "react";
 
 import { formatMoney, fromMajor } from "@/lib/money";

@@ -263,21 +263,16 @@ body:has(.login-page) .app-main {
   padding-top: 3rem !important;
 }
 
-/* Transform and opacity keep motion off the layout path on mobile Safari. */
-.page-enter { animation: page-in 360ms cubic-bezier(0.2, 0.7, 0.2, 1) both; }
-.stagger-children > * { animation: item-in 420ms cubic-bezier(0.2, 0.7, 0.2, 1) backwards; }
-.stagger-children > :nth-child(2) { animation-delay: 45ms; }
-.stagger-children > :nth-child(3) { animation-delay: 90ms; }
-.stagger-children > :nth-child(4) { animation-delay: 135ms; }
-.stagger-children > :nth-child(5) { animation-delay: 180ms; }
-.stagger-children > :nth-child(n+6) { animation-delay: 220ms; }
+/* Loaded figures remain visible from the first frame, with only a short movement. */
+.page-enter { animation: page-in 140ms ease-out both; }
+.stagger-children > * { animation: none; }
 .card-interactive { transition: transform 200ms ease, box-shadow 200ms ease, border-color 200ms ease; }
 .card-interactive:active { transform: scale(0.985); }
 .progress-fill { transform-origin: left; animation: progress-in 650ms cubic-bezier(0.2, 0.7, 0.2, 1) both; }
 .nav-icon { transition: transform 220ms cubic-bezier(0.2, 0.7, 0.2, 1), background-color 220ms ease; }
 [aria-current="page"] .nav-icon { animation: nav-in 300ms ease-out; }
-.form-enter { animation: item-in 240ms ease-out backwards; }
-details[open] > :not(summary) { animation: item-in 220ms ease-out; }
+.form-enter { animation: item-in 140ms ease-out backwards; }
+details[open] > :not(summary) { animation: item-in 120ms ease-out; }
 details summary svg { transition: transform 200ms ease; }
 details[open] summary svg { transform: rotate(180deg); }
 .hero-orbit { position: relative; isolation: isolate; overflow: hidden; }
@@ -299,8 +294,8 @@ details[open] summary svg { transform: rotate(180deg); }
 @media (hover: hover) and (pointer: fine) {
   .card-interactive:hover { transform: translateY(-3px); box-shadow: 0 10px 28px rgb(20 44 50 / 0.07); border-color: var(--color-border-subtle); }
 }
-@keyframes page-in { from { opacity: 0; } to { opacity: 1; } }
-@keyframes item-in { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes page-in { from { transform: translateY(3px); } to { transform: translateY(0); } }
+@keyframes item-in { from { transform: translateY(3px); } to { transform: translateY(0); } }
 @keyframes nav-in { 50% { transform: translateY(-3px) scale(1.08); } }
 @keyframes progress-in { from { transform: scaleX(0); } to { transform: scaleX(1); } }
 @keyframes orbit-drift { 50% { transform: translate(-12px, 12px); } }

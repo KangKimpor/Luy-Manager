@@ -1,4 +1,4 @@
-import Link from "next/link";
+import { AppLink as Link } from "@/components/app-link";
 
 import { MoneyAmount } from "@/components/money-amount";
 import { Card, CardBody, CardHeader, CardTitle } from "@/components/ui/card";

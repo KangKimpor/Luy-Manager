@@ -1,4 +1,4 @@
-import Link from "next/link";
+import { AppLink as Link } from "@/components/app-link";
 import { Wallet } from "lucide-react";
 
 import { LoginForm } from "@/components/login-form";
