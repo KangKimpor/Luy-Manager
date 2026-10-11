@@ -70,7 +70,7 @@ describe("transaction save feedback", () => {
       const picker = within(screen.getByRole("group", { name: `Split ${index + 1} category` }));
       await user.click(picker.getByRole("button", { name: "All categories" }));
       await user.type(picker.getByRole("searchbox", { name: "Search categories" }), name);
-      await user.click(picker.getByRole("button", { name, exact: true }));
+      await user.click(picker.getByRole("button", { name }));
     }
     await user.click(screen.getByRole("button", { name: "Save expense" }));
     expect(createTransaction).toHaveBeenCalledWith(expect.objectContaining({
