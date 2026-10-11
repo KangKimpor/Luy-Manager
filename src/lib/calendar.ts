@@ -31,6 +31,11 @@ export function utcBoundary(wall: Date, timezone: string): Date {
   const target = new Date(0);
   target.setUTCFullYear(wall.getFullYear(), wall.getMonth(), wall.getDate());
   target.setUTCHours(wall.getHours(), wall.getMinutes(), wall.getSeconds(), 0);
+  return wallTimeToInstant(target, timezone);
+}
+
+/** The target holds literal calendar fields in UTC, without device DST adjustment. */
+function wallTimeToInstant(target: Date, timezone: string): Date {
   let instant = target.getTime();
   for (let pass = 0; pass < 3; pass += 1) {
     const p = parts(new Date(instant), timezone);
@@ -86,9 +91,9 @@ export function calendarDateTimeToInstant(value: string, timezone: string): Date
   }
   const [year, month, day] = match[1].split("-").map(Number);
   const wall = new Date(0);
-  wall.setFullYear(year, month - 1, day);
-  wall.setHours(Number(match[2]), Number(match[3]), 0, 0);
-  const instant = utcBoundary(wall, timezone);
+  wall.setUTCFullYear(year, month - 1, day);
+  wall.setUTCHours(Number(match[2]), Number(match[3]), 0, 0);
+  const instant = wallTimeToInstant(wall, timezone);
   if (calendarDateTime(instant, timezone) !== value) throw new Error("That time does not exist in your timezone. Choose another time.");
   return instant;
 }

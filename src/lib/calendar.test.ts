@@ -1,4 +1,5 @@
 import { describe, expect, test } from "vitest";
+import { execFileSync } from "node:child_process";
 import { calendarDate, calendarDateTime, calendarDateTimeToInstant, isCalendarDate, shiftCalendarDate, transactionDate } from "./calendar";
 
 describe("transaction calendar", () => {
@@ -17,6 +18,14 @@ describe("transaction calendar", () => {
     expect(transactionDate("2026-01-11", "America/New_York").toISOString()).toBe("2026-01-11T17:00:00.000Z");
     expect(transactionDate("2026-07-11", "America/New_York").toISOString()).toBe("2026-07-11T16:00:00.000Z");
     expect(() => calendarDateTimeToInstant("2026-03-08T02:30", "America/New_York")).toThrow("does not exist");
+  });
+  test("a device daylight saving gap does not reject a valid time in the profile zone", () => {
+    const output = execFileSync(process.execPath, ["--experimental-strip-types", "--input-type=module", "-e",
+      "const {calendarDateTimeToInstant}=await import(process.argv[1]); console.log(calendarDateTimeToInstant('2026-03-08T02:30','Asia/Phnom_Penh').toISOString());",
+      new URL("./calendar.ts", import.meta.url).href], {
+      env: { ...process.env, TZ: "America/New_York" }, encoding: "utf8",
+    });
+    expect(output.trim()).toBe("2026-03-07T19:30:00.000Z");
   });
   test.each(["2026-02-30", "2026-13-01", "2026-00-01", "2026-04-31", "0000-01-01", "", "2026-1-1"])("refuses the invalid date %s", (date) => {
     expect(isCalendarDate(date)).toBe(false);
