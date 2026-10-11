@@ -1,3 +1,5 @@
+import { calendarDate, isCalendarDate, shiftCalendarDate, transactionDate } from "@/lib/calendar";
+import { categoryGroup, quickCategories } from "@/lib/domain/entry-choices";
 import { after } from "next/server";
 
 import { ACCOUNT_BALANCE_COLUMNS, ACCOUNT_COLUMNS, asRows, BUDGET_COLUMNS, CATEGORY_COLUMNS, TRANSACTION_COLUMNS } from "@/lib/data/client";
@@ -237,13 +239,13 @@ async function loadContext(admin: Admin, profile: LinkedProfile, intent: Telegra
   const userId = profile.id;
   const writing = kind === "record" || kind === "transfer";
   const needsBalances = kind === "accounts" || kind === "transfer";
-  const needsAccounts = writing || needsBalances || kind === "recent" || kind === "entry" || kind === "start-entry" || kind === "back" || kind === "discard" || kind === "choose-account" || kind === "select-account";
+  const needsAccounts = writing || needsBalances || kind === "recent" || kind === "entry" || kind === "start-entry" || kind === "back" || kind === "discard" || kind === "choose-account" || kind === "select-account" || kind === "choose-date" || kind === "set-date" || kind === "choose-category" || kind === "select-category";
   // Same-currency rows do not use a rate. Amount-first entries still need one
   // because their selected mode can change the currency while these reads run.
   const needsRate = intent.kind === "record" ? mayChangeCurrency || intent.amount.currency !== (profile.base_currency ?? "USD")
     : kind === "transfer" || kind === "budget" || kind === "summary" || kind === "rate";
-  const menuOnly = ["entry", "start-entry", "choose-account", "select-account", "back", "discard"].includes(kind);
-  const changingMode = ["entry", "start-entry", "select-account"].includes(kind);
+  const menuOnly = ["entry", "start-entry", "choose-account", "select-account", "back", "discard", "choose-date", "set-date", "choose-category", "select-category"].includes(kind);
+  const changingMode = ["entry", "start-entry", "select-account", "set-date", "select-category"].includes(kind);
   if (writing || kind === "accounts") clearMenuMetadata(userId);
   const settingsQuery = () => admin.from("settings").select("default_account_id").eq("user_id", userId).maybeSingle();
   const accountsQuery = () => {
@@ -260,16 +262,16 @@ async function loadContext(admin: Admin, profile: LinkedProfile, intent: Telegra
   // Read commands should not wait on data they never use, or fail because an
   // unrelated part of the ledger is unavailable.
   const [settings, accounts, categories, rate, report] = await Promise.all([
-    writing || kind === "accounts" || kind === "entry" || kind === "start-entry"
+    writing || kind === "accounts" || kind === "entry" || kind === "start-entry" || kind === "set-date" || kind === "select-category"
       ? menuOnly ? readMenuMetadata(userId, "settings", () => checked(settingsQuery()), changingMode) : settingsQuery()
       : { data: null, error: null },
     needsAccounts ? menuOnly ? readMenuMetadata(userId, "accounts", () => checked(accountsQuery()), changingMode) : accountsQuery() : { data: [], error: null },
-    writing || kind === "budget" ? admin
+    writing || kind === "budget" || kind === "choose-category" || kind === "select-category" ? admin
       .from("categories")
       .select(CATEGORY_COLUMNS)
       .eq("user_id", userId)
       .is("deleted_at", null) : { data: [], error: null },
-    needsRate ? loadBotRate(admin, userId) : fallbackSnapshot(),
+    needsRate ? loadBotRate(admin, userId, (intent.kind === "record" || intent.kind === "transfer") && intent.occurredAt ? new Date(intent.occurredAt) : now, profile.timezone ?? "Asia/Phnom_Penh") : fallbackSnapshot(),
     loadReport(admin, profile, intent, now),
   ]);
 
@@ -421,7 +423,10 @@ async function saveRecord(
     };
   }
 
-  const category = resolveCategory(context.categories.filter((entry) => entry.appliesTo.includes(intent.type)), intent.descriptor);
+  const usableCategories = context.categories.filter((entry) => entry.appliesTo.includes(intent.type));
+  const category = intent.resolvedCategoryId === undefined ? resolveCategory(usableCategories, intent.descriptor)
+    : usableCategories.find((entry) => entry.id === intent.resolvedCategoryId) ?? null;
+  if (intent.resolvedCategoryId && !category) return { ok: false, message: "The selected category is unavailable. Choose category again." };
   const { rate } = context.rate;
 
   const row = buildTransaction(
@@ -431,6 +436,7 @@ async function saveRecord(
       amount: intent.amount,
       categoryId: category?.id ?? null,
       notes: intent.descriptor === "" ? null : intent.descriptor,
+      occurredAt: intent.occurredAt ? new Date(intent.occurredAt) : undefined,
     },
     context.baseCurrency,
     rate,
@@ -453,7 +459,7 @@ async function saveRecord(
     category ? `as ${escapeHtml(category.name)}` : "with no category",
   ];
 
-  return { ok: true, transactionId, message: `${parts.join(" ")}.` };
+  return { ok: true, transactionId, message: `${parts.join(" ")}.${intent.date ? `\nDate: ${intent.date}` : ""}` };
 }
 
 async function saveTransfer(
@@ -489,7 +495,7 @@ async function saveTransfer(
   try {
     // planTransfer enforces what the database would otherwise reject: two distinct
     // accounts, a non-zero amount, and each leg in its own account's currency.
-    const plan = planTransfer({ from, to, amount: intent.amount, receivedAmount: intent.receivedAmount }, rate);
+    const plan = planTransfer({ from, to, amount: intent.amount, receivedAmount: intent.receivedAmount, occurredAt: intent.occurredAt ? new Date(intent.occurredAt) : undefined }, rate);
     const groupId = crypto.randomUUID();
     const [out, incoming] = transferInserts(plan, groupId, context.baseCurrency, rate);
 
@@ -509,6 +515,7 @@ async function saveTransfer(
       message:
         `Recorded ${describeAmount(plan.sent)} from ${escapeHtml(from.name)} ` +
         `to ${describeAmount(plan.received)} in ${escapeHtml(to.name)}.` +
+        (intent.date ? `\nDate: ${intent.date}` : "") +
         (plan.receivedBasis === "rate-table" ? `\nConverted using ${escapeHtml(describeFreshness(context.rate))}. Specify "received 41000 riel" to use the amount your bank actually credited.` : ""),
     };
   } catch (error) {
@@ -565,18 +572,18 @@ function accountSummary(context: UserContext): string {
     "", 'Tap Choose account to pick a wallet, or use its exact name: <code>Spent $5 coffee from ABA</code>.'].join("\n");
 }
 
-function accountKeyboard(accounts: readonly BotAccount[], currency?: CurrencyCode): ReplyKeyboard {
-  const labels = accounts.filter((account) => account.isActive && (!currency || account.currency === currency))
-    .map((account) => `Use ${account.name} (${account.currency})`);
+function accountKeyboard(accounts: readonly BotAccount[], currency?: CurrencyCode, query = ""): ReplyKeyboard {
+  const labels = accounts.filter((account) => account.isActive && (!currency || account.currency === currency) && `${account.name} ${account.institution ?? ""}`.toLowerCase().includes(query.toLowerCase()))
+    .slice(0, 8).map((account) => `Use ${account.name} (${account.currency})`);
   const rows: string[][] = [];
   for (let index = 0; index < labels.length; index += 2) rows.push(labels.slice(index, index + 2));
-  return [...rows, ["Back", "Cancel"]];
+  return [...rows, ["Accounts USD", "Accounts KHR"], ["Find account", "Back"]];
 }
 
 function entryPrompt(mode: EntryMode, account: BotAccount): string {
   const example = mode.currency === "KHR" ? mode.type === "income" ? "60000 salary" : "6000 coffee"
     : mode.type === "income" ? "600 salary" : "5 coffee";
-  return `<b>${mode.type === "income" ? "Income" : "Expense"} · ${escapeHtml(account.name)} · ${mode.currency}</b>\nSend <code>${example}</code>. Keep sending amounts for this wallet for 10 minutes.\nTap a wallet button to switch. Cancel ends quick entry.`;
+  return `<b>${mode.type === "income" ? "Income" : "Expense"} · ${escapeHtml(account.name)} · ${mode.currency}</b>\nSend <code>${example}</code>. Keep sending amounts for this wallet for 10 minutes.\nTap a wallet button to switch. Cancel ends quick entry.${mode.date ? `\nDate: <b>${mode.date}</b>. Choose date changes it.` : ""}${mode.categoryId ? "\nYour selected category applies to the next entries." : ""}`;
 }
 
 function recentTransactions(context: UserContext): string {
@@ -765,7 +772,9 @@ async function entryMode(admin: Admin, chatId: number, userId: string, currentLo
   return mode && (mode.type === "expense" || mode.type === "income") &&
     (mode.currency === "USD" || mode.currency === "KHR") &&
     (mode.autoAccount === undefined || typeof mode.autoAccount === "boolean") &&
-    (mode.accountId === undefined || typeof mode.accountId === "string") ? mode : null;
+    (mode.accountId === undefined || typeof mode.accountId === "string") &&
+    (mode.categoryId === undefined || mode.categoryId === null || typeof mode.categoryId === "string") &&
+    (mode.date === undefined || isCalendarDate(mode.date)) ? mode : null;
 }
 
 /**
@@ -818,7 +827,7 @@ export async function handleUpdate(update: unknown, deliver: ReplySender = sendM
       direction: "inbound",
       message_text: intent.kind === "link" ? "/start [connect token]" : inbound.text,
       parsed: intent.kind === "link" ? { kind: "link" }
-        : intent.kind === "entry" || intent.kind === "start-entry" || intent.kind === "select-account" ? { kind: "entry", selecting: true } : intent,
+        : intent.kind === "entry" || intent.kind === "start-entry" || intent.kind === "select-account" || intent.kind === "set-date" || intent.kind === "select-category" ? { kind: "entry", selecting: true } : intent,
     }).select("id").single();
     if (claim.error?.code === "23505") return;
     if (claim.error || !claim.data) {
@@ -955,11 +964,11 @@ export async function handleUpdate(update: unknown, deliver: ReplySender = sendM
       return;
     }
 
-    const readsMode = amountFirst || intent.kind === "record" || intent.kind === "entry" || intent.kind === "start-entry" || intent.kind === "back" || intent.kind === "discard" || intent.kind === "choose-account" || intent.kind === "select-account";
-    const clearsPending = intent.kind === "record" || intent.kind === "transfer" || intent.kind === "entry" || intent.kind === "start-entry" || intent.kind === "select-account" || intent.kind === "discard";
+    const readsMode = amountFirst || intent.kind === "record" || intent.kind === "entry" || intent.kind === "start-entry" || intent.kind === "back" || intent.kind === "discard" || intent.kind === "choose-account" || intent.kind === "select-account" || intent.kind === "transfer" || intent.kind === "choose-date" || intent.kind === "set-date" || intent.kind === "choose-category" || intent.kind === "select-category";
+    const clearsPending = intent.kind === "record" || intent.kind === "transfer" || intent.kind === "entry" || intent.kind === "start-entry" || intent.kind === "select-account" || intent.kind === "set-date" || intent.kind === "select-category" || intent.kind === "discard";
     const [context, mode, clearedOffer] = await Promise.all([
       preparedContext(),
-      readsMode ? entryMode(admin, inbound.chatId, userId, inboundLogId, intent.kind === "entry" || intent.kind === "start-entry" || intent.kind === "select-account") : null,
+      readsMode ? entryMode(admin, inbound.chatId, userId, inboundLogId, intent.kind === "entry" || intent.kind === "start-entry" || intent.kind === "select-account" || intent.kind === "set-date" || intent.kind === "select-category") : null,
       // Invalidate an old offer before saving its replacement, while the wallet
       // and mode reads are in flight rather than adding another serial wait.
       clearsPending ? takePending(admin, inbound.chatId, userId, true) : null,
@@ -989,8 +998,61 @@ export async function handleUpdate(update: unknown, deliver: ReplySender = sendM
     if (intent.kind === "choose-account") {
       const selected = context.accounts.find((account) => account.accountId === mode?.accountId && account.isActive);
       await respond(admin, inbound.chatId, userId,
-        `<b>Choose a wallet</b>${selected ? `\nCurrent: ${escapeHtml(selected.name)} · ${selected.currency}` : ""}\nTap a wallet below. Its currency is selected too.`,
-        accountKeyboard(context.accounts));
+        `<b>Choose a wallet</b>${selected ? `\nCurrent: ${escapeHtml(selected.name)} · ${selected.currency}` : ""}\nTap a wallet below. Its currency is selected too.\nFilter USD/KHR or type <code>Find account ABA</code> to search by name or bank.`,
+        accountKeyboard(context.accounts, intent.currency, intent.query));
+      return;
+    }
+
+    if (intent.kind === "choose-date") {
+      await respond(admin, inbound.chatId, userId, `<b>Transaction date</b>\nCurrent: ${mode?.date ?? "Today"}\nChoose a shortcut, or send <code>Date 2026-10-10</code>. You can also add <code>on 2026-10-10</code> to any expense, income, refund or transfer message.`, [["Date today", "Date yesterday"], ["Back", "Cancel"]]);
+      return;
+    }
+
+    if (intent.kind === "choose-category") {
+      const { query, group } = intent;
+      const categories = context.categories.filter((category) => category.appliesTo.includes(mode?.type ?? "expense"));
+      const filtered = categories.filter((category) => query
+        ? `${category.name} ${categoryGroup(category, categories)}`.toLowerCase().includes(query.toLowerCase())
+        : !group || categoryGroup(category, categories) === group);
+      const picks = query || group ? filtered.slice(0, 8) : quickCategories(categories, mode?.categoryId ?? null);
+      const labels = picks.map((category) => `Category ${category.name}`);
+      const groups = query || group ? [] : [...new Set(categories.map((category) => categoryGroup(category, categories)))].map((name) => `Categories ${name}`);
+      const rows: string[][] = [];
+      for (let index = 0; index < labels.length; index += 2) rows.push(labels.slice(index, index + 2));
+      for (let index = 0; index < groups.length; index += 2) rows.push(groups.slice(index, index + 2));
+      await respond(admin, inbound.chatId, userId, `<b>Choose category</b>\nTap a category or group. Search with <code>Find category medical</code>.\n${filtered.length} matching categories.`, [...rows, ["Category auto", "Category none"], ["Find category", "Back"]]);
+      return;
+    }
+
+    if (intent.kind === "set-date" || intent.kind === "select-category") {
+      const selected = context.accounts.find((account) => account.accountId === mode?.accountId && account.isActive)
+        ?? context.accounts.find((account) => account.accountId === context.defaultAccountId && account.isActive && account.currency === (mode?.currency ?? context.baseCurrency))
+        ?? context.accounts.find((account) => account.isActive && account.currency === (mode?.currency ?? context.baseCurrency))
+        ?? context.accounts.find((account) => account.isActive);
+      if (!selected) { await respond(admin, inbound.chatId, userId, "Add an active account in the app first."); return; }
+      if (mode?.accountId && mode.accountId !== selected.accountId) { await respond(admin, inbound.chatId, userId, "The selected wallet is unavailable. Choose account again."); return; }
+      const nextMode: EntryMode = { ...mode, type: mode?.type ?? "expense", currency: selected.currency, accountId: selected.accountId, autoAccount: mode?.autoAccount ?? true };
+      let label: string;
+      if (intent.kind === "set-date") {
+        const today = calendarDate(new Date(), context.timezone);
+        const date = intent.date === "today" ? today : intent.date === "yesterday" ? shiftCalendarDate(today, -1) : intent.date;
+        if (!isCalendarDate(date)) { await respond(admin, inbound.chatId, userId, "Choose a valid date."); return; }
+        if (intent.date === "today") delete nextMode.date; else nextMode.date = date;
+        label = `Date: ${date}`;
+      } else if (/^(auto|none)$/i.test(intent.name)) {
+        if (intent.name.toLowerCase() === "auto") delete nextMode.categoryId; else nextMode.categoryId = null;
+        label = intent.name.toLowerCase() === "auto" ? "Automatic category selected." : "Uncategorised selected.";
+      } else {
+        const { name } = intent;
+        const matches = context.categories.filter((category) => category.appliesTo.includes(nextMode.type) && category.name.toLowerCase() === name.toLowerCase());
+        if (matches.length !== 1) { await respond(admin, inbound.chatId, userId, "That category is unavailable or its name is ambiguous. Choose category again."); return; }
+        nextMode.categoryId = matches[0].id;
+        label = `Category: ${escapeHtml(matches[0].name)}`;
+      }
+      const saved = await admin.from("telegram_logs").update({ parsed: { kind: "entry", mode: nextMode } })
+        .eq("id", inboundLogId).eq("user_id", userId).eq("chat_id", inbound.chatId);
+      if (saved.error) throw new Error("Could not save the entry selection.");
+      await respond(admin, inbound.chatId, userId, `${label}\n${entryPrompt(nextMode, selected)}`, entryKeyboard(nextMode, context.accounts));
       return;
     }
 
@@ -1017,12 +1079,28 @@ export async function handleUpdate(update: unknown, deliver: ReplySender = sendM
         currency: selected.currency,
         accountId: selected.accountId,
         autoAccount: intent.kind !== "select-account" && (!previous || mode?.autoAccount === true),
+        ...(mode?.date ? { date: mode.date } : {}),
+        ...(mode?.categoryId !== undefined && (intent.kind !== "start-entry" || intent.type === mode.type) && (intent.kind !== "entry" || intent.mode!.type === mode.type) ? { categoryId: mode.categoryId } : {}),
       };
       const saved = await admin.from("telegram_logs").update({ parsed: { kind: "entry", mode: nextMode } })
         .eq("id", inboundLogId).eq("user_id", userId).eq("chat_id", inbound.chatId);
       if (saved.error) throw new Error("Could not select the entry account.");
       await respond(admin, inbound.chatId, userId, entryPrompt(nextMode, selected), entryKeyboard(nextMode, context.accounts));
       return;
+    }
+
+    if (intent.kind === "record" || intent.kind === "transfer") {
+      const requestedDate = intent.date ?? mode?.date;
+      if (requestedDate) {
+        const today = calendarDate(new Date(), context.timezone);
+        const date = requestedDate === "today" ? today : requestedDate === "yesterday" ? shiftCalendarDate(today, -1) : requestedDate;
+        intent = { ...intent, date, occurredAt: transactionDate(date, context.timezone).toISOString() };
+        // Resolve historical rates only after reading the selected entry date.
+        if (intent.kind === "transfer" || intent.amount.currency !== context.baseCurrency) {
+          context.rate = await loadBotRate(admin, userId, new Date(intent.occurredAt!), context.timezone);
+        }
+      }
+      if (intent.kind === "record" && mode?.categoryId !== undefined && mode.type === intent.type) intent = { ...intent, resolvedCategoryId: mode.categoryId };
     }
 
     if (intent.kind === "record" || intent.kind === "transfer") {
@@ -1124,6 +1202,7 @@ function describePending(intent: RecordIntent | TransferIntent, context: UserCon
       `From: ${describeAmount(intent.amount)} · ${escapeHtml(from?.name ?? intent.fromHint)}`,
       `To: ${escapeHtml(to?.name ?? intent.toHint)}`,
       received,
+      ...(intent.date ? [`Date: ${intent.date}`] : []),
       "Check the amount received, then tap <b>Save</b> or <b>Discard</b>. If your bank credited a different amount, resend with the actual received amount.",
     ].join("\n");
   }
@@ -1133,6 +1212,7 @@ function describePending(intent: RecordIntent | TransferIntent, context: UserCon
     `<b>Confirm ${intent.type}</b>`,
     `Amount: <b>${describeAmount(intent.amount)}</b> (${intent.amount.currency})`,
     `Wallet: ${escapeHtml(account?.name ?? intent.accountHint ?? "No matching wallet")}`,
+    ...(intent.date ? [`Date: ${intent.date}`] : []),
     ...(intent.descriptor ? [`Description: ${escapeHtml(intent.descriptor)}`] : []),
     "",
     "The currency or direction was unclear. Check the details above.",

@@ -11,7 +11,7 @@ import {
   pressAmountKey,
   truncateForCurrency,
 } from "@/components/amount-keypad";
-import { CurrencyBadge, MoneyAmount } from "@/components/money-amount";
+import { MoneyAmount } from "@/components/money-amount";
 import {
   newSplit,
   parseSplits,
@@ -26,6 +26,11 @@ import {
   tenderTotal,
 } from "@/components/tender-editor";
 import { Button } from "@/components/ui/button";
+import { AccountPicker } from "@/components/account-picker";
+import { CategoryPicker } from "@/components/category-picker";
+import { TransactionDateField } from "@/components/transaction-date-field";
+import { useEntryDate } from "@/components/use-entry-date";
+import { calendarDate, isCalendarDate, transactionDate } from "@/lib/calendar";
 import { createTransaction } from "@/app/actions/transactions";
 import type { AccountBalance, Category, TransactionType } from "@/lib/domain/types";
 import {
@@ -70,15 +75,20 @@ interface QuickAddFormProps {
   rate?: ExchangeRate;
   /** Demo mode cannot persist, so the form says so instead of failing on submit. */
   readOnly?: boolean;
+  timezone?: string;
+  initialDate?: string;
 }
 
 export function QuickAddForm({
   accounts,
   categories,
   type,
-  rate = DEFAULT_RATE,
+  rate: initialRate = DEFAULT_RATE,
   readOnly = false,
+  timezone = "Asia/Phnom_Penh",
+  initialDate = calendarDate(new Date(), timezone),
 }: QuickAddFormProps) {
+  const { date, selectDate, rate, ratePending, dateError } = useEntryDate(initialDate, initialRate, readOnly);
   const [raw, setRaw] = useState("");
   const [accountId, setAccountId] = useState(accounts[0]?.accountId ?? "");
   const [currency, setCurrency] = useState<CurrencyCode>(accounts[0]?.currency ?? "USD");
@@ -103,7 +113,7 @@ export function QuickAddForm({
   const mixedAmount = tenders ? tenderTotal(tenders, currency, rate) : null;
   const amount = mixedAmount ?? keypadAmount;
 
-  const canSave = !readOnly && amount.minor > 0 && accountId !== "";
+  const canSave = !readOnly && amount.minor > 0 && accountId !== "" && isCalendarDate(date) && !ratePending && !dateError;
 
   function press(key: KeypadKey) {
     setSaved(null);
@@ -137,6 +147,7 @@ export function QuickAddForm({
         amount: raw.trim() === "" ? "0" : raw.trim(),
         currency,
         categoryId,
+        occurredAt: transactionDate(date, timezone).toISOString(),
         notes: note.trim() === "" ? null : note.trim(),
         tenders: tenders ? parseTenders(tenders) : undefined,
         splits: splits ? parseSplits(splits) : undefined,
@@ -150,6 +161,7 @@ export function QuickAddForm({
       setSaved(amount);
       setRaw("");
       setNote("");
+      void selectDate(calendarDate(new Date(), timezone));
       setCategoryId(null);
       setTenders(null);
       setSplits(null);
@@ -197,6 +209,15 @@ export function QuickAddForm({
         }
       />
 
+      <TransactionDateField value={date} today={initialDate} onChange={(next) => { setSaved(null); void selectDate(next); }} />
+      {ratePending ? <p role="status" className="text-ink-faint text-xs">Updating the rate for this date...</p> : null}
+      {dateError ? <p role="alert" className="text-outflow text-sm">{dateError}</p> : null}
+
+      <div>
+        <label htmlFor="note" className="text-ink-muted mb-2 block text-sm font-medium">Note</label>
+        <input id="note" type="text" maxLength={500} value={note} onChange={(event) => { setSaved(null); setNote(event.target.value); }} placeholder="What was it for?" className="border-border-subtle bg-surface rounded-xl text-ink placeholder:text-ink-faint min-h-11 w-full border px-3" />
+      </div>
+
       {/* The keypad is hidden while tenders are open: with two currencies being
           entered, a third figure on the keypad would be a total that can disagree
           with them. */}
@@ -216,64 +237,15 @@ export function QuickAddForm({
         <AmountKeypad currency={currency} onPress={press} />
       )}
 
-      {/* Account. */}
-      <fieldset>
-        <legend className="text-ink-muted mb-2 text-sm font-medium">
-          Account
-        </legend>
-        <div className="scroll-row flex gap-2 pb-2">
-          {accounts.map((account) => (
-            <button
-              key={account.accountId}
-              type="button"
-              aria-pressed={accountId === account.accountId}
-              onClick={() => selectAccount(account)}
-              className={cn(
-                "rounded-xl flex min-h-11 shrink-0 items-center gap-1.5 border px-3 text-sm font-medium transition-colors",
-                accountId === account.accountId
-                  ? "border-brand bg-brand-soft text-brand"
-                  : "border-border-subtle bg-surface text-ink-muted",
-              )}
-            >
-              {account.name}
-              <CurrencyBadge currency={account.currency} />
-            </button>
-          ))}
-        </div>
-      </fieldset>
+      <AccountPicker accounts={accounts} selectedId={accountId} onSelect={selectAccount} />
 
-      {/* Category. Hidden while splitting, since each split carries its own. */}
-      <fieldset className={cn(splits && "hidden")}>
-        <legend className="text-ink-muted mb-2 text-sm font-medium">
-          Category <span className="normal-case">(optional)</span>
-        </legend>
-        <div className="scroll-row flex gap-2 pb-2">
-          {relevantCategories.map((category) => (
-            <button
-              key={category.id}
-              type="button"
-              aria-pressed={categoryId === category.id}
-              onClick={() => { setSaved(null); setCategoryId(categoryId === category.id ? null : category.id); }}
-              className={cn(
-                "rounded-xl min-h-11 shrink-0 border px-3 text-sm font-medium transition-colors",
-                categoryId === category.id
-                  ? "border-brand bg-brand-soft text-brand"
-                  : "border-border-subtle bg-surface text-ink-muted",
-              )}
-            >
-              {category.name}
-            </button>
-          ))}
-        </div>
-      </fieldset>
+      {/* A split has its own category for each part. */}
+      {!splits ? <CategoryPicker categories={relevantCategories} selectedId={categoryId}
+        onSelect={(id) => { setSaved(null); setCategoryId(id); }} /> : null}
 
       <details className="border-surface-variant rounded-2xl border bg-surface p-4">
       <summary className="text-ink-muted flex min-h-11 items-center justify-between text-sm font-medium">More options<ChevronDown size={17} aria-hidden="true" /></summary>
       <div className="mt-4 space-y-4">
-      <div>
-        <label htmlFor="note" className="text-ink-muted mb-2 block text-sm font-medium">Note</label>
-        <input id="note" type="text" value={note} onChange={(event) => { setSaved(null); setNote(event.target.value); }} placeholder="What was it for?" className="border-border-subtle bg-surface rounded-xl text-ink placeholder:text-ink-faint min-h-11 w-full border px-3" />
-      </div>
       <div className="flex flex-wrap gap-2">
         <button
           type="button"

@@ -32,6 +32,8 @@ export function AddEntry({
   rate = DEFAULT_RATE,
   readOnly = false,
   initialMode = "expense",
+  timezone,
+  initialDate,
 }: {
   accounts: readonly AccountBalance[];
   categories: readonly Category[];
@@ -39,6 +41,8 @@ export function AddEntry({
   /** Demo mode: the forms render but cannot persist. */
   readOnly?: boolean;
   initialMode?: EntryMode;
+  timezone?: string;
+  initialDate?: string;
 }) {
   const [mode, setMode] = useState<EntryMode>(initialMode);
 
@@ -67,13 +71,15 @@ export function AddEntry({
 
       <div key={mode} className="form-enter">
       {mode === "transfer" ? (
-        <TransferForm accounts={accounts} rate={rate} readOnly={readOnly} />
+        <TransferForm accounts={accounts} rate={rate} readOnly={readOnly} timezone={timezone} initialDate={initialDate} />
       ) : (
         // Keyed by mode so switching between expense and income resets the form.
         // Categories differ per type, and a category carried across would no
         // longer apply to the entry being made.
         <QuickAddForm
           key={mode}
+          timezone={timezone}
+          initialDate={initialDate}
           type={mode}
           accounts={accounts}
           categories={categories}

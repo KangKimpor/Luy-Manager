@@ -3,7 +3,7 @@ import { notFound, redirect } from "next/navigation";
 import { EditTransactionForm } from "@/components/edit-transaction-form";
 import { requireUser } from "@/lib/auth";
 import { listAccountBalances } from "@/lib/data/accounts";
-import { listCategories } from "@/lib/data/reference";
+import { getProfile, listCategories } from "@/lib/data/reference";
 import { getTransaction } from "@/lib/data/transactions";
 
 export default async function EditTransactionPage(props: {
@@ -12,10 +12,11 @@ export default async function EditTransactionPage(props: {
   await requireUser();
 
   const { id } = await props.params;
-  const [transaction, accounts, categories] = await Promise.all([
+  const [transaction, accounts, categories, profile] = await Promise.all([
     getTransaction(id),
     listAccountBalances(),
     listCategories(),
+    getProfile(),
   ]);
 
   // Row Level Security means someone else's row reads as missing.
@@ -34,6 +35,7 @@ export default async function EditTransactionPage(props: {
         transaction={transaction}
         accounts={accounts}
         categories={categories}
+        timezone={profile?.timezone}
       />
     </div>
   );

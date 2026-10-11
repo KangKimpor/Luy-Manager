@@ -11,6 +11,8 @@
  * daily is undermined if a stalled job is invisible.
  */
 
+import { calendarDate } from "@/lib/calendar";
+
 import {
   DEFAULT_RATE,
   exchangeRate,
@@ -118,12 +120,12 @@ export function fallbackSnapshot(): RateSnapshot {
  * the app still renders against demo data.
  */
 export async function loadUsdKhrRate(
-  { asOf = new Date() }: { asOf?: Date } = {},
+  { asOf = new Date(), timezone = "Asia/Phnom_Penh" }: { asOf?: Date; timezone?: string } = {},
 ): Promise<RateSnapshot> {
   if (!isSupabaseConfigured()) return fallbackSnapshot();
 
   const supabase = await createClient();
-  const asOfDate = asOf.toISOString().slice(0, 10);
+  const asOfDate = calendarDate(asOf, timezone);
 
   const { data, error } = await supabase
     .from("exchange_rates")

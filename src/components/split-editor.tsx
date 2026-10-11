@@ -2,6 +2,7 @@
 
 import { Plus, X } from "lucide-react";
 
+import { CategoryPicker } from "@/components/category-picker";
 import { MoneyAmount } from "@/components/money-amount";
 import { Card, CardBody } from "@/components/ui/card";
 import type { Category } from "@/lib/domain/types";
@@ -159,33 +160,19 @@ export function SplitEditor({
                   className="border-border-subtle bg-surface rounded-card text-ink placeholder:text-ink-faint tabular min-h-11 w-24 border px-3 text-sm"
                 />
 
-                <select
-                  value={split.categoryId ?? ""}
-                  onChange={(event) =>
-                    update(split.id, {
-                      categoryId: event.target.value === "" ? null : event.target.value,
-                    })
-                  }
-                  aria-label={`Split ${index + 1} category`}
-                  className="border-border-subtle bg-surface rounded-card text-ink min-h-11 flex-1 border px-2 text-sm"
-                >
-                  <option value="">Uncategorised</option>
-                  {categories.map((category) => (
-                    <option key={category.id} value={category.id}>
-                      {category.name}
-                    </option>
-                  ))}
-                </select>
-
                 <button
                   type="button"
                   onClick={() => onChange(splits.filter((s) => s.id !== split.id))}
                   aria-label={`Remove split ${index + 1}`}
-                  className="text-ink-faint hover:text-outflow flex size-8 shrink-0 items-center justify-center"
+                  className="text-ink-faint hover:text-outflow ml-auto flex size-11 shrink-0 items-center justify-center"
                 >
                   <X size={15} aria-hidden="true" />
                 </button>
               </div>
+
+              <CategoryPicker categories={categories} selectedId={split.categoryId}
+                onSelect={(categoryId) => update(split.id, { categoryId })}
+                label={`Split ${index + 1} category`} compact />
 
               {/* Only shown when redistribution actually changes this part. */}
               {parts && redistributed[index] ? (

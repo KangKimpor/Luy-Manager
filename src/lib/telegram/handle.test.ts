@@ -162,6 +162,65 @@ beforeEach(() => {
 });
 
 describe("retry-safe Telegram ledger writes", () => {
+  test("date and category selections save the chosen day and historical rate, then Today clears the date", async () => {
+    db.tables.exchange_rates.push({ rate: "4000", base_currency: "USD", quote_currency: "KHR", as_of: "2026-10-08", source: "manual", user_id: USER });
+    await handleUpdate(update(1, "Expense KHR"));
+    await handleUpdate(update(2, "Date 2026-10-08"));
+    await handleUpdate(update(3, "Category Coffee"));
+    await handleUpdate(update(4, "6000 breakfast"));
+    expect(db.tables.transactions[0]).toMatchObject({ account_id: "cash", category_id: "coffee", notes: "breakfast", occurred_at: "2026-10-08T05:00:00.000Z", base_amount: -150, currency: "KHR" });
+    expect(mocks.sent.mock.calls.at(-1)?.[1]).toContain("Date: 2026-10-08");
+    await handleUpdate(update(5, "Date today"));
+    await handleUpdate(update(6, "1000 coffee"));
+    expect(db.tables.transactions[1].occurred_at).not.toBe("2026-10-08T05:00:00.000Z");
+    expect(db.unsafeQueries).toEqual([]);
+  });
+
+  test("date selection cannot resurrect a preview and a dated transfer keeps both legs on one day", async () => {
+    await handleUpdate(update(1, "Spent 5 coffee on 2026-10-08"));
+    expect(mocks.sent.mock.calls.at(-1)?.[1]).toContain("Date: 2026-10-08");
+    await handleUpdate(update(2, "Date 2026-10-09"));
+    await handleUpdate(update(3, "Save"));
+    expect(db.tables.transactions).toHaveLength(0);
+    await handleUpdate(update(4, "Transfer $10 ABA to Cash received 40000 riel on 2026-10-08"));
+    expect(db.tables.transactions).toHaveLength(2);
+    expect(db.tables.transactions.every((row) => row.occurred_at === "2026-10-08T05:00:00.000Z")).toBe(true);
+    expect(db.unsafeQueries).toEqual([]);
+  });
+
+  test("a dated confirmation stays on its previewed day and duplicate Save cannot post twice", async () => {
+    await handleUpdate(update(1, "Spent 5 coffee on 2026-10-08"));
+    await Promise.all([handleUpdate(update(2, "Save")), handleUpdate(update(2, "Save"))]);
+    expect(db.tables.transactions).toHaveLength(1);
+    expect(db.tables.transactions[0].occurred_at).toBe("2026-10-08T05:00:00.000Z");
+    expect(db.unsafeQueries).toEqual([]);
+  });
+
+  test("wallet search reaches a distant wallet and keeps keyboards bounded", async () => {
+    for (let i = 0; i < 15; i += 1) db.tables.accounts.push({ ...db.tables.accounts[0], id: `wallet-${i}`, name: `Bank ${i}` });
+    await handleUpdate(update(1, "Choose account"));
+    expect(mocks.sent.mock.calls.at(-1)?.[2]?.flat().filter((label: string) => label.startsWith("Use "))).toHaveLength(8);
+    await handleUpdate(update(2, "Find account Bank 14"));
+    expect(mocks.sent.mock.calls.at(-1)?.[2]?.flat()).toContain("Use Bank 14 (USD)");
+    expect(mocks.sent.mock.calls.at(-1)?.[2]?.flat()).not.toContain("Use Bank 1 (USD)");
+    expect(mocks.sent.mock.calls.at(-1)?.[1]).not.toContain("Other wallet");
+    expect(db.unsafeQueries).toEqual([]);
+  });
+
+  test("selected categories are revalidated and foreign categories never appear or save", async () => {
+    db.tables.categories.push({ ...db.tables.categories[0], id: "foreign-cat", user_id: OTHER, name: "Private category" });
+    await handleUpdate(update(1, "Expense"));
+    await handleUpdate(update(2, "Choose category"));
+    expect(mocks.sent.mock.calls.at(-1)?.[2]?.flat()).not.toContain("Category Private category");
+    await handleUpdate(update(3, "Category Coffee"));
+    db.tables.categories[0].deleted_at = new Date().toISOString();
+    await handleUpdate(update(4, "5 breakfast"));
+    expect(db.tables.transactions).toHaveLength(0);
+    expect(mocks.sent.mock.calls.at(-1)?.[1]).toContain("selected category is unavailable");
+    await handleUpdate(update(5, "Category Private category"));
+    expect(db.tables.transactions).toHaveLength(0);
+    expect(db.unsafeQueries).toEqual([]);
+  });
   test("wallet selectors reuse metadata but selections and saves reject a newly closed wallet", async () => {
     await handleUpdate(update(1, "Expense"));
     db.reads = [];

@@ -307,3 +307,19 @@ describe("amounts must not be partially matched or silently rounded", () => {
     expect(parseMessage(text).kind).toBe("unknown");
   });
 });
+test.each(["Spent $5 coffee on 2026-10-10", "Income $600 salary on yesterday", "Refund $5 coffee on today", "Transfer $10 ABA to Cash received 40000 riel on 2026-10-10"])("accepts an explicit transaction date in %s", (text) => {
+  const intent = parseMessage(text);
+  expect(["record", "transfer"]).toContain(intent.kind);
+  expect(intent).toHaveProperty("date");
+});
+
+test.each(["Date 2026-02-30", "Spent $5 coffee on 2026-02-30", "Date 2026-13-10", "6000 coffee on 2026-00-01"])("never treats an invalid calendar date as a money entry: %s", (text) => {
+  expect(parseMessage(text).kind).toBe("unknown");
+});
+
+test("date and search controls cannot be parsed as financial writes", () => {
+  expect(parseMessage("Date yesterday")).toMatchObject({ kind: "set-date", date: "yesterday" });
+  expect(parseMessage("Find account ABA")).toMatchObject({ kind: "choose-account", query: "ABA" });
+  expect(parseMessage("Find category dental")).toMatchObject({ kind: "choose-category", query: "dental" });
+  expect(parseMessage("Category Coffee")).toMatchObject({ kind: "select-category", name: "Coffee" });
+});

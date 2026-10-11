@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 
+import { validTimezone } from "@/lib/calendar";
 import { requireUserId } from "@/lib/auth";
 import { dataContext } from "@/lib/data/client";
 import { getProfile } from "@/lib/data/reference";
@@ -66,9 +67,7 @@ function revalidateLedger(userId: string): void {
 }
 
 /** The currency the user's own reports are denominated in. */
-async function baseCurrencyFor(): Promise<CurrencyCode> {
-  return (await getProfile())?.baseCurrency ?? "USD";
-}
+
 
 /**
  * Look an account up as the signed-in user.
@@ -125,10 +124,12 @@ export async function createTransaction(
     if (!context) return { ok: false, error: "Connect Supabase to save transactions." };
 
     const account = await loadAccount(parsed.data.accountId);
-    const [baseCurrency, { rate }] = await Promise.all([
-      baseCurrencyFor(),
-      loadUsdKhrRate(),
-    ]);
+    const profile = await getProfile();
+    const baseCurrency = profile?.baseCurrency ?? "USD";
+    const { rate } = await loadUsdKhrRate({
+      asOf: parsed.data.occurredAt ? new Date(parsed.data.occurredAt) : new Date(),
+      timezone: validTimezone(profile?.timezone),
+    });
 
     // Derived from the tenders when present, so the stored total is exactly the
     // sum of what was handed over, converted into the account's currency.
@@ -298,10 +299,12 @@ export async function updateTransaction(
     if (!context) return { ok: false, error: "Connect Supabase to edit transactions." };
 
     const account = await loadAccount(parsed.data.accountId);
-    const [baseCurrency, { rate }] = await Promise.all([
-      baseCurrencyFor(),
-      loadUsdKhrRate(),
-    ]);
+    const profile = await getProfile();
+    const baseCurrency = profile?.baseCurrency ?? "USD";
+    const { rate } = await loadUsdKhrRate({
+      asOf: parsed.data.occurredAt ? new Date(parsed.data.occurredAt) : new Date(),
+      timezone: validTimezone(profile?.timezone),
+    });
 
     const amount = parseMoney(parsed.data.amount, account.currency);
     if (isZero(amount)) return { ok: false, error: "Enter an amount above zero." };
@@ -460,10 +463,12 @@ export async function createTransfer(
       loadAccount(parsed.data.toAccountId),
     ]);
 
-    const [baseCurrency, { rate }] = await Promise.all([
-      baseCurrencyFor(),
-      loadUsdKhrRate(),
-    ]);
+    const profile = await getProfile();
+    const baseCurrency = profile?.baseCurrency ?? "USD";
+    const { rate } = await loadUsdKhrRate({
+      asOf: parsed.data.occurredAt ? new Date(parsed.data.occurredAt) : new Date(),
+      timezone: validTimezone(profile?.timezone),
+    });
 
     const amount = parseMoney(parsed.data.amount, from.currency);
     const received =

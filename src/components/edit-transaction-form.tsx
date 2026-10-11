@@ -4,6 +4,9 @@ import { Check, TriangleAlert } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
+import { AccountPicker } from "@/components/account-picker";
+import { CategoryPicker } from "@/components/category-picker";
+import { calendarDateTime, calendarDateTimeToInstant } from "@/lib/calendar";
 import { CurrencyBadge } from "@/components/money-amount";
 import { Button } from "@/components/ui/button";
 import { Card, CardBody } from "@/components/ui/card";
@@ -34,23 +37,16 @@ function toInput(minor: number, currency: CurrencyCode): string {
   return (Math.abs(minor) / 10 ** decimals).toFixed(decimals);
 }
 
-/** A datetime-local value from an ISO timestamp, in local time. */
-function toLocalDateTime(iso: string): string {
-  const date = new Date(iso);
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(
-    date.getHours(),
-  )}:${pad(date.getMinutes())}`;
-}
-
 export function EditTransactionForm({
   transaction,
   accounts,
   categories,
+  timezone = "Asia/Phnom_Penh",
 }: {
   transaction: Transaction;
   accounts: readonly AccountBalance[];
   categories: readonly Category[];
+  timezone?: string;
 }) {
   const router = useRouter();
 
@@ -61,7 +57,7 @@ export function EditTransactionForm({
   );
   const [categoryId, setCategoryId] = useState<string | null>(transaction.categoryId);
   const [notes, setNotes] = useState(transaction.notes ?? "");
-  const [occurredAt, setOccurredAt] = useState(toLocalDateTime(transaction.occurredAt));
+  const [occurredAt, setOccurredAt] = useState(calendarDateTime(new Date(transaction.occurredAt), timezone));
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -79,6 +75,10 @@ export function EditTransactionForm({
     setPending(true);
     setError(null);
 
+    let instant: string;
+    try { instant = calendarDateTimeToInstant(occurredAt, timezone).toISOString(); }
+    catch (cause) { setPending(false); setError(cause instanceof Error ? cause.message : "Choose a valid date and time."); return; }
+
     const result = await withActionFeedback(() => updateTransaction({
       id: transaction.id,
       accountId,
@@ -87,8 +87,7 @@ export function EditTransactionForm({
       currency: transaction.currency,
       categoryId,
       notes: notes.trim() === "" ? null : notes.trim(),
-      // datetime-local has no zone, so it is read as local time and converted here.
-      occurredAt: new Date(occurredAt).toISOString(),
+      occurredAt: instant,
     }), "Could not confirm the save. Check Activity before trying again.");
 
     setPending(false);
@@ -156,59 +155,15 @@ export function EditTransactionForm({
             </p>
           </div>
 
-          <div>
-            <label
-              htmlFor="edit-account"
-              className="text-ink-muted mb-2 block text-sm font-medium"
-            >
-              Account
-            </label>
-            <select
-              id="edit-account"
-              value={accountId}
-              onChange={(event) => setAccountId(event.target.value)}
-              className="border-border-subtle bg-surface rounded-card text-ink min-h-11 w-full border px-3 text-sm"
-            >
-              {sameCurrency.map((account) => (
-                <option key={account.accountId} value={account.accountId}>
-                  {account.name}
-                </option>
-              ))}
-            </select>
-            <p className="text-ink-faint mt-1.5 text-xs">
-              Only {transaction.currency} accounts, since the amount is recorded in{" "}
-              {transaction.currency}.
-            </p>
-          </div>
-
-          <div>
-            <label
-              htmlFor="edit-category"
-              className="text-ink-muted mb-2 block text-sm font-medium"
-            >
-              Category
-            </label>
-            <select
-              id="edit-category"
-              value={categoryId ?? ""}
-              onChange={(event) => setCategoryId(event.target.value || null)}
-              className="border-border-subtle bg-surface rounded-card text-ink min-h-11 w-full border px-3 text-sm"
-            >
-              <option value="">Uncategorised</option>
-              {relevantCategories.map((category) => (
-                <option key={category.id} value={category.id}>
-                  {category.name}
-                </option>
-              ))}
-            </select>
-          </div>
+          <AccountPicker accounts={sameCurrency} selectedId={accountId} onSelect={(account) => setAccountId(account.accountId)} />
+          <CategoryPicker categories={relevantCategories} selectedId={categoryId} onSelect={setCategoryId} />
 
           <div>
             <label
               htmlFor="edit-when"
               className="text-ink-muted mb-2 block text-sm font-medium"
             >
-              When
+              Date and time
             </label>
             <input
               id="edit-when"

@@ -15,8 +15,10 @@ import { exchangeRate } from "@/lib/money";
  */
 
 const createTransfer = vi.hoisted(() => vi.fn());
+const readEntryRate = vi.hoisted(() => vi.fn());
 
 vi.mock("@/app/actions/transactions", () => ({ createTransfer }));
+vi.mock("@/app/actions/entry-options", () => ({ readEntryRate }));
 
 // The form navigates on nothing, but it lives under a router in the real app.
 vi.mock("next/navigation", () => ({
@@ -72,6 +74,7 @@ const cashUsd = account({
 beforeEach(() => {
   createTransfer.mockReset();
   createTransfer.mockResolvedValue({ ok: true, data: { transferGroupId: "g1" } });
+  readEntryRate.mockReset().mockResolvedValue({ ok: true, data: rate });
 });
 
 /** Type an amount on the custom keypad, which has no text input. */
@@ -189,6 +192,21 @@ describe("warnings", () => {
 });
 
 describe("saving", () => {
+  it("updates the conversion preview to the chosen date's rate before allowing a dated transfer", async () => {
+    const historical = exchangeRate(4000, "USD", "KHR", new Date("2026-10-10"));
+    let finish!: (value: { ok: true; data: typeof historical }) => void;
+    readEntryRate.mockReturnValue(new Promise((resolve) => { finish = resolve; }));
+    const user = userEvent.setup();
+    render(<TransferForm accounts={[usd, khr]} rate={rate} initialDate="2026-10-11" />);
+    await typeAmount(user, "100");
+    await user.click(screen.getByRole("button", { name: "Yesterday" }));
+    expect(screen.getByRole("button", { name: "Exchange and transfer" })).toBeDisabled();
+    const { act } = await import("@testing-library/react");
+    await act(async () => finish({ ok: true, data: historical }));
+    expect(screen.getByText("400,000៛")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Exchange and transfer" }));
+    expect(createTransfer).toHaveBeenCalledWith(expect.objectContaining({ occurredAt: "2026-10-10T05:00:00.000Z" }));
+  });
   it("cannot save a zero amount", () => {
     render(<TransferForm accounts={[usd, khr]} rate={rate} />);
 

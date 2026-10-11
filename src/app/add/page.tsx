@@ -3,7 +3,8 @@ import { Card, CardBody } from "@/components/ui/card";
 import { buttonVariants } from "@/components/ui/button";
 import { isDemoMode } from "@/lib/auth";
 import { listActiveAccountBalances } from "@/lib/data/accounts";
-import { listCategories } from "@/lib/data/reference";
+import { calendarDate, validTimezone } from "@/lib/calendar";
+import { getProfile, listCategories } from "@/lib/data/reference";
 import { loadUsdKhrRate } from "@/lib/rates/repository";
 import { AppLink as Link } from "@/components/app-link";
 
@@ -20,10 +21,11 @@ import { AppLink as Link } from "@/components/app-link";
 export default async function AddTransactionPage({ searchParams }: { searchParams: Promise<{ type?: string }> }) {
   const { type } = await searchParams;
   const initialMode = type === "income" || type === "transfer" ? type : "expense";
-  const [accounts, categories, { rate }] = await Promise.all([
+  const [accounts, categories, { rate }, profile] = await Promise.all([
     listActiveAccountBalances(),
     listCategories(),
     loadUsdKhrRate(),
+    getProfile(),
   ]);
 
   if (accounts.length === 0) {
@@ -54,6 +56,8 @@ export default async function AddTransactionPage({ searchParams }: { searchParam
         categories={categories}
         rate={rate}
         readOnly={isDemoMode()}
+        timezone={validTimezone(profile?.timezone)}
+        initialDate={calendarDate(new Date(), validTimezone(profile?.timezone))}
       />
     </div>
   );

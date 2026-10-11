@@ -1,17 +1,18 @@
 import type { createAdminClient } from "@/lib/supabase/admin";
 import { fallbackSnapshot, STALE_AFTER_DAYS, toExchangeRate, type RateSnapshot } from "@/lib/rates/repository";
-import { cambodiaDate } from "@/lib/period";
+import { calendarDate } from "@/lib/calendar";
 
 /** The cookie-based reader cannot see a chat user's manual override. */
 export async function loadBotRate(
   admin: ReturnType<typeof createAdminClient>,
   userId: string,
   now = new Date(),
+  timezone = "Asia/Phnom_Penh",
 ): Promise<RateSnapshot> {
   const query = () => admin.from("exchange_rates")
     .select("rate, base_currency, quote_currency, as_of, source, user_id")
     .eq("base_currency", "USD").eq("quote_currency", "KHR")
-    .lte("as_of", cambodiaDate(now))
+    .lte("as_of", calendarDate(now, timezone))
     .order("as_of", { ascending: false }).limit(1);
   const [global, own] = await Promise.all([
     query().is("user_id", null),

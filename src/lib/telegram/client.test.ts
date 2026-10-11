@@ -21,7 +21,9 @@ test("all advertised buttons lead to supported actions and the home menu stays c
 test("large wallet lists expose two shortcuts and the complete selector without a tall entry menu", () => {
   const wallets = Array.from({ length: 10 }, (_, index) => ({ accountId: String(index), name: `Wallet ${index}`, currency: "USD", isActive: index !== 1 }));
   const keyboard = entryKeyboard({ type: "income", currency: "USD", accountId: "0" }, wallets);
-  expect(keyboard).toHaveLength(4);
+  expect(keyboard).toHaveLength(5);
+  expect(keyboard.flat()).toContain("Choose date");
+  expect(keyboard.flat()).toContain("Choose category");
   expect(keyboard.flat().filter((label) => label.startsWith("Use "))).toHaveLength(2);
   expect(keyboard.flat()).toContain("Choose account");
   expect(keyboard.flat()).not.toContain("Use Wallet 1 (USD)");

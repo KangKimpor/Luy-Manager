@@ -1,3 +1,4 @@
+import { isCalendarDate } from "@/lib/calendar";
 import { parseAmount, type CurrencyCode, type Money } from "@/lib/money";
 
 /**
@@ -77,6 +78,8 @@ export interface EntryMode {
   accountId?: string;
   /** A displayed default may follow an explicit currency; a chosen wallet must stay fixed. */
   autoAccount?: boolean;
+  date?: string;
+  categoryId?: string | null;
 }
 
 export interface RecordIntent {
@@ -89,6 +92,9 @@ export interface RecordIntent {
   accountHint?: string;
   /** Frozen only when offering a confirmation, never accepted from message text. */
   resolvedAccountId?: string;
+  resolvedCategoryId?: string | null;
+  date?: string;
+  occurredAt?: string;
   confidence: number;
 }
 
@@ -101,6 +107,8 @@ export interface TransferIntent {
   receivedAmount?: Money;
   resolvedFromId?: string;
   resolvedToId?: string;
+  date?: string;
+  occurredAt?: string;
   confidence: number;
 }
 
@@ -111,7 +119,11 @@ export type TelegramIntent =
   | { kind: "start-entry"; type: EntryMode["type"]; confidence: number }
   | { kind: "more"; confidence: number }
   | { kind: "back"; confidence: number }
-  | { kind: "choose-account"; confidence: number }
+  | { kind: "choose-account"; query?: string; currency?: CurrencyCode; confidence: number }
+  | { kind: "choose-category"; query?: string; group?: string; confidence: number }
+  | { kind: "select-category"; name: string; confidence: number }
+  | { kind: "choose-date"; confidence: number }
+  | { kind: "set-date"; date: string; confidence: number }
   | { kind: "select-account"; name: string; currency: CurrencyCode; confidence: number }
   | { kind: "undo"; confidence: number }
   /** Answers to a confirmation the bot asked for. See needsConfirmation. */
@@ -247,7 +259,10 @@ function describeRemainder(text: string, consumed: string, verb: RegExp): string
  * which is what makes this exhaustively testable.
  */
 export function parseMessage(input: string, mode?: EntryMode | null): TelegramIntent {
-  const text = input.trim().replace(/\s+/g, " ").replace(
+  const dated = input.trim().match(/^(.*?)\s+on\s+(today|yesterday|\d{4}-\d{2}-\d{2})$/i);
+  const date = dated?.[2].toLowerCase();
+  if (date && !["today", "yesterday"].includes(date) && !isCalendarDate(date)) return { kind: "unknown", text: input, confidence: 1 };
+  const text = (dated?.[1] ?? input).trim().replace(/\s+/g, " ").replace(
     /^\/(e|i)(?:@\w+)?\b/i,
     (_, command: string) => command.toLowerCase() === "e" ? "expense" : "income",
   ).replace(
@@ -260,6 +275,22 @@ export function parseMessage(input: string, mode?: EntryMode | null): TelegramIn
   if (text === "") return { kind: "unknown", text: "", confidence: 1 };
 
   const lower = text.toLowerCase();
+
+  if (/^(choose date|change date|date)$/.test(lower)) return { kind: "choose-date", confidence: 1 };
+  const dateChoice = lower.match(/^date (today|yesterday|\d{4}-\d{2}-\d{2})$/);
+  if (dateChoice) return ["today", "yesterday"].includes(dateChoice[1]) || isCalendarDate(dateChoice[1])
+    ? { kind: "set-date", date: dateChoice[1], confidence: 1 } : { kind: "unknown", text, confidence: 1 };
+  if (/^(choose category|all categories)$/.test(lower)) return { kind: "choose-category", confidence: 1 };
+  const categoryGroup = text.match(/^Categories (.+)$/i);
+  if (categoryGroup) return { kind: "choose-category", group: categoryGroup[1], confidence: 1 };
+  const categorySearch = text.match(/^Find category(?: (.+))?$/i);
+  if (categorySearch) return { kind: "choose-category", query: categorySearch[1] ?? "", confidence: 1 };
+  const categoryChoice = text.match(/^Category (.+)$/i);
+  if (categoryChoice) return { kind: "select-category", name: categoryChoice[1], confidence: 1 };
+  const accountSearch = text.match(/^Find account(?: (.+))?$/i);
+  if (accountSearch) return { kind: "choose-account", query: accountSearch[1] ?? "", confidence: 1 };
+  const accountCurrency = lower.match(/^accounts (usd|khr)$/);
+  if (accountCurrency) return { kind: "choose-account", currency: accountCurrency[1].toUpperCase() as CurrencyCode, confidence: 1 };
 
   const entry = lower.match(/^(expense|income) (usd|khr)$/);
   if (/^(expense|income)$/.test(lower)) return { kind: "start-entry", type: lower as EntryMode["type"], confidence: 1 };
@@ -355,7 +386,7 @@ export function parseMessage(input: string, mode?: EntryMode | null): TelegramIn
     let confidence = 1;
     if (found.inferredUnit) confidence -= PENALTY_UNIT_GUESS;
 
-    return { kind: "transfer", amount: found.amount, fromHint, toHint, ...(received ? { receivedAmount: received.amount } : {}), confidence };
+    return { kind: "transfer", amount: found.amount, fromHint, toHint, ...(received ? { receivedAmount: received.amount } : {}), ...(date ? { date } : {}), confidence };
   }
 
   const accountMatch = text.match(/\s+(?:from|using|in)\s+(.+)$/i);
@@ -412,6 +443,7 @@ export function parseMessage(input: string, mode?: EntryMode | null): TelegramIn
     type,
     amount: found.amount,
     descriptor,
+    ...(date ? { date } : {}),
     ...(accountMatch ? { accountHint: accountMatch[1].trim().toLowerCase() } : {}),
     // Clamp so a pile of penalties cannot go negative and read as certainty.
     confidence: Math.max(0, confidence),

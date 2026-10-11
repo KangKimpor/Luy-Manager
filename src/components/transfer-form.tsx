@@ -11,6 +11,10 @@ import {
   pressAmountKey,
   truncateForCurrency,
 } from "@/components/amount-keypad";
+import { AccountPicker } from "@/components/account-picker";
+import { TransactionDateField } from "@/components/transaction-date-field";
+import { useEntryDate } from "@/components/use-entry-date";
+import { calendarDate, isCalendarDate, transactionDate } from "@/lib/calendar";
 import { CurrencyBadge, MoneyAmount } from "@/components/money-amount";
 import { Button } from "@/components/ui/button";
 import { Card, CardBody } from "@/components/ui/card";
@@ -29,7 +33,6 @@ import {
   formatMoney,
   parseAmount,
 } from "@/lib/money";
-import { cn } from "@/lib/utils";
 
 /**
  * Moving money between accounts, including across currencies.
@@ -58,13 +61,18 @@ interface TransferFormProps {
   rate?: ExchangeRate;
   /** Demo mode cannot persist, so the form says so rather than failing on submit. */
   readOnly?: boolean;
+  timezone?: string;
+  initialDate?: string;
 }
 
 export function TransferForm({
   accounts,
-  rate = DEFAULT_RATE,
+  rate: initialRate = DEFAULT_RATE,
   readOnly = false,
+  timezone = "Asia/Phnom_Penh",
+  initialDate = calendarDate(new Date(), timezone),
 }: TransferFormProps) {
+  const { date, selectDate, rate, ratePending, dateError } = useEntryDate(initialDate, initialRate, readOnly);
   const [fromId, setFromId] = useState(accounts[0]?.accountId ?? "");
   const [toId, setToId] = useState(
     // Default to the first account in a different currency, since exchanging is
@@ -132,7 +140,7 @@ export function TransferForm({
   }, [from, to, amount, receivedRaw, note, rate]);
 
   const issues = useMemo(() => (plan ? transferIssues(plan) : []), [plan]);
-  const canSave = plan !== null && error === null && !readOnly;
+  const canSave = plan !== null && error === null && !readOnly && isCalendarDate(date) && !ratePending && !dateError;
 
   function press(key: KeypadKey) {
     setSaved(null);
@@ -190,6 +198,7 @@ export function TransferForm({
         amount: raw.trim(),
         receivedAmount: receivedRaw.trim() === "" ? undefined : receivedRaw.trim(),
         notes: note.trim() === "" ? null : note.trim(),
+        occurredAt: transactionDate(date, timezone).toISOString(),
       });
 
       if (!result.ok) {
@@ -201,6 +210,7 @@ export function TransferForm({
       setRaw("");
       setReceivedRaw("");
       setNote("");
+      void selectDate(calendarDate(new Date(), timezone));
     } catch {
       setSaveError("Could not confirm the transfer. Check Activity before trying again.");
     } finally {
@@ -305,6 +315,10 @@ export function TransferForm({
         </Card>
       ) : null}
 
+      <TransactionDateField value={date} today={initialDate} onChange={(next) => { setSaved(null); void selectDate(next); }} />
+      {ratePending ? <p role="status" className="text-ink-faint text-xs">Updating the rate for this date...</p> : null}
+      {dateError ? <p role="alert" className="text-outflow text-sm">{dateError}</p> : null}
+
       <AmountKeypad currency={sentCurrency} onPress={press} />
 
       {/* Accounts. Two pickers plus a swap, because reversing a transfer is a
@@ -317,7 +331,6 @@ export function TransferForm({
         <AccountPicker
           accounts={accounts}
           selectedId={fromId}
-          otherId={toId}
           onSelect={selectFrom}
         />
       </fieldset>
@@ -341,7 +354,6 @@ export function TransferForm({
         <AccountPicker
           accounts={accounts}
           selectedId={toId}
-          otherId={fromId}
           onSelect={selectTo}
         />
       </fieldset>
@@ -450,46 +462,4 @@ function formatRate(plan: TransferPlan): string {
   // formatter drop the fraction avoids a rounding call on a value that only ever
   // reaches the screen. Whole riel per dollar is how the rate is quoted locally.
   return `${khrPerUsd.toLocaleString("en-US", { maximumFractionDigits: 0 })}៛ per $1`;
-}
-
-function AccountPicker({
-  accounts,
-  selectedId,
-  otherId,
-  onSelect,
-}: {
-  accounts: readonly AccountBalance[];
-  selectedId: string;
-  otherId: string;
-  onSelect: (account: AccountBalance) => void;
-}) {
-  return (
-    <div className="flex flex-wrap gap-2">
-      {accounts.map((account) => {
-        const isSelected = account.accountId === selectedId;
-        const isOtherSide = account.accountId === otherId;
-
-        return (
-          <button
-            key={account.accountId}
-            type="button"
-            aria-pressed={isSelected}
-            onClick={() => onSelect(account)}
-            className={cn(
-              "rounded-pill flex min-h-11 items-center gap-1.5 border px-3 text-xs font-medium transition-colors",
-              isSelected
-                ? "border-brand bg-brand-soft text-brand"
-                : "border-border-subtle bg-surface text-ink-muted",
-              // Marked, not disabled: tapping it swaps the two sides, which is
-              // more useful than refusing the tap.
-              isOtherSide && !isSelected && "opacity-40",
-            )}
-          >
-            {account.name}
-            <CurrencyBadge currency={account.currency} />
-          </button>
-        );
-      })}
-    </div>
-  );
 }
