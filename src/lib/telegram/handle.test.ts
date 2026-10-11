@@ -162,6 +162,22 @@ beforeEach(() => {
 });
 
 describe("retry-safe Telegram ledger writes", () => {
+  test("one-tap Yesterday uses the profile day and a date on one message does not change subsequent entries", async () => {
+    vi.useFakeTimers(); vi.setSystemTime(new Date("2026-10-10T20:00:00Z"));
+    await handleUpdate(update(1, "Expense KHR"));
+    expect(mocks.sent.mock.calls.at(-1)?.[2]?.flat()).toContain("Date yesterday");
+    await handleUpdate(update(2, "Date yesterday"));
+    expect(mocks.sent.mock.calls.at(-1)?.[2]?.flat()).toContain("Date today");
+    await handleUpdate(update(3, "6000 coffee"));
+    await handleUpdate(update(4, "-1000r lunch 2026-10-08"));
+    await handleUpdate(update(5, "1000 coffee"));
+    expect(db.tables.transactions.map((row) => row.occurred_at)).toEqual([
+      "2026-10-10T05:00:00.000Z", "2026-10-08T05:00:00.000Z", "2026-10-10T05:00:00.000Z",
+    ]);
+    expect(db.tables.transactions[0]).toMatchObject({ amount: -6000, currency: "KHR", notes: "coffee" });
+    expect(db.unsafeQueries).toEqual([]);
+  });
+
   test("date and category selections save the chosen day and historical rate, then Today clears the date", async () => {
     db.tables.exchange_rates.push({ rate: "4000", base_currency: "USD", quote_currency: "KHR", as_of: "2026-10-08", source: "manual", user_id: USER });
     await handleUpdate(update(1, "Expense KHR"));

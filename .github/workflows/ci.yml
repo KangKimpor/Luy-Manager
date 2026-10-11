@@ -169,3 +169,9 @@ jobs:
             raise notice 'Every policy evaluates auth.uid() once per statement.';
           end $$;
           SQL
+
+      - name: Check signup starter wallets
+        env:
+          PGPASSWORD: postgres
+        run: |
+          psql -h localhost -U postgres -d luy -v ON_ERROR_STOP=1 -q -f supabase/tests/aba_starter_accounts.sql

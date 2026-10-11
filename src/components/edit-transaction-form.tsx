@@ -6,7 +6,7 @@ import { useState } from "react";
 
 import { AccountPicker } from "@/components/account-picker";
 import { CategoryPicker } from "@/components/category-picker";
-import { calendarDateTime, calendarDateTimeToInstant } from "@/lib/calendar";
+import { calendarDate, isCalendarDate, transactionDate } from "@/lib/calendar";
 import { CurrencyBadge } from "@/components/money-amount";
 import { Button } from "@/components/ui/button";
 import { Card, CardBody } from "@/components/ui/card";
@@ -57,7 +57,8 @@ export function EditTransactionForm({
   );
   const [categoryId, setCategoryId] = useState<string | null>(transaction.categoryId);
   const [notes, setNotes] = useState(transaction.notes ?? "");
-  const [occurredAt, setOccurredAt] = useState(calendarDateTime(new Date(transaction.occurredAt), timezone));
+  const initialDate = calendarDate(new Date(transaction.occurredAt), timezone);
+  const [date, setDate] = useState(initialDate);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -76,8 +77,10 @@ export function EditTransactionForm({
     setError(null);
 
     let instant: string;
-    try { instant = calendarDateTimeToInstant(occurredAt, timezone).toISOString(); }
-    catch (cause) { setPending(false); setError(cause instanceof Error ? cause.message : "Choose a valid date and time."); return; }
+    try {
+      if (!isCalendarDate(date)) throw new Error("Choose a valid date.");
+      instant = date === initialDate ? transaction.occurredAt : transactionDate(date, timezone).toISOString();
+    } catch (cause) { setPending(false); setError(cause instanceof Error ? cause.message : "Choose a valid date."); return; }
 
     const result = await withActionFeedback(() => updateTransaction({
       id: transaction.id,
@@ -163,13 +166,14 @@ export function EditTransactionForm({
               htmlFor="edit-when"
               className="text-ink-muted mb-2 block text-sm font-medium"
             >
-              Date and time
+              Date
             </label>
             <input
               id="edit-when"
-              type="datetime-local"
-              value={occurredAt}
-              onChange={(event) => setOccurredAt(event.target.value)}
+              type="date"
+              required
+              value={date}
+              onChange={(event) => setDate(event.target.value)}
               className="border-border-subtle bg-surface rounded-card text-ink min-h-11 w-full border px-3 text-sm"
             />
           </div>

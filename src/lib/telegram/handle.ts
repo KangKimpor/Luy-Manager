@@ -201,6 +201,7 @@ interface UserContext {
   categories: Category[];
   timezone: string;
   rate: RateSnapshot;
+  rateDate: string | null;
   report: { transactions: Transaction[]; budgets: Budget[]; now: Date };
 }
 
@@ -237,6 +238,12 @@ async function loadReport(admin: Admin, profile: LinkedProfile, intent: Telegram
 async function loadContext(admin: Admin, profile: LinkedProfile, intent: TelegramIntent, mayChangeCurrency = false, now = new Date()): Promise<UserContext> {
   const { kind } = intent;
   const userId = profile.id;
+  const timezone = validTimezone(profile.timezone);
+  const requestedDate = (intent.kind === "record" || intent.kind === "transfer") ? intent.date : undefined;
+  const rateDate = requestedDate === "today" ? calendarDate(now, timezone)
+    : requestedDate === "yesterday" ? shiftCalendarDate(calendarDate(now, timezone), -1) : requestedDate;
+  const rateAt = (intent.kind === "record" || intent.kind === "transfer") && intent.occurredAt
+    ? new Date(intent.occurredAt) : rateDate ? transactionDate(rateDate, timezone, now) : now;
   const writing = kind === "record" || kind === "transfer";
   const needsBalances = kind === "accounts" || kind === "transfer";
   const needsAccounts = writing || needsBalances || kind === "recent" || kind === "entry" || kind === "start-entry" || kind === "back" || kind === "discard" || kind === "choose-account" || kind === "select-account" || kind === "choose-date" || kind === "set-date" || kind === "choose-category" || kind === "select-category";
@@ -271,7 +278,7 @@ async function loadContext(admin: Admin, profile: LinkedProfile, intent: Telegra
       .select(CATEGORY_COLUMNS)
       .eq("user_id", userId)
       .is("deleted_at", null) : { data: [], error: null },
-    needsRate ? loadBotRate(admin, userId, (intent.kind === "record" || intent.kind === "transfer") && intent.occurredAt ? new Date(intent.occurredAt) : now, profile.timezone ?? "Asia/Phnom_Penh") : fallbackSnapshot(),
+    needsRate ? loadBotRate(admin, userId, rateAt, timezone) : fallbackSnapshot(),
     loadReport(admin, profile, intent, now),
   ]);
 
@@ -294,8 +301,9 @@ async function loadContext(admin: Admin, profile: LinkedProfile, intent: Telegra
     accounts: wallets,
     balances,
     categories: mapRows(asRows(categories.data), toCategory, "categories"),
-    timezone: validTimezone(profile.timezone),
+    timezone,
     rate,
+    rateDate: needsRate ? calendarDate(rateAt, timezone) : null,
     report,
   };
 }
@@ -583,7 +591,7 @@ function accountKeyboard(accounts: readonly BotAccount[], currency?: CurrencyCod
 function entryPrompt(mode: EntryMode, account: BotAccount): string {
   const example = mode.currency === "KHR" ? mode.type === "income" ? "60000 salary" : "6000 coffee"
     : mode.type === "income" ? "600 salary" : "5 coffee";
-  return `<b>${mode.type === "income" ? "Income" : "Expense"} · ${escapeHtml(account.name)} · ${mode.currency}</b>\nSend <code>${example}</code>. Keep sending amounts for this wallet for 10 minutes.\nTap a wallet button to switch. Cancel ends quick entry.${mode.date ? `\nDate: <b>${mode.date}</b>. Choose date changes it.` : ""}${mode.categoryId ? "\nYour selected category applies to the next entries." : ""}`;
+  return `<b>${mode.type === "income" ? "Income" : "Expense"} · ${escapeHtml(account.name)} · ${mode.currency}</b>\nDate: <b>${mode.date ?? "Today"}</b>. Send <code>${example}</code>.\nAdd <code>yesterday</code> or a date like <code>2026-10-10</code> to that same message to use another day.\nKeep sending amounts for this wallet for 10 minutes. Cancel ends quick entry.${mode.categoryId ? "\nYour selected category applies to the next entries." : ""}`;
 }
 
 function recentTransactions(context: UserContext): string {
@@ -1004,7 +1012,8 @@ export async function handleUpdate(update: unknown, deliver: ReplySender = sendM
     }
 
     if (intent.kind === "choose-date") {
-      await respond(admin, inbound.chatId, userId, `<b>Transaction date</b>\nCurrent: ${mode?.date ?? "Today"}\nChoose a shortcut, or send <code>Date 2026-10-10</code>. You can also add <code>on 2026-10-10</code> to any expense, income, refund or transfer message.`, [["Date today", "Date yesterday"], ["Back", "Cancel"]]);
+      const example = shiftCalendarDate(calendarDate(new Date(), context.timezone), -1);
+      await respond(admin, inbound.chatId, userId, `<b>Transaction date</b>\nCurrent: ${mode?.date ?? "Today"}\nToday is automatic. Tap Yesterday, or send a date like <code>${example}</code> for your next entries.\nFor just one entry, send <code>-6000r coffee yesterday</code> or <code>-$5 coffee ${example}</code>. No time needed.`, [["Date today", "Date yesterday"], ["Back", "Cancel"]]);
       return;
     }
 
@@ -1096,8 +1105,9 @@ export async function handleUpdate(update: unknown, deliver: ReplySender = sendM
         const date = requestedDate === "today" ? today : requestedDate === "yesterday" ? shiftCalendarDate(today, -1) : requestedDate;
         intent = { ...intent, date, occurredAt: transactionDate(date, context.timezone).toISOString() };
         // Resolve historical rates only after reading the selected entry date.
-        if (intent.kind === "transfer" || intent.amount.currency !== context.baseCurrency) {
+        if ((intent.kind === "transfer" || intent.amount.currency !== context.baseCurrency) && context.rateDate !== date) {
           context.rate = await loadBotRate(admin, userId, new Date(intent.occurredAt!), context.timezone);
+          context.rateDate = date;
         }
       }
       if (intent.kind === "record" && mode?.categoryId !== undefined && mode.type === intent.type) intent = { ...intent, resolvedCategoryId: mode.categoryId };

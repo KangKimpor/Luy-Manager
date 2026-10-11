@@ -16,6 +16,27 @@ function record(text: string) {
   return intent;
 }
 
+test("one message can include a date without menus or weakening confirmation rules", () => {
+  for (const suffix of ["yesterday", "today", "2026-10-10", "on 2026-10-10"]) {
+    const intent = parseMessage(`-6000r coffee ${suffix}`);
+    expect(intent).toMatchObject({ kind: "record", descriptor: "coffee", date: suffix.replace("on ", ""), amount: { minor: 6000, currency: "KHR" } });
+    expect(needsConfirmation(intent)).toBe(false);
+  }
+  expect(parseMessage("+$50 salary yesterday")).toMatchObject({ kind: "record", type: "income", date: "yesterday" });
+  expect(parseMessage("Refund $5 lunch 2026-10-10")).toMatchObject({ kind: "record", type: "refund", date: "2026-10-10" });
+  expect(parseMessage("Transfer $10 ABA to Cash received 40000r yesterday")).toMatchObject({ kind: "transfer", date: "yesterday" });
+  expect(needsConfirmation(parseMessage("5 coffee yesterday"))).toBe(true);
+  expect(parseMessage("-6000r coffee 2026-02-30").kind).toBe("unknown");
+});
+
+test("standalone dates are selectors and category or account names keep date-like words", () => {
+  expect(parseMessage("2026-10-10")).toMatchObject({ kind: "set-date", date: "2026-10-10" });
+  expect(parseMessage("yesterday")).toMatchObject({ kind: "set-date", date: "yesterday" });
+  expect(parseMessage("2026-02-30").kind).toBe("unknown");
+  expect(parseMessage("Category Yesterday")).toMatchObject({ kind: "select-category", name: "Yesterday" });
+  expect(parseMessage("Find account ABA 2026-10-10")).toMatchObject({ kind: "choose-account", query: "ABA 2026-10-10" });
+});
+
 test("fast shortcuts keep explicit direction and still confirm an unstated currency", () => {
   for (const text of ["-$5 coffee", "/e $5 coffee", "-6000r coffee"]) {
     const intent = parseMessage(text);

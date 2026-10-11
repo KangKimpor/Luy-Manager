@@ -24,9 +24,16 @@ test("large wallet lists expose two shortcuts and the complete selector without 
   expect(keyboard).toHaveLength(5);
   expect(keyboard.flat()).toContain("Choose date");
   expect(keyboard.flat()).toContain("Choose category");
+  expect(keyboard.flat()).toContain("Date yesterday");
   expect(keyboard.flat().filter((label) => label.startsWith("Use "))).toHaveLength(2);
   expect(keyboard.flat()).toContain("Choose account");
   expect(keyboard.flat()).not.toContain("Use Wallet 1 (USD)");
+});
+
+test("a chosen past date has a one-tap Today reset in the entry keyboard", () => {
+  const keyboard = entryKeyboard({ type: "expense", currency: "KHR", date: "2026-10-10" });
+  expect(keyboard.flat()).toContain("Date today");
+  for (const label of keyboard.flat()) expect(parseMessage(label).kind).not.toBe("unknown");
 });
 
 afterEach(() => { vi.unstubAllGlobals(); vi.unstubAllEnvs(); });

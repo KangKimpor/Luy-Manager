@@ -259,10 +259,7 @@ function describeRemainder(text: string, consumed: string, verb: RegExp): string
  * which is what makes this exhaustively testable.
  */
 export function parseMessage(input: string, mode?: EntryMode | null): TelegramIntent {
-  const dated = input.trim().match(/^(.*?)\s+on\s+(today|yesterday|\d{4}-\d{2}-\d{2})$/i);
-  const date = dated?.[2].toLowerCase();
-  if (date && !["today", "yesterday"].includes(date) && !isCalendarDate(date)) return { kind: "unknown", text: input, confidence: 1 };
-  const text = (dated?.[1] ?? input).trim().replace(/\s+/g, " ").replace(
+  let text = input.trim().replace(/\s+/g, " ").replace(
     /^\/(e|i)(?:@\w+)?\b/i,
     (_, command: string) => command.toLowerCase() === "e" ? "expense" : "income",
   ).replace(
@@ -277,7 +274,7 @@ export function parseMessage(input: string, mode?: EntryMode | null): TelegramIn
   const lower = text.toLowerCase();
 
   if (/^(choose date|change date|date)$/.test(lower)) return { kind: "choose-date", confidence: 1 };
-  const dateChoice = lower.match(/^date (today|yesterday|\d{4}-\d{2}-\d{2})$/);
+  const dateChoice = lower.match(/^(?:date )?(today|yesterday|\d{4}-\d{2}-\d{2})$/);
   if (dateChoice) return ["today", "yesterday"].includes(dateChoice[1]) || isCalendarDate(dateChoice[1])
     ? { kind: "set-date", date: dateChoice[1], confidence: 1 } : { kind: "unknown", text, confidence: 1 };
   if (/^(choose category|all categories)$/.test(lower)) return { kind: "choose-category", confidence: 1 };
@@ -345,6 +342,13 @@ export function parseMessage(input: string, mode?: EntryMode | null): TelegramIn
     const window = summary[2] && /month/.test(summary[2]) ? "month" : "today";
     return { kind: "summary", window, confidence: 1 };
   }
+
+  // Controls and wallet/category names keep their full text. Only money entries
+  // consume a trailing date, so no extra menu or confirmation is needed for it.
+  const dated = text.match(/^(.*?)\s+(?:on\s+)?(today|yesterday|\d{4}-\d{2}-\d{2})$/i);
+  const date = dated?.[2].toLowerCase();
+  if (date && !["today", "yesterday"].includes(date) && !isCalendarDate(date)) return { kind: "unknown", text: input, confidence: 1 };
+  if (dated) text = dated[1];
 
   /*
    * "Transfer $100 ABA to Wing"

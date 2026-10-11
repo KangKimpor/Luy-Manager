@@ -59,8 +59,9 @@ export function entryKeyboard(mode: EntryMode, wallets: readonly { accountId: st
   return [
     [mode.type === "expense" ? "Income" : "Expense", `${mode.type === "expense" ? "Expense" : "Income"} ${mode.currency === "USD" ? "KHR" : "USD"}`],
     ...(shortcuts.length ? [shortcuts] : []),
-    ["Choose category", "Choose date"],
-    ...(others.length > 2 ? [["Choose account", "Undo"], ["More", "Cancel"]] : [["Undo", "More"], ["Cancel"]]),
+    ["Choose category", mode.date ? "Date today" : "Date yesterday"],
+    ["Choose date", others.length > 2 ? "Choose account" : "Undo"],
+    [...(others.length > 2 ? ["Undo"] : []), "More", "Cancel"],
   ];
 }
 
@@ -74,7 +75,7 @@ export function messagePayload(chatId: number, text: string, keyboard: ReplyKeyb
       keyboard: keyboard.map((row) => row.map((label) => ({ text: label }))),
       resize_keyboard: true,
       is_persistent: true,
-      input_field_placeholder: keyboard === MAIN_KEYBOARD ? "-$5 coffee or +$600 salary" : "Type an amount and description",
+      input_field_placeholder: keyboard === MAIN_KEYBOARD ? "-$5 coffee or +$600 salary" : "Amount and note; date is optional",
     },
   };
 }
