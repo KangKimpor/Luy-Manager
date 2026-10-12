@@ -88,7 +88,7 @@ export function LoginForm({
   if (sent) {
     return (
       <Card>
-        <CardBody className="space-y-2 text-center">
+        <CardBody role="status" className="feedback-enter space-y-2 text-center">
           <Mail size={24} className="text-brand mx-auto" aria-hidden="true" />
           <p className="text-ink text-sm font-semibold">Check your email</p>
           <p className="text-ink-muted text-sm">
@@ -113,6 +113,7 @@ export function LoginForm({
         <Button
           size="full"
           variant="secondary"
+          loading={pending === "google"}
           onClick={signInWithGoogle}
           disabled={pending !== null}
         >
@@ -148,15 +149,16 @@ export function LoginForm({
           <Button
             size="full"
             type="submit"
+            loading={pending === "email"}
             disabled={pending !== null || email.trim() === ""}
           >
-            <Mail size={16} aria-hidden="true" />
+            {pending !== "email" ? <Mail size={16} aria-hidden="true" /> : null}
             {pending === "email" ? "Sending…" : "Email me a link"}
           </Button>
         </form>
 
         {error ? (
-          <p role="alert" className="text-outflow flex items-start gap-1.5 text-sm">
+          <p role="alert" className="feedback-enter text-outflow flex items-start gap-1.5 text-sm">
             <TriangleAlert size={15} className="mt-0.5 shrink-0" aria-hidden="true" />
             {error}
           </p>

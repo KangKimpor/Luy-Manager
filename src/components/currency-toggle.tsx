@@ -48,10 +48,11 @@ export function CurrencyToggle({
     <div
       role="group"
       aria-label="Show totals in"
+      aria-busy={isPending}
       // Dimmed while in flight so a slow network reads as "working" rather than
       // as the toggle having been ignored.
       className={cn(
-        "bg-surface-muted rounded-pill inline-flex gap-1 p-1 transition-opacity",
+        "segmented-control bg-surface-muted rounded-pill transition-opacity",
         isPending && "opacity-70",
         className,
       )}
@@ -64,9 +65,9 @@ export function CurrencyToggle({
           disabled={isPending}
           onClick={() => choose(code)}
           className={cn(
-            "rounded-pill min-h-11 px-3 text-xs font-bold transition-[background-color,color,box-shadow] duration-200",
+            "rounded-pill min-h-11 px-3 text-xs font-bold",
             optimistic === code
-              ? "bg-surface text-ink shadow-card"
+              ? "text-ink"
               : "text-ink-muted hover:text-ink",
           )}
         >
@@ -74,7 +75,7 @@ export function CurrencyToggle({
         </button>
       ))}
     </div>
-    {error ? <p role="alert" className="text-outflow text-xs">Could not change currency. Try again.</p> : null}
+    {error ? <p role="alert" className="feedback-enter text-outflow text-xs">Could not change currency. Try again.</p> : null}
     </div>
   );
 }

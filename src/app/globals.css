@@ -234,20 +234,92 @@
 :root {
   --motion-quick: 160ms;
   --motion-enter: 300ms;
+  --motion-panel: 240ms;
   --motion-ease: cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 /* Independent scale and translate let presses respond during an entrance. */
-button {
+button, .app-link, summary {
   transition-property: background-color, color, border-color, box-shadow, transform, scale, opacity;
   transition-duration: var(--motion-quick);
   transition-timing-function: var(--motion-ease);
 }
 button:not(:disabled):active { scale: 0.97; }
+.app-link:active { scale: 0.97; }
+summary:active { opacity: 0.75; }
+.app-link:has(.link-pending[data-pending="true"]) { cursor: progress; }
 .feedback-enter { animation: feedback-in 260ms var(--motion-ease) backwards; }
 .feedback-enter[role="status"] > svg { animation: saved-check 320ms var(--motion-ease); }
 .amount-tick { animation: amount-in 100ms var(--motion-ease); }
 button[aria-pressed="true"] { animation: choice-in 220ms var(--motion-ease); }
+
+/* The highlight moves between choices without remounting either button. */
+.segmented-control {
+  --segment-count: 2;
+  --segment-index: 0;
+  --segment-inset: 0.25rem;
+  --segment-color: var(--color-surface);
+  position: relative;
+  isolation: isolate;
+  display: grid;
+  grid-template-columns: repeat(var(--segment-count), minmax(0, 1fr));
+  padding: var(--segment-inset);
+}
+.segmented-control-three { --segment-count: 3; --segment-inset: 0.375rem; }
+.segmented-control-brand { --segment-color: var(--color-brand); }
+.segmented-control:has(> :nth-child(2)[aria-pressed="true"]) { --segment-index: 1; }
+.segmented-control:has(> :nth-child(3)[aria-pressed="true"]) { --segment-index: 2; }
+.segmented-control::before {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  inset-block: var(--segment-inset);
+  left: var(--segment-inset);
+  width: calc((100% - var(--segment-inset) * 2) / var(--segment-count));
+  border-radius: inherit;
+  background: var(--segment-color);
+  box-shadow: var(--shadow-card);
+  translate: calc(var(--segment-index) * 100%) 0;
+  transition: translate var(--motion-panel) var(--motion-ease);
+  pointer-events: none;
+}
+.segmented-control > button { animation: none; }
+.selection-check { animation: saved-check var(--motion-panel) var(--motion-ease); }
+.selection-label { animation: feedback-in var(--motion-quick) var(--motion-ease); }
+.panel-enter { animation: feedback-in var(--motion-panel) var(--motion-ease) backwards; }
+.row-enter { animation: item-in var(--motion-panel) var(--motion-ease) backwards; }
+/* Animate inserted rows, without compounding the parent panel's entrance. */
+.panel-enter:has(.row-enter) { animation: none; }
+.feedback-enter[role="alert"] > svg { animation: alert-nudge var(--motion-panel) ease-out; }
+fieldset { transition: opacity var(--motion-quick) var(--motion-ease); }
+
+/* A persistent track does not shift compact row actions when a write starts. */
+.row-actions { position: relative; }
+.row-actions::after {
+  content: "";
+  position: absolute;
+  inset-inline: 0.5rem;
+  bottom: 0;
+  height: 2px;
+  border-radius: var(--radius-pill);
+  background: var(--color-brand);
+  opacity: 0;
+  pointer-events: none;
+}
+.row-actions[aria-busy="true"]::after {
+  opacity: 1;
+  animation: working-track 900ms ease-in-out infinite alternate;
+}
+.pending-status { display: flex; align-items: center; gap: 0.5rem; }
+.pending-status[data-pending="true"]::before {
+  content: "";
+  width: 0.5rem;
+  height: 0.5rem;
+  flex-shrink: 0;
+  border-radius: var(--radius-pill);
+  background: currentColor;
+  animation: skeleton-fade 800ms ease-in-out infinite alternate;
+}
 .link-pending { opacity: 0; transition: opacity 100ms ease-out; }
 /* A short wait avoids flashing a loading border on an already warmed route. */
 .link-pending[data-pending="true"] { opacity: 0.45; transition-delay: 120ms; }
@@ -299,13 +371,31 @@ body:has(.login-page) .app-main {
   transition: transform var(--motion-enter) var(--motion-ease), scale var(--motion-quick) var(--motion-ease), box-shadow var(--motion-enter) var(--motion-ease), border-color var(--motion-quick) var(--motion-ease), background-color var(--motion-quick) var(--motion-ease), color var(--motion-quick) var(--motion-ease);
 }
 .card-interactive:active { scale: 0.985; }
-.progress-fill { transform-origin: left; animation: progress-in 380ms var(--motion-ease) backwards; }
+.progress-fill {
+  transform-origin: left;
+  animation: progress-in 380ms var(--motion-ease) backwards;
+  transition: width 380ms var(--motion-ease), background-color var(--motion-quick) var(--motion-ease);
+}
 .nav-icon { transition: background-color 220ms var(--motion-ease); }
+.app-link > svg, .nav-icon > svg { transition: scale var(--motion-quick) var(--motion-ease); }
 [aria-current="page"] .nav-icon { animation: nav-in 320ms var(--motion-ease); }
 .form-enter { animation: item-in 220ms var(--motion-ease) backwards; }
 details[open] > :not(summary):not(.stagger-children):not(:has(.stagger-children)) { animation: item-in 220ms var(--motion-ease) backwards; }
-details summary svg { transition: transform 220ms var(--motion-ease); }
-details[open] summary svg { transform: rotate(180deg); }
+details summary .disclosure-icon { transition: rotate var(--motion-panel) var(--motion-ease); }
+details[open] summary .disclosure-icon { rotate: 180deg; }
+
+/* Native details keeps keyboard and focus behavior, with a fallback above. */
+@supports (interpolate-size: allow-keywords) and selector(details::details-content) {
+  details::details-content {
+    interpolate-size: allow-keywords;
+    block-size: 0;
+    overflow: clip;
+    opacity: 0;
+    transition: block-size var(--motion-panel) var(--motion-ease), opacity var(--motion-quick) ease-out, content-visibility var(--motion-panel) allow-discrete;
+  }
+  details[open]::details-content { block-size: auto; opacity: 1; }
+  details[open] > :not(summary):not(.stagger-children):not(:has(.stagger-children)) { animation: none; }
+}
 .hero-orbit { position: relative; isolation: isolate; overflow: hidden; }
 .hero-orbit::before, .hero-orbit::after {
   content: "";
@@ -324,6 +414,7 @@ details[open] summary svg { transform: rotate(180deg); }
 .skeleton { background: var(--color-surface-container); animation: skeleton-fade 1.6s ease-in-out infinite alternate; }
 @media (hover: hover) and (pointer: fine) {
   .card-interactive:hover { transform: translateY(-2px); box-shadow: 0 10px 28px rgb(20 44 50 / 0.07); border-color: var(--color-border-subtle); }
+  .app-link:hover > svg, .app-link:hover > .nav-icon > svg { scale: 1.08; }
 }
 /* Content stays readable from the first frame while the small movement settles. */
 @keyframes page-in { from { opacity: 0.88; } to { opacity: 1; } }
@@ -336,6 +427,8 @@ details[open] summary svg { transform: rotate(180deg); }
 @keyframes progress-in { from { transform: scaleX(0); } to { transform: scaleX(1); } }
 @keyframes orbit-drift { 50% { transform: translate(-12px, 12px); } }
 @keyframes skeleton-fade { to { opacity: 0.7; } }
+@keyframes working-track { from { transform: scaleX(0.3); } to { transform: scaleX(1); } }
+@keyframes alert-nudge { 35% { translate: -2px 0; } 70% { translate: 2px 0; } }
 
 @media (max-width: 639px) {
   /* Unlayered so text-sm utilities cannot bring Safari's focus zoom back. */

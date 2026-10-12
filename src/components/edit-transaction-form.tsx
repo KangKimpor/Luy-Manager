@@ -197,14 +197,14 @@ export function EditTransactionForm({
       </Card>
 
       {error ? (
-        <p role="alert" className="text-outflow flex items-start gap-1.5 text-sm">
+        <p role="alert" className="feedback-enter text-outflow flex items-start gap-1.5 text-sm">
           <TriangleAlert size={15} className="mt-0.5 shrink-0" aria-hidden="true" />
           {error}
         </p>
       ) : null}
 
-      <Button size="full" type="submit" disabled={pending}>
-        <Check size={18} aria-hidden="true" />
+      <Button loading={pending} size="full" type="submit" disabled={pending}>
+        {!pending ? <Check size={18} aria-hidden="true" /> : null}
         {pending ? "Saving…" : "Save changes"}
       </Button>
     </form>

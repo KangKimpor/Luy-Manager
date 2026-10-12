@@ -317,7 +317,7 @@ export function TransferForm({
 
       <TransactionDateField value={date} today={initialDate} onChange={(next) => { setSaved(null); void selectDate(next); }} />
       {ratePending ? <p role="status" className="text-ink-faint text-xs">Updating the rate for this date...</p> : null}
-      {dateError ? <p role="alert" className="text-outflow text-sm">{dateError}</p> : null}
+      {dateError ? <p role="alert" className="feedback-enter text-outflow text-sm">{dateError}</p> : null}
 
       <AmountKeypad currency={sentCurrency} onPress={press} />
 
@@ -400,13 +400,13 @@ export function TransferForm({
       </div>
 
       {error ? (
-        <p role="alert" className="text-outflow text-sm font-medium">
+        <p role="alert" className="feedback-enter text-outflow text-sm font-medium">
           {error}
         </p>
       ) : null}
 
       {saveError ? (
-        <p role="alert" className="text-outflow flex items-start gap-1.5 text-sm">
+        <p role="alert" className="feedback-enter text-outflow flex items-start gap-1.5 text-sm">
           <TriangleAlert size={15} className="mt-0.5 shrink-0" aria-hidden="true" />
           {saveError}
         </p>
@@ -424,8 +424,8 @@ export function TransferForm({
       ))}
 
       </fieldset>
-      <Button size="full" disabled={!canSave || pending} onClick={handleSave} aria-busy={pending}>
-        <Check size={18} aria-hidden="true" />
+      <Button loading={pending} size="full" disabled={!canSave || pending} onClick={handleSave} aria-busy={pending}>
+        {!pending ? <Check size={18} aria-hidden="true" /> : null}
         {pending
           ? "Saving…"
           : plan?.isCrossCurrency

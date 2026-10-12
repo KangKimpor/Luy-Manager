@@ -1,4 +1,5 @@
 import { cva, type VariantProps } from "class-variance-authority";
+import { LoaderCircle } from "lucide-react";
 import type { ComponentPropsWithoutRef } from "react";
 
 import { cn } from "@/lib/utils";
@@ -29,11 +30,22 @@ const buttonVariants = cva(
 
 export interface ButtonProps
   extends ComponentPropsWithoutRef<"button">,
-    VariantProps<typeof buttonVariants> {}
+    VariantProps<typeof buttonVariants> {
+  loading?: boolean;
+}
 
-export function Button({ className, variant, size, type = "button", ...props }: ButtonProps) {
+export function Button({ className, variant, size, type = "button", loading = false, disabled, children, ...props }: ButtonProps) {
   return (
-    <button type={type} className={cn(buttonVariants({ variant, size }), className)} {...props} />
+    <button
+      {...props}
+      type={type}
+      disabled={disabled || loading}
+      aria-busy={loading || props["aria-busy"]}
+      className={cn(buttonVariants({ variant, size }), className)}
+    >
+      {loading ? <LoaderCircle size={18} className="animate-spin shrink-0" aria-hidden="true" /> : null}
+      {children}
+    </button>
   );
 }
 

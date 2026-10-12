@@ -52,7 +52,7 @@ export function TransactionRowActions({
   }
 
   return (
-    <div className={pending ? "flex shrink-0 items-center gap-0.5 opacity-50" : "flex shrink-0 items-center gap-0.5"}>
+    <div aria-busy={pending} className="row-actions flex shrink-0 items-center gap-0.5">
       {deleted ? (
         <button
           type="button"
@@ -85,7 +85,7 @@ export function TransactionRowActions({
           </button>
         </>
       )}
-      {error ? <span role="alert" className="text-outflow max-w-32 text-xs">{error}</span> : null}
+      {error ? <span role="alert" className="feedback-enter text-outflow max-w-32 text-xs">{error}</span> : null}
     </div>
   );
 }
