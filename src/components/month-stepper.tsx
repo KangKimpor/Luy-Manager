@@ -34,7 +34,7 @@ export function MonthStepper({
         <ChevronLeft size={20} aria-hidden="true" />
       </Link>
 
-      <div className="flex min-w-0 flex-col items-center px-2">
+      <div key={label} className="selection-label flex min-w-0 flex-col items-center px-2">
         <span className="text-numeric-md text-ink truncate">{label}</span>
         {hint ? <span className="text-ink-muted text-xs">{hint}</span> : null}
       </div>

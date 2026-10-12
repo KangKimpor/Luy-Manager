@@ -135,7 +135,7 @@ export function SplitEditor({
   }
 
   return (
-    <Card>
+    <Card className="panel-enter">
       <CardBody className="space-y-3 pt-4">
         <div>
           <p className="text-ink-muted text-xs font-semibold tracking-wide uppercase">
@@ -148,7 +148,7 @@ export function SplitEditor({
 
         <ul className="space-y-3">
           {splits.map((split, index) => (
-            <li key={split.id} className="space-y-2">
+            <li key={split.id} className="row-enter space-y-2">
               <div className="flex items-center gap-2">
                 <input
                   type="text"

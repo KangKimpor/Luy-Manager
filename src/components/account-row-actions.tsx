@@ -55,7 +55,7 @@ export function AccountRowActions({
   }
 
   return (
-    <div className="flex items-center gap-0.5">
+    <div aria-busy={pending} className="row-actions flex items-center gap-0.5">
       <Link
         href={`/accounts/${accountId}/edit`}
         aria-label={`Edit ${name}`}
@@ -92,7 +92,7 @@ export function AccountRowActions({
       ) : null}
 
       {error ? (
-        <span role="alert" className="text-outflow max-w-40 text-xs">
+        <span role="alert" className="feedback-enter text-outflow max-w-40 text-xs">
           {error}
         </span>
       ) : null}

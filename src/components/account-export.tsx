@@ -1,6 +1,6 @@
 "use client";
 
-import { Download, FileSpreadsheet, LoaderCircle } from "lucide-react";
+import { Download, FileSpreadsheet } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardBody, CardHeader, CardTitle } from "@/components/ui/card";
@@ -39,14 +39,14 @@ export function AccountExport() {
       <CardBody className="space-y-4">
         <p className="text-ink-muted text-sm">Download all accounts and their transaction history, including closed accounts. USD and KHR keep their original amounts.</p>
         <div className="grid gap-3 sm:grid-cols-2">
-          <Button variant="secondary" size="full" disabled={busy !== null} onClick={() => download("mmbak")}>
-            {busy === "mmbak" ? <LoaderCircle size={17} className="animate-spin" aria-hidden="true" /> : <Download size={17} aria-hidden="true" />}Money Manager .mmbak
+          <Button loading={busy === "mmbak"} variant="secondary" size="full" disabled={busy !== null} onClick={() => download("mmbak")}>
+            {busy !== "mmbak" ? <Download size={17} aria-hidden="true" /> : null}Money Manager .mmbak
           </Button>
-          <Button variant="secondary" size="full" disabled={busy !== null} onClick={() => download("xlsx")}>
-            {busy === "xlsx" ? <LoaderCircle size={17} className="animate-spin" aria-hidden="true" /> : <FileSpreadsheet size={17} aria-hidden="true" />}Excel .xlsx
+          <Button loading={busy === "xlsx"} variant="secondary" size="full" disabled={busy !== null} onClick={() => download("xlsx")}>
+            {busy !== "xlsx" ? <FileSpreadsheet size={17} aria-hidden="true" /> : null}Excel .xlsx
           </Button>
         </div>
-        <p role={failed ? "alert" : "status"} className={failed ? "text-outflow text-xs" : "text-ink-muted text-xs"}>{status}</p>
+        <p key={status} role={failed ? "alert" : "status"} className={failed ? "feedback-enter text-outflow text-xs" : "feedback-enter text-ink-muted text-xs"}>{status}</p>
       </CardBody>
     </Card>
   );

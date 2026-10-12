@@ -1,6 +1,6 @@
 "use client";
 
-import { Check, RotateCcw, TriangleAlert } from "lucide-react";
+import { Check, LoaderCircle, RotateCcw, TriangleAlert } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
@@ -23,19 +23,19 @@ export function ManualRateForm({ currentRate }: { currentRate: number }) {
 
   const [rate, setRate] = useState("");
   const [asOf, setAsOf] = useState(today);
-  const [pending, setPending] = useState(false);
+  const [pending, setPending] = useState<"save" | "reset" | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
 
   async function save(event: React.FormEvent) {
     event.preventDefault();
     if (pending) return;
-    setPending(true);
+    setPending("save");
     setError(null);
     setSaved(false);
 
     const result = await withActionFeedback(() => setManualRate({ rate: rate.trim(), asOf }), "Could not confirm the change. Check recent exchange rates before trying again.");
-    setPending(false);
+    setPending(null);
 
     if (!result.ok) {
       setError(result.error);
@@ -49,18 +49,18 @@ export function ManualRateForm({ currentRate }: { currentRate: number }) {
 
   async function clear() {
     if (pending) return;
-    setPending(true);
+    setPending("reset");
     setError(null);
 
     const result = await withActionFeedback(() => clearManualRate(asOf), "Could not confirm the change. Reload Settings to check the rate.");
-    setPending(false);
+    setPending(null);
 
     if (!result.ok) setError(result.error);
     else router.refresh();
   }
 
   return (
-    <form onSubmit={save} className="space-y-3" aria-busy={pending}>
+    <form onSubmit={save} className="space-y-3" aria-busy={pending !== null}>
       <div className="grid grid-cols-1 items-end gap-3 sm:grid-cols-2">
         <div className="min-w-0">
           <label
@@ -99,33 +99,34 @@ export function ManualRateForm({ currentRate }: { currentRate: number }) {
       </div>
 
       {error ? (
-        <p role="alert" className="text-outflow flex items-start gap-1.5 text-sm">
+        <p role="alert" className="feedback-enter text-outflow flex items-start gap-1.5 text-sm">
           <TriangleAlert size={15} className="mt-0.5 shrink-0" aria-hidden="true" />
           {error}
         </p>
       ) : null}
 
       {saved ? (
-        <p role="status" className="text-inflow text-sm font-medium">
+        <p role="status" className="feedback-enter text-inflow text-sm font-medium">
           Saved. Totals now convert at your rate for that day.
         </p>
       ) : null}
 
       <div className="flex gap-2">
-        <Button type="submit" size="full" disabled={pending || rate.trim() === ""}>
-          <Check size={16} aria-hidden="true" />
-          {pending ? "Saving…" : "Use my rate"}
+        <Button loading={pending === "save"} type="submit" size="full" disabled={pending !== null || rate.trim() === ""}>
+          {pending !== "save" ? <Check size={16} aria-hidden="true" /> : null}
+          {pending === "save" ? "Saving…" : "Use my rate"}
         </Button>
 
         <button
           type="button"
           onClick={clear}
-          disabled={pending}
+          disabled={pending !== null}
+          aria-busy={pending === "reset"}
           title="Go back to the published rate for this date"
           className="border-border-subtle bg-surface text-ink-muted hover:text-ink rounded-card flex min-h-11 shrink-0 items-center gap-1.5 border px-3 text-xs font-semibold disabled:opacity-40"
         >
-          <RotateCcw size={14} aria-hidden="true" />
-          Reset
+          {pending === "reset" ? <LoaderCircle size={14} className="animate-spin" aria-hidden="true" /> : <RotateCcw size={14} aria-hidden="true" />}
+          {pending === "reset" ? "Resetting..." : "Reset"}
         </button>
       </div>
 

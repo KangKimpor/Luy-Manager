@@ -30,9 +30,9 @@ export function BudgetRowActions({
   }
 
   return (
-    <div className="flex shrink-0 items-center gap-1">
+    <div aria-busy={pending} className="row-actions flex shrink-0 items-center gap-1">
       {error ? (
-        <span role="alert" className="text-outflow max-w-32 text-xs">
+        <span role="alert" className="feedback-enter text-outflow max-w-32 text-xs">
           {error}
         </span>
       ) : null}

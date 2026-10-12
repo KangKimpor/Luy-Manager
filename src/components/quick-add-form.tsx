@@ -1,6 +1,6 @@
 "use client";
 
-import { Check, ChevronDown, Layers, LoaderCircle, TriangleAlert, Wallet } from "lucide-react";
+import { Check, ChevronDown, Layers, TriangleAlert, Wallet } from "lucide-react";
 import { useMemo, useState } from "react";
 
 import {
@@ -244,7 +244,7 @@ export function QuickAddForm({
         onSelect={(id) => { setSaved(null); setCategoryId(id); }} /> : null}
 
       <details className="border-surface-variant rounded-2xl border bg-surface p-4">
-      <summary className="text-ink-muted flex min-h-11 items-center justify-between text-sm font-medium">More options<ChevronDown size={17} aria-hidden="true" /></summary>
+      <summary className="text-ink-muted flex min-h-11 items-center justify-between text-sm font-medium">More options<ChevronDown className="disclosure-icon" size={17} aria-hidden="true" /></summary>
       <div className="mt-4 space-y-4">
       <div className="flex flex-wrap gap-2">
         <button
@@ -320,8 +320,8 @@ export function QuickAddForm({
         </p>
       ) : null}
 
-      <Button size="full" disabled={!canSave || pending} onClick={handleSave} aria-busy={pending}>
-        {pending ? <LoaderCircle size={18} className="animate-spin" aria-hidden="true" /> : <Check size={18} aria-hidden="true" />}
+      <Button loading={pending} size="full" disabled={!canSave || pending} onClick={handleSave} aria-busy={pending}>
+        {!pending ? <Check size={18} aria-hidden="true" /> : null}
         {pending ? "Saving..." : `Save ${type === "expense" ? "expense" : type}`}
       </Button>
 

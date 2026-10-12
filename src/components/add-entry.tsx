@@ -49,7 +49,7 @@ export function AddEntry({
   return (
     <div className="mx-auto max-w-2xl space-y-5">
       <div
-        className="bg-surface-container rounded-2xl flex gap-1 p-1.5"
+        className="segmented-control segmented-control-three segmented-control-brand bg-surface-container rounded-2xl"
         role="group"
         aria-label="Entry type"
       >
@@ -60,8 +60,8 @@ export function AddEntry({
             aria-pressed={mode === option.value}
             onClick={() => setMode(option.value)}
             className={cn(
-              "rounded-xl min-h-11 flex-1 text-sm font-semibold transition-[background-color,color,box-shadow] duration-200",
-              mode === option.value ? "bg-brand text-surface shadow-card" : "text-ink-muted",
+              "rounded-xl min-h-11 text-sm font-semibold",
+              mode === option.value ? "text-surface" : "text-ink-muted",
             )}
           >
             {option.label}

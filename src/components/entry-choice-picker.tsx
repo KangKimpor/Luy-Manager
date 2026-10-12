@@ -44,7 +44,7 @@ export function EntryChoicePicker({ label, collection, options, quickIds, select
     <fieldset className="min-w-0 space-y-2">
       <legend className="text-ink-muted mb-2 text-sm font-medium">{label}</legend>
       <div className="flex min-w-0 items-start justify-between gap-2">
-        <p className="text-ink min-w-0 break-words text-sm font-semibold">
+        <p key={selectedId} className="selection-label text-ink min-w-0 break-words text-sm font-semibold">
           {selected?.label ?? (allowClear ? "Uncategorised" : "Choose an account")}
           {selected?.detail ? <span className="text-ink-faint ml-2 text-xs font-normal">{selected.detail}</span> : null}
         </p>
@@ -55,7 +55,7 @@ export function EntryChoicePicker({ label, collection, options, quickIds, select
         </button>
       </div>
       {open ? (
-        <div id={id} className="border-border-subtle bg-surface-container space-y-3 rounded-2xl border p-3">
+        <div id={id} className="panel-enter border-border-subtle bg-surface-container space-y-3 rounded-2xl border p-3">
           <div className="relative">
             <Search size={16} className="text-ink-faint pointer-events-none absolute top-3.5 left-3" aria-hidden="true" />
             <input type="search" aria-label={`Search ${collection}`} placeholder={`Search ${collection}`}
@@ -89,7 +89,7 @@ export function EntryChoicePicker({ label, collection, options, quickIds, select
           <span className="block break-words text-sm font-medium">{option.label}</span>
           {option.detail ? <span className="text-ink-faint mt-0.5 block break-words text-xs">{option.detail}</span> : null}
         </span>
-        {active ? <Check size={15} className="shrink-0" aria-hidden="true" /> : null}
+        {active ? <Check size={15} className="selection-check shrink-0" aria-hidden="true" /> : null}
       </button>
     );
   }

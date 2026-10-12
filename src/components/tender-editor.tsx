@@ -103,7 +103,7 @@ export function TenderEditor({
   }
 
   return (
-    <Card>
+    <Card className="panel-enter">
       <CardBody className="space-y-3 pt-4">
         <div>
           <p className="text-ink-muted text-xs font-semibold tracking-wide uppercase">
@@ -116,7 +116,7 @@ export function TenderEditor({
 
         <ul className="space-y-2">
           {tenders.map((tender) => (
-            <li key={tender.id} className="flex items-center gap-2">
+            <li key={tender.id} className="row-enter flex items-center gap-2">
               <input
                 type="text"
                 inputMode="decimal"

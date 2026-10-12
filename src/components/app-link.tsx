@@ -10,5 +10,5 @@ function Pending() {
 }
 
 export function AppLink({ children, className, prefetch = true, ...props }: ComponentProps<typeof Link>) {
-  return <Link {...props} prefetch={prefetch} className={cn("relative", className)}>{children}<Pending /></Link>;
+  return <Link {...props} prefetch={prefetch} className={cn("app-link relative", className)}>{children}<Pending /></Link>;
 }
