@@ -26,6 +26,7 @@
 import { execFileSync, spawnSync } from "node:child_process";
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
+import { checkJwtSigning } from "./check-jwt-signing.mjs";
 
 const CHECK_ONLY = process.argv.includes("--check");
 const MIGRATIONS_DIR = "supabase/migrations";
@@ -327,6 +328,9 @@ if (env.SUPABASE_DB_URL) {
 // ---------------------------------------------------------------------------
 
 console.log(styles.head("4. Live API"));
+
+const jwtWarning = await checkJwtSigning(projectUrl, env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
+console.log(jwtWarning ? styles.warn(jwtWarning) : styles.ok("public JWT signing keys available"));
 
 async function restGet(path, key) {
   const response = await fetch(`${projectUrl}/rest/v1/${path}`, {

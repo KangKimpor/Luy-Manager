@@ -1,13 +1,12 @@
-import { unstable_doesMiddlewareMatch as doesProxyMatch } from "next/experimental/testing/server";
+import { createRequire } from "node:module";
 import { expect, test } from "vitest";
+import { PROXY_MATCHER } from "./proxy";
 
-import { config } from "./proxy";
+const { pathToRegexp } = createRequire(import.meta.url)("next/dist/compiled/path-to-regexp") as { pathToRegexp: (pattern: string) => RegExp };
 
-test("the secret-authenticated webhook skips session refresh while ledger routes keep it", () => {
-  for (const [url, matches] of [
-    ["/api/telegram/webhook", false], ["/api/telegram/webhook?probe=1", false],
-    ["/api/telegram/webhook-fake", true], ["/transactions", true], ["/add", true],
-  ] as const) {
-    expect(doesProxyMatch({ config, nextConfig: {}, url })).toBe(matches);
-  }
+test.each(["/", "/reports", "/api/rates/refresh", "/sw.js/private", "/manifest.webmanifest/private"])("protects %s", (path) => {
+  expect(pathToRegexp(PROXY_MATCHER).test(path)).toBe(true);
+});
+test.each(["/sw.js", "/manifest.webmanifest", "/.well-known/assetlinks.json", "/_next/static/x.js", "/api/telegram/webhook", "/api/telegram/webhook/extra"])("skips %s", (path) => {
+  expect(pathToRegexp(PROXY_MATCHER).test(path)).toBe(false);
 });

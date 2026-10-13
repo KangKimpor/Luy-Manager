@@ -500,6 +500,7 @@ That webhook check deserves explaining, because the reading is not obvious:
 | Rate job returns 503 | `CRON_SECRET` or `SUPABASE_SERVICE_ROLE_KEY` missing |
 | Rate job returns 502 | Every provider failed. The body names each attempt |
 | Dashboard shows an amber rate warning | The rate is more than two days old. The job has stalled |
+| Slow authenticated navigation, empty JWKS warning from `connect:check` | `getClaims()` falls back to a network call for legacy HS256 tokens. Migrate to asymmetric JWT signing keys in Supabase Auth. Confirm the project region is Singapore (`ap-southeast-1`) to match Vercel `sin1` |
 | Bot silent | Run the script's `status`. A redirect means middleware, a 401 means a secret mismatch |
 | Bot says "not connected" | Connect from Settings. One chat links to one account |
 | "That connect link has expired" | Links last 15 minutes. Reload Settings |

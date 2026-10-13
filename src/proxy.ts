@@ -44,7 +44,6 @@ const PUBLIC_PREFIXES = [
    * the route before the body is read.
    */
   "/api/telegram/webhook",
-  "/manifest.webmanifest",
 ];
 
 function isPublic(pathname: string): boolean {
@@ -96,8 +95,9 @@ export async function proxy(request: NextRequest) {
   // getClaims() rather than getUser(): getUser() is a network call to the auth
   // server on every request, including every prefetch, and from Cambodia that
   // round trip was paid before any page work began. getClaims() verifies the
-  // token's signature against the project's cached public keys, with no network
-  // call once they are loaded, and still refreshes a token that is about to
+  // token's signature against cached public keys for asymmetric signing keys.
+  // Legacy HS256 tokens still need a network call (connect:check warns about
+  // empty JWKS). It also refreshes a token that is about to
   // expire, which is what triggers the cookies setAll writes back. It must happen
   // before the response is generated, or a refresh completing later is lost.
   //
@@ -134,5 +134,8 @@ export const config = {
   // unstyled or not at all.
   // The webhook authenticates its own secret and has no browser session to
   // refresh. Excluding it avoids a second function invocation on every message.
-  matcher: ["/((?!api/telegram/webhook(?:/|$)|_next/static|_next/image|favicon.ico|icon.svg|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)"],
+  matcher: ["/((?!api/telegram/webhook(?:/|$)|sw\\.js$|manifest\\.webmanifest$|\\.well-known(?:/|$)|_next/static|_next/image|favicon.ico|icon.svg|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)"],
 };
+
+// Next requires a literal in config for static analysis; tests compile this value.
+export const PROXY_MATCHER = config.matcher[0];
