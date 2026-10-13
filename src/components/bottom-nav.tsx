@@ -27,7 +27,7 @@ export function BottomNav() {
           );
         })}
         <Link href="/add" aria-label="Add transaction" aria-current={pathname === "/add" ? "page" : undefined}
-          className="bg-brand text-surface shadow-fab col-start-3 row-start-1 mx-auto flex size-13 items-center justify-center rounded-[1.1rem] transition-transform active:scale-90">
+          className="bg-brand text-on-action shadow-fab col-start-3 row-start-1 mx-auto flex size-13 items-center justify-center rounded-[1.1rem] transition-transform active:scale-90">
           <Plus size={25} aria-hidden="true" />
         </Link>
       </div>

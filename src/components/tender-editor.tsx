@@ -143,7 +143,7 @@ export function TenderEditor({
                     className={cn(
                       "rounded-pill min-h-9 px-2.5 text-xs font-bold transition-colors",
                       tender.currency === code
-                        ? "bg-brand text-white"
+                        ? "bg-brand text-on-action"
                         : "bg-surface-muted text-ink-muted",
                     )}
                   >

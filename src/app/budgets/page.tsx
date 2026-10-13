@@ -57,13 +57,13 @@ export default async function BudgetsPage() {
         a combined total only exists once converted, and the label has to say so.
       */}
       {categoryBudgetCount > 0 ? (
-        <Card className="hero-orbit border-0 bg-ink p-6 text-surface sm:p-8">
+        <Card className="hero-orbit border-0 bg-hero p-6 text-on-hero sm:p-8">
           <div className="relative flex items-center justify-between gap-2">
-            <span className="text-sm text-surface/70">Left in category budgets</span>
-            <Target size={20} aria-hidden="true" className="text-surface/60" />
+            <span className="text-sm text-on-hero/70">Left in category budgets</span>
+            <Target size={20} aria-hidden="true" className="text-on-hero/60" />
           </div>
           <MoneyAmount amount={remaining} className="relative mt-3 block text-[clamp(1.9rem,7.5vw,3rem)] leading-tight font-semibold tracking-tight" />
-          <p className="relative mt-3 text-xs text-surface/60">
+          <p className="relative mt-3 text-xs text-on-hero/60">
             {categoryBudgetCount} category budget{categoryBudgetCount === 1 ? "" : "s"}, converted to {displayCurrency}
           </p>
         </Card>

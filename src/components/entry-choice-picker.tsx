@@ -65,7 +65,7 @@ export function EntryChoicePicker({ label, collection, options, quickIds, select
           <div className="flex flex-wrap gap-1.5" role="group" aria-label={`Filter ${collection}`}>
             {[null, ...groups].map((name) => (
               <button key={name ?? "all"} type="button" aria-pressed={group === name} onClick={() => { setGroup(name); setQuery(""); }}
-                className={cn("min-h-11 rounded-xl px-3 text-xs font-medium transition-colors", group === name ? "bg-brand text-surface" : "bg-surface text-ink-muted")}>
+                className={cn("min-h-11 rounded-xl px-3 text-xs font-medium transition-colors", group === name ? "bg-brand text-on-action" : "bg-surface text-ink-muted")}>
                 {name ?? "All"}
               </button>
             ))}

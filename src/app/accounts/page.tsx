@@ -107,15 +107,15 @@ export default async function AccountsPage() {
         <CurrencyToggle current={displayCurrency} className="shrink-0" />
       </div>
 
-      <Card className="hero-orbit border-0 bg-ink p-6 text-surface sm:p-8">
-        <p className="relative text-sm text-surface/70">Total net worth</p>
+      <Card className="hero-orbit border-0 bg-hero p-6 text-on-hero sm:p-8">
+        <p className="relative text-sm text-on-hero/70">Total net worth</p>
         <MoneyAmount amount={summary.netWorth} className="relative mt-3 block text-[clamp(1.9rem,7.5vw,3rem)] leading-tight font-semibold tracking-tight" />
-        <p className="relative mt-2 text-sm text-surface/60">~ <MoneyAmount amount={equivalent} /> equivalent</p>
-        <div className="relative mt-6 grid grid-cols-2 gap-4 border-t border-surface/15 pt-4">
-          <div><p className="text-xs text-surface/60">Cash available</p><MoneyAmount amount={summary.cash} className="mt-1 block text-sm font-semibold" /></div>
-          <div><p className="text-xs text-surface/60">Liabilities</p><MoneyAmount amount={summary.liabilities} className="mt-1 block text-sm font-semibold" /></div>
+        <p className="relative mt-2 text-sm text-on-hero/60">~ <MoneyAmount amount={equivalent} /> equivalent</p>
+        <div className="relative mt-6 grid grid-cols-2 gap-4 border-t border-on-hero/15 pt-4">
+          <div><p className="text-xs text-on-hero/60">Cash available</p><MoneyAmount amount={summary.cash} className="mt-1 block text-sm font-semibold" /></div>
+          <div><p className="text-xs text-on-hero/60">Liabilities</p><MoneyAmount amount={summary.liabilities} className="mt-1 block text-sm font-semibold" /></div>
         </div>
-        <p className="relative mt-4 text-[11px] text-surface/55">Included balances converted to {displayCurrency}</p>
+        <p className="relative mt-4 text-[11px] text-on-hero/55">Included balances converted to {displayCurrency}</p>
       </Card>
 
       {accounts.length === 0 ? (

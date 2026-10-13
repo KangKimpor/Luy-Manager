@@ -5,11 +5,11 @@ export default function Loading() {
     <div className="page-enter space-y-5" aria-busy="true" aria-live="polite">
       <span className="sr-only">Loading your figures...</span>
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]" aria-hidden="true">
-        <Card className="border-0 bg-ink p-6 sm:p-8">
-          <div className="bg-surface/25 h-4 w-24 animate-pulse rounded" />
-          <div className="bg-surface/25 mt-6 h-12 w-52 animate-pulse rounded-xl" />
-          <div className="bg-surface/20 mt-4 h-4 w-36 animate-pulse rounded" />
-          <div className="bg-surface/20 mt-8 h-4 w-44 animate-pulse rounded" />
+        <Card className="border-0 bg-hero p-6 sm:p-8">
+          <div className="bg-on-hero/25 h-4 w-24 animate-pulse rounded" />
+          <div className="bg-on-hero/25 mt-6 h-12 w-52 animate-pulse rounded-xl" />
+          <div className="bg-on-hero/20 mt-4 h-4 w-36 animate-pulse rounded" />
+          <div className="bg-on-hero/20 mt-8 h-4 w-44 animate-pulse rounded" />
         </Card>
         <div className="grid grid-cols-2 gap-3">
           {[0, 1].map(index => <Card key={index} className="space-y-4 p-5"><div className="size-10 animate-pulse rounded-2xl bg-surface-container" /><div className="h-3 w-16 animate-pulse rounded bg-surface-container" /><div className="h-7 w-full animate-pulse rounded bg-surface-container" /><div className="h-3 w-20 animate-pulse rounded bg-surface-container" /></Card>)}

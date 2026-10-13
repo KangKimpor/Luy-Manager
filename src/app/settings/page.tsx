@@ -2,6 +2,8 @@ import { ArrowRightLeft, Check, LogOut, Send, User } from "lucide-react";
 
 import { signOut } from "@/app/actions/auth";
 import { CurrencyToggle } from "@/components/currency-toggle";
+import { ThemeToggle } from "@/components/theme-toggle";
+import { readTheme } from "@/lib/theme-cookie";
 import { ManualRateForm } from "@/components/manual-rate-form";
 import { TelegramStatusCheck } from "@/components/telegram-status";
 import { MoneyAmount } from "@/components/money-amount";
@@ -61,12 +63,13 @@ async function telegramConnectState(): Promise<TelegramState> {
  * gets written.
  */
 export default async function SettingsPage() {
-  const [displayCurrency, snapshot, user, history, telegram] = await Promise.all([
+  const [displayCurrency, snapshot, user, history, telegram, theme] = await Promise.all([
     readDisplayCurrency(),
     loadUsdKhrRate(),
     getUser(),
     listRateHistory(14),
     telegramConnectState(),
+    readTheme(),
   ]);
 
   const demo = isDemoMode();
@@ -75,7 +78,7 @@ export default async function SettingsPage() {
     <div className="page-enter stagger-children mx-auto max-w-2xl space-y-6">
       {/* Who you are. The screen name itself comes from the app bar. */}
       <div className="bg-surface-container-low rounded-card flex items-center gap-3 p-5">
-        <span className="bg-brand text-surface flex size-12 shrink-0 items-center justify-center rounded-2xl">
+        <span className="bg-brand text-on-action flex size-12 shrink-0 items-center justify-center rounded-2xl">
           <User size={20} aria-hidden="true" />
         </span>
         <div className="min-w-0">
@@ -89,6 +92,14 @@ export default async function SettingsPage() {
           </p>
         </div>
       </div>
+
+      <Card>
+        <CardHeader><CardTitle>Appearance</CardTitle></CardHeader>
+        <CardBody className="space-y-3">
+          <ThemeToggle current={theme} />
+          <p className="text-xs text-ink-faint">System follows your device. Your choice stays on this browser.</p>
+        </CardBody>
+      </Card>
 
       <Card>
         <CardHeader>

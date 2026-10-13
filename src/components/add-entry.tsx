@@ -61,7 +61,7 @@ export function AddEntry({
             onClick={() => setMode(option.value)}
             className={cn(
               "rounded-xl min-h-11 text-sm font-semibold",
-              mode === option.value ? "text-surface" : "text-ink-muted",
+              mode === option.value ? "text-on-action" : "text-ink-muted",
             )}
           >
             {option.label}

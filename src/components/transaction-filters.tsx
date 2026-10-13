@@ -102,7 +102,7 @@ export function TransactionFilters({
           </div>
           <button
             type="submit"
-            className="bg-brand rounded-card min-h-11 px-4 text-sm font-semibold text-white"
+            className="bg-brand rounded-card min-h-11 px-4 text-sm font-semibold text-on-action"
           >
             Search
           </button>

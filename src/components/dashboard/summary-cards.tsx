@@ -15,18 +15,18 @@ export function SummaryCards({ netWorth, cashFlow, netWorthEquivalent, periodLab
 }) {
   return (
     <div className="stagger-children grid gap-4 lg:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)]">
-      <Card className="hero-orbit border-0 bg-ink p-6 text-surface sm:p-8">
+      <Card className="hero-orbit border-0 bg-hero p-6 text-on-hero sm:p-8">
         <div className="relative flex items-center justify-between gap-3">
-          <span className="flex items-center gap-2 text-sm font-medium text-surface/75"><Wallet size={17} aria-hidden="true" /> Total net worth</span>
-          <Link href="/accounts" aria-label="View your accounts" className="card-interactive flex size-11 items-center justify-center rounded-full border border-surface/15 bg-surface/5 text-surface hover:bg-surface/15"><ArrowUpRight size={20} aria-hidden="true" /></Link>
+          <span className="flex items-center gap-2 text-sm font-medium text-on-hero/75"><Wallet size={17} aria-hidden="true" /> Total net worth</span>
+          <Link href="/accounts" aria-label="View your accounts" className="card-interactive flex size-11 items-center justify-center rounded-full border border-on-hero/15 bg-on-hero/5 text-on-hero hover:bg-on-hero/15"><ArrowUpRight size={20} aria-hidden="true" /></Link>
         </div>
         <MoneyAmount amount={netWorth.netWorth} className="relative mt-5 block text-[clamp(1.9rem,7.5vw,3rem)] leading-tight font-semibold tracking-tight" />
-        {netWorthEquivalent ? <p className="relative mt-2 text-sm text-surface/65">~ <MoneyAmount amount={netWorthEquivalent} /> equivalent</p> : null}
-        <div className="relative mt-7 flex flex-wrap gap-x-8 gap-y-3 border-t border-surface/15 pt-4">
-          <div><p className="text-xs text-surface/60">Cash available</p><MoneyAmount amount={netWorth.cash} className="mt-1 block text-sm font-semibold" /></div>
-          {!isZero(netWorth.liabilities) ? <div><p className="text-xs text-surface/60">Liabilities</p><MoneyAmount amount={netWorth.liabilities} className="mt-1 block text-sm font-semibold" /></div> : null}
+        {netWorthEquivalent ? <p className="relative mt-2 text-sm text-on-hero/65">~ <MoneyAmount amount={netWorthEquivalent} /> equivalent</p> : null}
+        <div className="relative mt-7 flex flex-wrap gap-x-8 gap-y-3 border-t border-on-hero/15 pt-4">
+          <div><p className="text-xs text-on-hero/60">Cash available</p><MoneyAmount amount={netWorth.cash} className="mt-1 block text-sm font-semibold" /></div>
+          {!isZero(netWorth.liabilities) ? <div><p className="text-xs text-on-hero/60">Liabilities</p><MoneyAmount amount={netWorth.liabilities} className="mt-1 block text-sm font-semibold" /></div> : null}
         </div>
-        <p className="relative mt-4 text-[11px] leading-relaxed text-surface/55">Account balances converted to {netWorth.netWorth.currency}</p>
+        <p className="relative mt-4 text-[11px] leading-relaxed text-on-hero/55">Account balances converted to {netWorth.netWorth.currency}</p>
       </Card>
       <div className="flex min-w-0 flex-col gap-3">
         <div className="flex items-center justify-between px-1"><p className="text-sm font-semibold text-ink">Your cash flow</p><span className="text-xs text-ink-faint">{periodLabel}</span></div>

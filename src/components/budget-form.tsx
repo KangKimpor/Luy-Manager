@@ -133,7 +133,7 @@ export function BudgetForm({
                     className={cn(
                       "rounded-pill min-h-9 px-3 text-xs font-bold transition-colors",
                       currency === code
-                        ? "bg-brand text-white"
+                        ? "bg-brand text-on-action"
                         : "bg-surface-muted text-ink-muted",
                     )}
                   >

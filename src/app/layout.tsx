@@ -8,7 +8,8 @@ import { BottomNav } from "@/components/bottom-nav";
 import { ServiceWorkerRegistration } from "@/components/service-worker";
 import { SiteHeader } from "@/components/site-header";
 import { Sidebar } from "@/components/sidebar";
-import { APP_COLORS } from "@/lib/theme";
+import { readTheme } from "@/lib/theme-cookie";
+import { themeColors } from "@/lib/theme-preference";
 
 import "./globals.css";
 
@@ -54,30 +55,34 @@ export const metadata: Metadata = {
   },
 };
 
-export const viewport: Viewport = {
-  themeColor: APP_COLORS.background,
+export async function generateViewport(): Promise<Viewport> {
+  return {
+  themeColor: themeColors(await readTheme()),
   width: "device-width",
   initialScale: 1,
   maximumScale: 1,
   userScalable: false,
   viewportFit: "cover",
-};
+  };
+}
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const theme = await readTheme();
   return (
     <html
       lang="en"
+      data-theme={theme}
       className={`${inter.variable} ${khmer.variable} h-full antialiased`}
     >
       <body className="font-sans min-h-full">
         {/* Lets keyboard users jump the nav. */}
         <a
           href="#main"
-          className="bg-brand focus:top-2 focus:left-2 sr-only rounded-md px-3 py-2 text-white focus:not-sr-only focus:absolute focus:z-50"
+          className="bg-brand focus:top-2 focus:left-2 sr-only rounded-md px-3 py-2 text-on-action focus:not-sr-only focus:absolute focus:z-50"
         >
           Skip to content
         </a>

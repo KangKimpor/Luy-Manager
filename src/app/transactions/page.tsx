@@ -87,7 +87,7 @@ export default async function TransactionsPage(props: {
       {/* The screen name lives in the app bar, so this is only the result count. */}
       <div className="flex items-center justify-between gap-3">
         <div className="min-w-0"><p className="text-sm font-medium text-ink">Every money move, in one place.</p><p className="mt-1 text-xs text-ink-faint">{result.total === 0 ? "No matching entries" : result.transactions.length === 0 ? "No entries on this page" : `Showing ${shownFrom} to ${shownTo} of ${result.total}`}</p></div>
-        <Link href="/add" aria-label="Add a transaction" className="card-interactive flex size-11 shrink-0 items-center justify-center rounded-2xl bg-brand text-surface"><Plus size={20} aria-hidden="true" /></Link>
+        <Link href="/add" aria-label="Add a transaction" className="card-interactive flex size-11 shrink-0 items-center justify-center rounded-2xl bg-brand text-on-action"><Plus size={20} aria-hidden="true" /></Link>
       </div>
 
       <TransactionFilters

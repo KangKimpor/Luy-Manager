@@ -11,7 +11,10 @@ const OFFLINE_PAGE = `<!doctype html>
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>Offline | Luy Manager</title>
   <style>
-    :root { --surface: #f4f7f5; --ink: #142c32; --brand: #087f78; }
+    :root { color-scheme: light; --surface: #f4f7f5; --ink: #142c32; --brand: #087f78; --on-brand: #fff; }
+    @media (prefers-color-scheme: dark) {
+      :root { color-scheme: dark; --surface: #0f1b20; --ink: #e3efea; --brand: #78d5c5; --on-brand: #082a27; }
+    }
     * { box-sizing: border-box; }
     body {
       margin: 0; min-height: 100vh; min-height: 100dvh; display: grid;
@@ -24,7 +27,7 @@ const OFFLINE_PAGE = `<!doctype html>
     a {
       display: inline-flex; align-items: center; min-height: 3rem;
       padding: 0 1.5rem; border-radius: 1rem; text-decoration: none;
-      background: var(--brand); color: white; font-size: 1rem; font-weight: 600;
+      background: var(--brand); color: var(--on-brand); font-size: 1rem; font-weight: 600;
     }
   </style>
 </head>

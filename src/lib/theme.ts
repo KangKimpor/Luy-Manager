@@ -13,23 +13,25 @@
  * the handful of places that need a literal.
  */
 export const CHART_COLORS = {
-  brand: "#087f78",
-  brandContainer: "#0b9488",
+  brand: "var(--color-brand)",
+  brandContainer: "var(--color-brand-container)",
 
   /** Income. Matches --color-inflow. */
-  inflow: "#187448",
+  inflow: "var(--color-inflow)",
   /** Expense. Matches --color-outflow. */
-  outflow: "#bb493c",
+  outflow: "var(--color-outflow)",
 
   /** Axis labels and other de-emphasised marks. Matches --color-ink-faint. */
-  inkFaint: "#687d80",
+  inkFaint: "var(--color-ink-faint)",
   /** Hairlines and tooltip borders. Matches --color-surface-variant. */
-  border: "#dfe8e4",
+  border: "var(--color-surface-variant)",
   /** Tooltip and card backgrounds. Matches --color-surface. */
-  surface: "#ffffff",
+  surface: "var(--color-surface)",
+  categories: ["var(--color-chart-1)", "var(--color-chart-2)", "var(--color-chart-3)", "var(--color-chart-4)", "var(--color-chart-5)", "var(--color-chart-6)", "var(--color-chart-other)"],
 } as const;
 
 export const APP_COLORS = {
-  brand: CHART_COLORS.brand,
+  brand: "#087f78",
   background: "#f4f7f5",
+  darkBackground: "#0f1b20",
 } as const;
