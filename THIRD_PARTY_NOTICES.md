@@ -1,5 +1,12 @@
 # Third-Party Notices
 
+## Noto Sans Khmer
+
+The one-glyph variable subset in `src/app/fonts/riel-sign.woff2` is derived from
+the same Noto Sans Khmer font previously served by Google Fonts. Copyright 2022
+The Noto Project Authors (https://github.com/notofonts/khmer). Licensed under the
+SIL Open Font License 1.1, reproduced in `src/app/fonts/OFL.txt`.
+
 ## Best-Flutter-UI-Templates
 
 The mobile layout of this app (the card-led dashboard, the soft elevation, and

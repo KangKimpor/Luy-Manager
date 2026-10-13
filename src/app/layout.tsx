@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
-import { Inter, Noto_Sans_Khmer } from "next/font/google";
+import { Inter } from "next/font/google";
+import localFont from "next/font/local";
 import { Analytics } from "@vercel/analytics/next";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 
@@ -26,13 +27,14 @@ const inter = Inter({
  * installs it renders as a tofu box. Verified by rendering the built app in a
  * container with no Khmer font, where every riel amount came out as "6,000□".
  *
- * A currency symbol turning into a box on a currency app is not a cosmetic
- * problem, so the glyph is shipped rather than hoped for. The khmer subset is a
- * few kilobytes and only loads the block that covers it.
+ * Ship a 1.1 KB, one-glyph subset of the same variable font rather than downloading
+ * the whole Khmer block for a single currency sign. Inter remains unchanged.
  */
-const khmer = Noto_Sans_Khmer({
+const khmer = localFont({
+  src: "./fonts/riel-sign.woff2",
   variable: "--font-khmer",
-  subsets: ["khmer"],
+  weight: "100 900",
+  display: "swap",
 });
 
 export const metadata: Metadata = {
