@@ -1,6 +1,8 @@
 # Exact bank riel: migration 0014
 
-Prepared locally on 2026-10-13. The hosted database has not been changed.
+Applied to production on 2026-10-13 as migration `20261013112541 fractional_riel`.
+See [the verified release record](RELEASE_STATUS.md) for deployment, backup and
+reconciliation details.
 
 Bank KHR now uses integer hundredths of a riel. `9,993.55៛` is stored as `999355`,
 without rounding or a floating-point parsing step. USD still uses cents.
@@ -51,9 +53,9 @@ This optional test runtime adds no dependency to the app or its browser bundle.
 PGlite is in-process Postgres, and lacks the `pgcrypto` extension used by the CI
 bootstrap. The local harness omits only that extension declaration; core
 `gen_random_uuid()` and every migration statement are exercised. Hosted Supabase
-advisors have not been run because no hosted migration is authorized yet.
+advisors ran before and after the release; findings are recorded in the release record.
 
-## Owner review before a live change
+## Coordinated release procedure
 
 1. Back up the database and verify the backup can be restored.
 2. Put the existing web app and bot writes into maintenance together. Old server

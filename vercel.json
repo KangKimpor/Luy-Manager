@@ -1,5 +1,4 @@
 {
-  "git": { "deploymentEnabled": false },
   "fluid": true,
   "regions": ["sin1"],
   "crons": [
