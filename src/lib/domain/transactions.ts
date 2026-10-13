@@ -281,16 +281,23 @@ export function spendingByCategory(
   base: CurrencyCode,
   rate: ExchangeRate = DEFAULT_RATE,
 ): CategoryTotal[] {
+  return categoryTotals(transactions, base, rate, -1);
+}
+
+/** Inflows only, including refunds and positive adjustments, like cash flow. */
+export function incomeByCategory(transactions: readonly LedgerLine[], base: CurrencyCode, rate: ExchangeRate = DEFAULT_RATE): CategoryTotal[] {
+  return categoryTotals(transactions, base, rate, 1);
+}
+
+function categoryTotals(transactions: readonly LedgerLine[], base: CurrencyCode, rate: ExchangeRate, direction: 1 | -1): CategoryTotal[] {
   const buckets = new Map<string | null, { minor: number; count: number }>();
   let totalMinor = 0;
 
   for (const transaction of transactions) {
     if (transaction.type === "transfer") continue;
 
-    const value = amountInBase(transaction, base, rate).minor;
-    if (value >= 0) continue;
-
-    const spent = -value;
+    const spent = direction * amountInBase(transaction, base, rate).minor;
+    if (spent <= 0) continue;
     const key = transaction.categoryId;
     const bucket = buckets.get(key) ?? { minor: 0, count: 0 };
     bucket.minor += spent;
@@ -307,6 +314,13 @@ export function spendingByCategory(
       share: totalMinor === 0 ? 0 : bucket.minor / totalMinor,
     }))
     .sort((a, b) => b.total.minor - a.total.minor);
+}
+
+/** Bound chart labels while the complete ranked list remains the source of truth. */
+export function categoryChartShares(totals: readonly CategoryTotal[]) {
+  const shown = totals.slice(0, 6).map(entry => ({ categoryId: entry.categoryId, share: entry.share, other: false }));
+  if (totals.length > 6) shown.push({ categoryId: null, share: totals.slice(6).reduce((share, entry) => share + entry.share, 0), other: true });
+  return shown;
 }
 
 export interface DailyTotal {

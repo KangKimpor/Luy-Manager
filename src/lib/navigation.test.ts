@@ -3,7 +3,7 @@ import { isNavActive } from "./navigation";
 
 describe("navigation", () => {
   it("keeps More active on its destinations", () => {
-    for (const route of ["/more", "/budgets", "/budgets/new", "/reports", "/settings"]) expect(isNavActive(route, "/more")).toBe(true);
+    for (const route of ["/more", "/budgets", "/budgets/new", "/reports", "/reports/overall", "/settings"]) expect(isNavActive(route, "/more")).toBe(true);
     expect(isNavActive("/transactions", "/more")).toBe(false);
   });
   it("matches route boundaries and keeps Home exclusive", () => {

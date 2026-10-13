@@ -63,6 +63,7 @@ function revalidateLedger(userId: string): void {
   revalidatePath("/transactions");
   revalidatePath("/budgets");
   revalidatePath("/reports");
+  revalidatePath("/reports/overall");
   queueTelegramReportRefresh(userId);
 }
 

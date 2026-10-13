@@ -22,7 +22,7 @@ export function ServiceWorkerRegistration() {
       // Overview screens can change while Telegram or another device is in use.
       // Entry and settings screens keep their draft, even after a long pause.
       if (!navigator.onLine || document.visibilityState !== "visible") return;
-      if (!["/", "/accounts", "/transactions", "/budgets", "/reports"].includes(window.location.pathname)) return;
+      if (!["/", "/accounts", "/transactions", "/budgets", "/reports", "/reports/overall"].includes(window.location.pathname)) return;
       if (document.activeElement?.matches("input, textarea, select, [contenteditable='true']")) return;
       const now = Date.now();
       if (now - refreshedAt < 5000) return;

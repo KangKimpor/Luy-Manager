@@ -33,6 +33,7 @@ const ROOT_TITLES: Record<string, string> = {
 
 /** Deeper routes, matched most specific first. */
 const SUB_TITLES: ReadonlyArray<[RegExp, string]> = [
+  [/^\/reports\/overall$/, "Overall report"],
   [/^\/add$/, "Add transaction"],
   [/^\/accounts\/new$/, "Add account"],
   [/^\/accounts\/[^/]+\/edit$/, "Edit account"],
@@ -74,7 +75,7 @@ export function SiteHeader() {
           ) : (
             <button
               type="button"
-              onClick={() => window.history.length > 1 ? router.back() : router.push("/")}
+              onClick={() => window.history.length > 1 ? router.back() : router.push(pathname === "/reports/overall" ? "/reports" : "/")}
               aria-label="Go back"
               className="text-ink-muted hover:bg-surface-container -ml-2 flex size-11 shrink-0 items-center justify-center rounded-2xl transition-colors"
             >

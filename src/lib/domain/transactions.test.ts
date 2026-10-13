@@ -5,6 +5,8 @@ import { exchangeRate, formatMoney, fromMajor, money } from "@/lib/money";
 import type { Transaction, TransactionType } from "./types";
 import {
   amountInBase,
+  incomeByCategory,
+  categoryChartShares,
   buildTransaction,
   buildTransfer,
   dailyCashFlow,
@@ -15,6 +17,30 @@ import {
 } from "./transactions";
 
 const rate = exchangeRate(4100, "USD", "KHR", new Date("2026-01-01"));
+
+it("income categories exclude outflows and transfers, retain historical rounding, and sum to one", () => {
+  const rows = [
+    txn({ type: "income", amount: 300, currency: "USD", categoryId: "salary" }),
+    txn({ type: "refund", amount: 12000, currency: "KHR", baseAmount: 293, baseCurrency: "USD", categoryId: "refund" }),
+    txn({ type: "expense", amount: -900, currency: "USD", categoryId: "food" }),
+    txn({ type: "transfer", amount: 99900, currency: "USD", categoryId: "salary" }),
+  ];
+  const income = incomeByCategory(rows, "USD", rate);
+  expect(income.map(entry => entry.total.minor)).toEqual([300, 293]);
+  expect(income.reduce((total, entry) => total + entry.share, 0)).toBeCloseTo(1, 12);
+  expect(income.reduce((total, entry) => total + entry.total.minor, 0)).toBe(summarizeCashFlow(rows, "USD", rate).income.minor);
+  expect(spendingByCategory(rows, "USD", rate).map(entry => entry.categoryId)).toEqual(["food"]);
+});
+
+it("the donut combines only the tail and preserves all category shares", () => {
+  const totals = incomeByCategory(Array.from({ length: 10 }, (_, index) => txn({ type: "income", amount: index + 1, currency: "USD", categoryId: `cat-${index}` })), "USD");
+  const slices = categoryChartShares(totals);
+  expect(slices).toHaveLength(7);
+  expect(slices.slice(0, 6).map(slice => slice.categoryId)).toEqual(totals.slice(0, 6).map(entry => entry.categoryId));
+  expect(slices[6].other).toBe(true);
+  expect(slices.reduce((sum, slice) => sum + slice.share, 0)).toBeCloseTo(1, 12);
+  expect(categoryChartShares([])).toEqual([]);
+});
 
 function txn(overrides: Partial<Transaction> & Pick<Transaction, "amount" | "currency">): Transaction {
   return {

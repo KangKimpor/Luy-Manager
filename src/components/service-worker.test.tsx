@@ -15,7 +15,8 @@ describe("Safari foreground freshness", () => {
     Object.defineProperty(navigator, "onLine", { configurable: true, value: true });
   });
 
-  it("refreshes overview data after a restored Safari page", () => {
+  it.each(["/", "/reports/overall"])("refreshes overview data after a restored Safari page on %s", (path) => {
+    window.history.replaceState({}, "", path);
     render(<ServiceWorkerRegistration />);
     fireEvent(window, new PageTransitionEvent("pageshow", { persisted: true }));
     expect(refresh).toHaveBeenCalledOnce();
