@@ -39,8 +39,8 @@ describe("construction", () => {
     expect(fromMajor(5.25, "USD").minor).toBe(525);
   });
 
-  it("treats KHR as zero-decimal, so riel map 1:1 to minor units", () => {
-    expect(fromMajor(12000, "KHR").minor).toBe(12000);
+  it("stores bank riel in integer hundredths", () => {
+    expect(fromMajor(12000, "KHR").minor).toBe(1200000);
   });
 
   it("rounds half away from zero symmetrically, so refunds are not biased", () => {
@@ -74,9 +74,9 @@ describe("float safety", () => {
 
 describe("arithmetic", () => {
   it("refuses to mix currencies implicitly", () => {
-    expect(() => add(money(100, "USD"), money(100, "KHR"))).toThrow(/Convert to a common currency/);
-    expect(() => subtract(money(100, "USD"), money(100, "KHR"))).toThrow(MoneyError);
-    expect(() => compare(money(100, "USD"), money(100, "KHR"))).toThrow(MoneyError);
+    expect(() => add(money(100, "USD"), money(10000, "KHR"))).toThrow(/Convert to a common currency/);
+    expect(() => subtract(money(100, "USD"), money(10000, "KHR"))).toThrow(MoneyError);
+    expect(() => compare(money(100, "USD"), money(10000, "KHR"))).toThrow(MoneyError);
   });
 
   it("subtracts into negatives for overspend", () => {
@@ -104,16 +104,16 @@ describe("arithmetic", () => {
     expect(compare(money(100, "USD"), money(200, "USD"))).toBe(-1);
     expect(compare(money(200, "USD"), money(100, "USD"))).toBe(1);
     expect(compare(money(100, "USD"), money(100, "USD"))).toBe(0);
-    expect(equals(money(100, "USD"), money(100, "KHR"))).toBe(false);
+    expect(equals(money(100, "USD"), money(10000, "KHR"))).toBe(false);
   });
 });
 
 describe("parseAmount", () => {
   it("reads symbols, separators and spaces out of user input", () => {
     expect(parseAmount("$5.25", "USD").minor).toBe(525);
-    expect(parseAmount("12,000", "KHR").minor).toBe(12000);
-    expect(parseAmount("1 200៛", "KHR").minor).toBe(1200);
-    expect(parseAmount("20000 KHR", "KHR").minor).toBe(20000);
+    expect(parseAmount("12,000", "KHR").minor).toBe(1200000);
+    expect(parseAmount("1 200៛", "KHR").minor).toBe(120000);
+    expect(parseAmount("20000 KHR", "KHR").minor).toBe(2000000);
   });
 
   it("reads negatives", () => {
@@ -135,7 +135,7 @@ describe("splitEvenly", () => {
 
   it("preserves the total for riel", () => {
     const parts = splitEvenly(fromMajor(20000, "KHR"), 3);
-    expect(sum(parts, "KHR").minor).toBe(20000);
+    expect(sum(parts, "KHR").minor).toBe(2000000);
   });
 
   it("keeps the sign on refunds", () => {
@@ -181,8 +181,8 @@ describe("splitByWeights", () => {
 
 describe("roundToCashStep", () => {
   it("rounds riel to the smallest note that circulates", () => {
-    expect(roundToCashStep(money(12345, "KHR")).minor).toBe(12300);
-    expect(roundToCashStep(money(12360, "KHR")).minor).toBe(12400);
+    expect(roundToCashStep(money(1234500, "KHR")).minor).toBe(1230000);
+    expect(roundToCashStep(money(1236000, "KHR")).minor).toBe(1240000);
   });
 
   it("leaves USD cents alone", () => {
@@ -191,6 +191,14 @@ describe("roundToCashStep", () => {
 });
 
 describe("formatMoney", () => {
+  it("keeps exact bank decimals even at the maximum safe integer", () => {
+    expect(parseAmount("9,993.55", "KHR").minor).toBe(999355);
+    expect(formatMoney(parseAmount("9,993.55", "KHR"))).toBe("9,993.55៛");
+    expect(formatMoney(money(Number.MAX_SAFE_INTEGER, "KHR"))).toBe("90,071,992,547,409.91៛");
+    expect(formatMoney(subtract(parseAmount("20000", "KHR"), parseAmount("9993.55", "KHR")))).toBe("10,006.45៛");
+    expect(formatMoney(add(parseAmount("9993.55", "KHR"), parseAmount("6.45", "KHR")))).toBe("10,000៛");
+    expect(() => parseAmount("9993.555", "KHR")).toThrow();
+  });
   it("puts the dollar sign in front", () => {
     expect(formatMoney(fromMajor(1234.5, "USD"))).toBe("$1,234.50");
   });

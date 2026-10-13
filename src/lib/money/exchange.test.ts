@@ -40,7 +40,7 @@ describe("resolveMultiplier", () => {
 describe("convert", () => {
   it("crosses the minor-unit scale gap between USD cents and whole riel", () => {
     // $3.00 at 4100 is 12,300 riel, not 1,230,000.
-    expect(convert(fromMajor(3, "USD"), "KHR", usdKhr).minor).toBe(12300);
+    expect(convert(fromMajor(3, "USD"), "KHR", usdKhr).minor).toBe(1230000);
   });
 
   it("converts riel back to dollars", () => {
@@ -53,7 +53,7 @@ describe("convert", () => {
   });
 
   it("preserves sign on refunds", () => {
-    expect(convert(fromMajor(-3, "USD"), "KHR", usdKhr).minor).toBe(-12300);
+    expect(convert(fromMajor(-3, "USD"), "KHR", usdKhr).minor).toBe(-1230000);
   });
 
   it("round-trips within one minor unit of the target currency", () => {
@@ -69,7 +69,7 @@ describe("convert", () => {
 
   it("falls back to the default rate", () => {
     expect(DEFAULT_RATE.rate).toBe(DEFAULT_USD_KHR_RATE);
-    expect(convert(fromMajor(1, "USD"), "KHR").minor).toBe(DEFAULT_USD_KHR_RATE);
+    expect(convert(fromMajor(1, "USD"), "KHR").minor).toBe(fromMajor(DEFAULT_USD_KHR_RATE, "KHR").minor);
   });
 });
 
@@ -105,7 +105,7 @@ describe("RateTable historical lookup", () => {
     const before = table.convertAt(fromMajor(10, "USD"), "KHR", january);
     const extended = table.withRate(exchangeRate(4300, "USD", "KHR", new Date("2026-10-01")));
     expect(extended.convertAt(fromMajor(10, "USD"), "KHR", january).minor).toBe(before.minor);
-    expect(before.minor).toBe(40000);
+    expect(before.minor).toBe(4000000);
   });
 
   it("sorts rates supplied out of order", () => {
@@ -129,7 +129,7 @@ describe("mixed-currency purchase (PRD Section 7)", () => {
 
     // The same purchase expressed in riel: $3 is 12,300, plus 20,000.
     const inKhr = mixedTotal(tender, "KHR", usdKhr);
-    expect(inKhr.minor).toBe(32300);
+    expect(inKhr.minor).toBe(3230000);
     expect(formatMoney(inKhr)).toBe("32,300៛");
   });
 
@@ -142,7 +142,7 @@ describe("net worth in a base currency (PRD Section 11)", () => {
   it("adds accounts held in different currencies", () => {
     const balances = [
       money(150_000, "USD"), // $1,500.00 in ABA
-      money(2_050_000, "KHR"), // 2,050,000 riel in Wing = $500.00
+      money(205000000, "KHR"), // 2,050,000 riel in Wing = $500.00
       money(25_000, "USD"), // $250.00 cash
     ];
 

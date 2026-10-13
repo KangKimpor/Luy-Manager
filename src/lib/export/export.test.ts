@@ -20,12 +20,22 @@ async function database(bytes: Uint8Array, check: (db: DatabaseSync) => void) {
 }
 
 describe("account export precision", () => {
+  test("fractional bank riel survives Excel and backup exports", async () => {
+    const data = exportFixture(); data.transactions[1].amount = -999355;
+    const tx = strFromU8(unzipSync(buildXlsx(data))["xl/worksheets/sheet2.xml"]);
+    expect(tx).toContain('<c r="F3" s="3"><v>-9993.55</v></c>');
+    expect(tx).toContain('preserve">-999355</t>');
+    await database(await buildMmbak(data), db => {
+      expect(db.prepare("SELECT ZAMOUNTACCOUNT FROM ZINOUTCOME WHERE ZUID='riel'").get()).toMatchObject({ ZAMOUNTACCOUNT: 9993.55 });
+    });
+  });
   test("balances reconcile without mixing currencies", () => {
     const balances = exportBalances(exportFixture());
     expect(balances.get("usd")).toEqual(money(8600, "USD"));
-    expect(balances.get("khr")).toEqual(money(46000, "KHR"));
+    expect(balances.get("khr")).toEqual(money(4600000, "KHR"));
     expect(decimalAmount(money(-1, "USD"))).toBe("-0.01");
-    expect(decimalAmount(money(12000, "KHR"))).toBe("12000");
+    expect(decimalAmount(money(1200000, "KHR"))).toBe("12000.00");
+    expect(decimalAmount(money(999355, "KHR"))).toBe("9993.55");
     expect(decimalAmount(money(Number.MAX_SAFE_INTEGER, "USD"))).toBe("90071992547409.91");
   });
   test("missing accounts and mismatched currencies refuse an incomplete export", () => {
@@ -44,7 +54,7 @@ describe("Money Manager backup", () => {
     await database(bytes, (db) => {
       expect(db.prepare("PRAGMA integrity_check").get()).toMatchObject({ integrity_check: "ok" });
       expect(db.prepare("SELECT count(*) n FROM Z_MODELCACHE").get()).toMatchObject({ n: 1 });
-      expect(db.prepare("SELECT ZPOINT FROM ZCURRENCY WHERE ZISO='KHR'").get()).toMatchObject({ ZPOINT: 0 });
+      expect(db.prepare("SELECT ZPOINT FROM ZCURRENCY WHERE ZISO='KHR'").get()).toMatchObject({ ZPOINT: 2 });
       const tx = db.prepare("SELECT * FROM ZINOUTCOME WHERE ZUID='riel'").get()!;
       expect(tx).toMatchObject({ ZAMOUNT: 1.5, ZAMOUNTACCOUNT: 6000, ZAMOUNTSUB: 6000, ZDO_TYPE: "1", ZCURRENCYUID: "USD_KHR", ZTXDATESTR: "2026-10-10" });
       expect(tx.ZDATE).toBe((Date.parse(data.transactions[1].occurredAt) - Date.UTC(2001, 0, 1)) / 1000);
@@ -90,8 +100,8 @@ describe("Excel workbook", () => {
     for (const name of ["Accounts", "Transactions", "Categories", "Splits", "Payments", "Read me"]) expect(workbook).toContain(`name="${name}"`);
     const tx = strFromU8(files["xl/worksheets/sheet2.xml"]);
     expect(tx).toContain('<c r="F2" s="2"><v>-5.25</v></c>');
-    expect(tx).toContain('<c r="F3" s="3"><v>-6000</v></c>');
-    expect(tx).toContain('<c r="H3" t="inlineStr"><is><t xml:space="preserve">-6000</t></is></c>');
+    expect(tx).toContain('<c r="F3" s="3"><v>-6000.00</v></c>');
+    expect(tx).toContain('<c r="H3" t="inlineStr"><is><t xml:space="preserve">-600000</t></is></c>');
     expect(tx).toContain("Coffee &amp; cake &lt;3");
     expect(tx).toContain('state="frozen"');
   });

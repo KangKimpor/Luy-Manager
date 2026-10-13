@@ -25,7 +25,7 @@ generated, so edit the sources here and rebuild; never edit the output.
 
 The short version, if you read nothing else:
 
-- Money is integer minor units paired with a currency. KHR has **zero** decimals.
+- Money is integer minor units paired with a currency. Bank KHR uses **two** decimals after migration 0014. Physical cash still rounds to 100 riel only when requested.
 - Middleware is `src/proxy.ts` and exports `proxy`. `src/middleware.ts` is ignored.
 - A webhook has no session, so Row Level Security is absent, not weakened. Filter
   every query by `user_id` by hand.

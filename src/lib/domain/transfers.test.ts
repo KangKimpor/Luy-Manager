@@ -24,7 +24,7 @@ const wingKhr: TransferAccount = {
   name: "Wing",
   type: "ewallet",
   currency: "KHR",
-  currentBalance: 385_000, // 385,000៛
+  currentBalance: 38500000, // 385,000៛
 };
 
 const cashUsd: TransferAccount = {
@@ -40,7 +40,7 @@ const cashKhr: TransferAccount = {
   name: "Cash KHR",
   type: "cash",
   currency: "KHR",
-  currentBalance: 148_000,
+  currentBalance: 14800000,
 };
 
 const card: TransferAccount = {
@@ -76,11 +76,11 @@ describe("planTransfer", () => {
     );
 
     // $100 at 4100 is 410,000 riel, not 41,000,000: KHR has no subunit.
-    expect(plan.received.minor).toBe(410_000);
+    expect(plan.received.minor).toBe(41000000);
     expect(plan.received.currency).toBe("KHR");
     expect(plan.appliedRate).toBeCloseTo(4100, 6);
     expect(plan.receivedBasis).toBe("rate-table");
-    expect(plan.toBalanceAfter.minor).toBe(795_000);
+    expect(plan.toBalanceAfter.minor).toBe(79500000);
     expect(plan.fromBalanceAfter.minor).toBe(174_250);
   });
 
@@ -94,7 +94,7 @@ describe("planTransfer", () => {
     expect(plan.received.minor).toBe(5_000);
     expect(plan.received.currency).toBe("USD");
     expect(plan.appliedRate).toBeCloseTo(1 / 4100, 10);
-    expect(plan.fromBalanceAfter.minor).toBe(180_000);
+    expect(plan.fromBalanceAfter.minor).toBe(18000000);
     expect(plan.toBalanceAfter.minor).toBe(189_250);
   });
 
@@ -110,12 +110,12 @@ describe("planTransfer", () => {
       rate,
     );
 
-    expect(plan.received.minor).toBe(400_000);
+    expect(plan.received.minor).toBe(40000000);
     expect(plan.receivedBasis).toBe("user-entered");
     // The reported rate is the one the user actually got, not the table's.
     expect(plan.appliedRate).toBeCloseTo(4000, 6);
     // The table's figure is still available for comparison.
-    expect(plan.quotedReceived.minor).toBe(410_000);
+    expect(plan.quotedReceived.minor).toBe(41000000);
   });
 
   it("keeps both legs summing to zero in value terms", () => {
@@ -186,10 +186,10 @@ describe("planTransfer", () => {
 
     // $1.50 at 4100 is 6,150 riel, which cannot be handed over: the smallest
     // note in circulation is 100 riel.
-    expect(plan.quotedReceived.minor).toBe(6_150);
-    expect(plan.cashStepSuggestion?.minor).toBe(6_200);
+    expect(plan.quotedReceived.minor).toBe(615000);
+    expect(plan.cashStepSuggestion?.minor).toBe(620000);
     // The suggestion is never applied on its own; the ledger keeps the exact figure.
-    expect(plan.received.minor).toBe(6_150);
+    expect(plan.received.minor).toBe(615000);
   });
 
   it("does not suggest cash rounding for a bank account", () => {
@@ -213,8 +213,8 @@ describe("planTransfer", () => {
       laterRate,
     );
 
-    expect(settled.received.minor).toBe(410_000);
-    expect(today.received.minor).toBe(430_000);
+    expect(settled.received.minor).toBe(41000000);
+    expect(today.received.minor).toBe(43000000);
   });
 });
 
@@ -325,7 +325,7 @@ describe("transferInserts", () => {
 
     const [, incoming] = transferInserts(plan, "group-44", "USD", rate);
 
-    expect(incoming.amount).toBe(400_000);
+    expect(incoming.amount).toBe(40000000);
   });
 
   it("leaves conversion fields null when the base currency is KHR and the leg is KHR", () => {

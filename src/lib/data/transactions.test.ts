@@ -135,7 +135,7 @@ describe("complete reporting ranges", () => {
 
   it("uses slim fields while keeping full and slim totals identical", async () => {
     const db = database(1205);
-    db.rows[0] = { ...db.rows[0], amount: -12000, currency: "KHR", base_amount: -293, base_currency: "USD", category_id: "food" };
+    db.rows[0] = { ...db.rows[0], amount: -1200000, currency: "KHR", base_amount: -293, base_currency: "USD", category_id: "food" };
     db.rows[1] = { ...db.rows[1], amount: 25000, type: "income" };
     db.rows[2] = { ...db.rows[2], amount: -123, type: "transfer" };
     const slim = await listLedgerLinesInRange(from, to);

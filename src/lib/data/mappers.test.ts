@@ -112,7 +112,7 @@ describe("toTransaction", () => {
     const t = toTransaction({
       ...transactionRow,
       currency: "KHR",
-      amount: -12000,
+      amount: -1200000,
       exchange_rate: "0.00024390",
       base_amount: -293,
       base_currency: "USD",

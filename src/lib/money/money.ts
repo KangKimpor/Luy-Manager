@@ -1,7 +1,7 @@
 /**
  * Money primitives.
  *
- * Amounts are integer minor units (US cents, whole riel), never floats.
+ * Amounts are integer minor units (US cents, bank riel hundredths), never floats.
  * `0.1 + 0.2 !== 0.3` in IEEE-754, and a finance ledger that drifts by a cent
  * per operation is a ledger you cannot reconcile. Every amount in the database
  * and in transit is an integer; conversion to a decimal string happens only at
@@ -75,11 +75,28 @@ export function parseAmount(input: string, currency: CurrencyCode): Money {
   if (cleaned === "" || cleaned === "-") {
     throw new MoneyError(`Could not read an amount from "${input}".`);
   }
+  if (currency === "KHR") {
+    const match = cleaned.match(/^([+-]?)(\d+)(?:\.(\d{1,2}))?$/);
+    if (!match) throw new MoneyError("Riel amounts support up to two decimal places.");
+    const scale = BigInt(minorUnitScale(currency));
+    const fraction = BigInt((match[3] ?? "").padEnd(CURRENCY_META[currency].decimals, "0"));
+    const magnitude = BigInt(match[2]) * scale + fraction;
+    return money(Number(match[1] === "-" ? -magnitude : magnitude), currency);
+  }
   const parsed = Number(cleaned);
   if (!Number.isFinite(parsed)) {
     throw new MoneyError(`Could not read an amount from "${input}".`);
   }
   return fromMajor(parsed, currency);
+}
+
+/** Exact decimal text, for editing and exports without a floating-point round trip. */
+export function decimalAmount(amount: Money): string {
+  const minor = BigInt(amount.minor);
+  const decimals = CURRENCY_META[amount.currency].decimals;
+  const scale = BigInt(minorUnitScale(amount.currency));
+  const magnitude = minor < BigInt(0) ? -minor : minor;
+  return `${minor < BigInt(0) ? "-" : ""}${magnitude / scale}.${String(magnitude % scale).padStart(decimals, "0")}`;
 }
 
 /** Minor units expressed as a major-unit number. Display only, never for math. */
@@ -224,7 +241,13 @@ export function formatMoney(
   const { showSymbol = true, locale = "en-US" } = options;
   const meta = CURRENCY_META[m.currency];
 
-  const body = Math.abs(toMajor(m)).toLocaleString(locale, {
+  const magnitude = BigInt(Math.abs(m.minor));
+  const scale = BigInt(minorUnitScale(m.currency));
+  const fraction = String(magnitude % scale).padStart(meta.decimals, "0");
+  const separator = new Intl.NumberFormat(locale).formatToParts(1.1).find(part => part.type === "decimal")?.value ?? ".";
+  const body = m.currency === "KHR"
+    ? `${(magnitude / scale).toLocaleString(locale)}${magnitude % scale === BigInt(0) ? "" : `${separator}${fraction}`}`
+    : Math.abs(toMajor(m)).toLocaleString(locale, {
     minimumFractionDigits: meta.decimals,
     maximumFractionDigits: meta.decimals,
   });

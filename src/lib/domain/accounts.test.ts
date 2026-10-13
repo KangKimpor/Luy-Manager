@@ -62,7 +62,7 @@ describe("presets", () => {
 describe("summarizeNetWorth", () => {
   const balances = [
     balance({ currentBalance: 150_000, currency: "USD", type: "bank" }), // $1,500
-    balance({ currentBalance: 2_050_000, currency: "KHR", type: "ewallet" }), // $500
+    balance({ currentBalance: 205000000, currency: "KHR", type: "ewallet" }), // $500
     balance({ currentBalance: 25_000, currency: "USD", type: "cash" }), // $250
     balance({ currentBalance: 500_000, currency: "USD", type: "savings" }), // $5,000
     balance({ currentBalance: 300_000, currency: "USD", type: "investment" }), // $3,000
@@ -125,7 +125,7 @@ describe("summarizeNetWorth", () => {
       "KHR",
       rate,
     );
-    expect(summary.netWorth.minor).toBe(410_000);
+    expect(summary.netWorth.minor).toBe(41000000);
   });
 
   it("returns zeros for no accounts", () => {

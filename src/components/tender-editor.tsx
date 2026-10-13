@@ -134,11 +134,7 @@ export function TenderEditor({
                     type="button"
                     aria-pressed={tender.currency === code}
                     onClick={() => {
-                      // Riel has no subunit, so a fractional entry cannot survive
-                      // the switch.
-                      const amount =
-                        code === "KHR" ? tender.amount.split(".")[0] : tender.amount;
-                      update(tender.id, { currency: code, amount });
+                      update(tender.id, { currency: code, amount: tender.amount });
                     }}
                     className={cn(
                       "rounded-pill min-h-9 px-2.5 text-xs font-bold transition-colors",

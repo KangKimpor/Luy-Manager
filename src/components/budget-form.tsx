@@ -127,8 +127,6 @@ export function BudgetForm({
                     aria-pressed={currency === code}
                     onClick={() => {
                       setCurrency(code);
-                      // Riel has no subunit.
-                      if (code === "KHR") setAmount((v) => v.split(".")[0]);
                     }}
                     className={cn(
                       "rounded-pill min-h-9 px-3 text-xs font-bold transition-colors",

@@ -216,7 +216,7 @@ describe("fetchUsdKhrRate", () => {
     const { rate } = await fetchUsdKhrRate({ fetchImpl, providers: [EXCHANGERATE_API] });
 
     // $3.00 must become 12,300៛, not 1,230,000: KHR has no subunit.
-    expect(convert(fromMajor(3, "USD"), "KHR", rate).minor).toBe(12_300);
+    expect(convert(fromMajor(3, "USD"), "KHR", rate).minor).toBe(1230000);
   });
 
   it("tries providers in the declared order", async () => {

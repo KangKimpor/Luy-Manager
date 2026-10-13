@@ -5,6 +5,7 @@ import { after } from "next/server";
 import { ACCOUNT_BALANCE_COLUMNS, ACCOUNT_COLUMNS, asRows, BUDGET_COLUMNS, CATEGORY_COLUMNS, TRANSACTION_COLUMNS } from "@/lib/data/client";
 import { mapRows, toAccount, toAccountBalance, toBudget, toCategory, toTransaction } from "@/lib/data/mappers";
 import { readLedgerLinesInRange } from "@/lib/data/transactions";
+import { assertLedgerPrecision } from "@/lib/data/precision";
 import { currentPeriod, summarizeBudgets } from "@/lib/domain/budgets";
 import { buildTransaction, summarizeCashFlow } from "@/lib/domain/transactions";
 import { planTransfer, transferInserts } from "@/lib/domain/transfers";
@@ -236,6 +237,7 @@ async function loadReport(admin: Admin, profile: LinkedProfile, intent: Telegram
 }
 
 async function loadContext(admin: Admin, profile: LinkedProfile, intent: TelegramIntent, mayChangeCurrency = false, now = new Date()): Promise<UserContext> {
+  await assertLedgerPrecision(admin);
   const { kind } = intent;
   const userId = profile.id;
   const timezone = validTimezone(profile.timezone);
@@ -805,6 +807,7 @@ export async function handleUpdate(update: unknown, deliver: ReplySender = sendM
     reply(args[0], args[1], args[2], args[3], args[4], deliver);
 
   try {
+    await assertLedgerPrecision(admin);
     const profile = await profileForChat(admin, inbound.chatId);
     linkedUserId = profile?.id ?? null;
     const amountFirst = /^[\d$]/.test(inbound.text.trim());

@@ -185,7 +185,7 @@ describe("spentForBudget", () => {
     const { spent } = spentForBudget(budget(), [
       txn({ amount: -900, occurredAt: "2026-06-30T16:59:59.999Z" }),
       txn({ amount: -525, occurredAt: "2026-06-30T17:00:00.000Z" }),
-      txn({ amount: -4100, currency: "KHR", occurredAt: "2026-07-31T16:59:59.999Z" }),
+      txn({ amount: -410000, currency: "KHR", occurredAt: "2026-07-31T16:59:59.999Z" }),
       txn({ amount: -900, occurredAt: "2026-07-31T17:00:00.000Z" }),
       txn({ amount: -5000, type: "transfer", occurredAt: "2026-06-30T17:00:00.000Z" }),
     ], rate, now);
@@ -263,7 +263,7 @@ describe("spentForBudget", () => {
   it("converts riel spending into a dollar budget across the scale gap", () => {
     const { spent } = spentForBudget(
       budget(),
-      [txn({ amount: -41_000, currency: "KHR" })],
+      [txn({ amount: -4100000, currency: "KHR" })],
       rate,
       now,
     );
@@ -280,7 +280,7 @@ describe("spentForBudget", () => {
       budget(),
       [
         txn({
-          amount: -41_000,
+          amount: -4100000,
           currency: "KHR",
           baseAmount: -1_000,
           baseCurrency: "USD",
@@ -362,14 +362,14 @@ describe("budgetProgress", () => {
 
   it("handles a riel budget", () => {
     const progress = budgetProgress(
-      budget({ amount: 400_000, currency: "KHR" }),
-      [txn({ amount: -100_000, currency: "KHR" })],
+      budget({ amount: 40000000, currency: "KHR" }),
+      [txn({ amount: -10000000, currency: "KHR" })],
       rate,
       now,
     );
 
-    expect(progress.spent.minor).toBe(100_000);
-    expect(progress.remaining.minor).toBe(300_000);
+    expect(progress.spent.minor).toBe(10000000);
+    expect(progress.remaining.minor).toBe(30000000);
     expect(formatMoney(progress.remaining)).toBe("300,000៛");
   });
 });
@@ -441,7 +441,7 @@ describe("totalRemaining", () => {
 
   it("converts a riel budget into a dollar total", () => {
     const progress = summarizeBudgets(
-      [budget({ amount: 410_000, currency: "KHR" })],
+      [budget({ amount: 41000000, currency: "KHR" })],
       [],
       rate,
       now,

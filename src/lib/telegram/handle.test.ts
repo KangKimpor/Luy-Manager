@@ -32,6 +32,7 @@ function orderValue(row: Row, key: string): unknown {
 
 /** In-memory PostgREST boundary: uniqueness and conditional updates are atomic. */
 class TestDatabase {
+  rpc() { return Promise.resolve({ data: 2, error: null }); }
   tables: Record<string, Row[]> = {
     profiles: [{ id: USER, telegram_chat_id: CHAT, base_currency: "USD", timezone: "Asia/Phnom_Penh" }],
     settings: [{ user_id: USER, default_account_id: "aba" }],
@@ -174,7 +175,7 @@ describe("retry-safe Telegram ledger writes", () => {
     expect(db.tables.transactions.map((row) => row.occurred_at)).toEqual([
       "2026-10-10T05:00:00.000Z", "2026-10-08T05:00:00.000Z", "2026-10-10T05:00:00.000Z",
     ]);
-    expect(db.tables.transactions[0]).toMatchObject({ amount: -6000, currency: "KHR", notes: "coffee" });
+    expect(db.tables.transactions[0]).toMatchObject({ amount: -600000, currency: "KHR", notes: "coffee" });
     expect(db.unsafeQueries).toEqual([]);
   });
 
@@ -296,9 +297,30 @@ describe("retry-safe Telegram ledger writes", () => {
     await handleUpdate(update(3, "Income"));
     await handleUpdate(update(4, "60000 salary"));
     expect(db.tables.transactions).toMatchObject([
-      { account_id: "cash", amount: -6000, currency: "KHR" },
-      { account_id: "cash", amount: 60000, currency: "KHR", type: "income" },
+      { account_id: "cash", amount: -600000, currency: "KHR" },
+      { account_id: "cash", amount: 6000000, currency: "KHR", type: "income" },
     ]);
+  });
+  test("the screenshot flow saves the exact decimal riel amount in the selected ABA riel wallet", async () => {
+    for (const table of ["accounts", "account_balances"]) db.tables[table].find(row => row.id === "cash" || row.account_id === "cash")!.name = "ABA Riel Checking Account";
+    await handleUpdate(update(1, "Expense"));
+    await handleUpdate(update(2, "Use ABA Riel Checking Account (KHR)"));
+    await handleUpdate(update(3, "9,993.55 Fuel"));
+    expect(db.tables.transactions[0]).toMatchObject({ account_id: "cash", amount: -999355, currency: "KHR", type: "expense", notes: "fuel" });
+    expect(mocks.sent.mock.calls.at(-1)?.[1]).toContain("9,993.55៛");
+    expect(mocks.sent.mock.calls.at(-1)?.[1]).not.toContain("rounded");
+    await handleUpdate(update(4, "9,99 Fuel"));
+    expect(db.tables.transactions).toHaveLength(1);
+    expect(db.unsafeQueries).toEqual([]);
+  });
+  test("an ambiguous decimal riel preview and its saved reply preserve the bank amount", async () => {
+    await handleUpdate(update(1, "9,993.55 Fuel"));
+    expect(db.tables.transactions).toHaveLength(0);
+    expect(mocks.sent.mock.calls.at(-1)?.[1]).toContain("9,993.55៛");
+    await handleUpdate(update(2, "Save"));
+    expect(db.tables.transactions[0]).toMatchObject({ amount: -999355, currency: "KHR" });
+    expect(mocks.sent.mock.calls.at(-1)?.[1]).toContain("9,993.55៛");
+    expect(db.unsafeQueries).toEqual([]);
   });
   test("wallet shortcuts switch account and currency in one tap without a Choose account step", async () => {
     await handleUpdate(update(1, "Expense"));
@@ -307,7 +329,7 @@ describe("retry-safe Telegram ledger writes", () => {
     await handleUpdate(update(2, "Use Cash KHR (KHR)"));
     expect(mocks.sent.mock.calls.at(-1)?.[1]).toContain("Expense · Cash KHR · KHR");
     await handleUpdate(update(3, "6000 lunch"));
-    expect(db.tables.transactions[0]).toMatchObject({ account_id: "cash", currency: "KHR", amount: -6000 });
+    expect(db.tables.transactions[0]).toMatchObject({ account_id: "cash", currency: "KHR", amount: -600000 });
     expect(db.unsafeQueries).toEqual([]);
   });
   test("the wallet selector uses two columns and Back restores the current entry without changing it", async () => {
@@ -418,7 +440,7 @@ describe("retry-safe Telegram ledger writes", () => {
     await handleUpdate(update(4, "Income USD"));
     await handleUpdate(update(5, "600 salary"));
     expect(db.tables.transactions).toMatchObject([
-      { user_id: USER, account_id: "cash", amount: -6000, currency: "KHR" },
+      { user_id: USER, account_id: "cash", amount: -600000, currency: "KHR" },
       { user_id: USER, account_id: "aba", amount: -500, currency: "USD" },
       { user_id: USER, account_id: "aba", amount: 60000, currency: "USD", type: "income" },
     ]);
@@ -452,7 +474,7 @@ describe("retry-safe Telegram ledger writes", () => {
     await handleUpdate(update(1, "Income KHR"));
     await handleUpdate(update(2, "Use Cash KHR (KHR)"));
     await handleUpdate(update(3, "6000 gift"));
-    expect(db.tables.transactions[0]).toMatchObject({ account_id: "cash", amount: 6000, currency: "KHR", type: "income" });
+    expect(db.tables.transactions[0]).toMatchObject({ account_id: "cash", amount: 600000, currency: "KHR", type: "income" });
     await handleUpdate(update(4, "Expense $5 coffee"));
     expect(db.tables.transactions).toHaveLength(1);
     expect(mocks.sent.mock.calls.at(-1)?.[1]).toContain("does not hold USD");
@@ -487,7 +509,7 @@ describe("retry-safe Telegram ledger writes", () => {
     await handleUpdate(update(1, "Income KHR"));
     await handleUpdate(update(2, "Use Cash KHR (KHR)"));
     await handleUpdate(update(3, "500 gift"));
-    expect(db.tables.transactions[0]).toMatchObject({ amount: 500, currency: "KHR", account_id: "cash", exchange_rate: 1 / 4100, base_amount: 12 });
+    expect(db.tables.transactions[0]).toMatchObject({ amount: 50000, currency: "KHR", account_id: "cash", exchange_rate: 1 / 4100, base_amount: 12 });
     expect(db.reads).toContain("exchange_rates");
   });
   test("a message arriving during wallet selection cannot save into the previous or default wallet", async () => {
@@ -560,7 +582,7 @@ describe("retry-safe Telegram ledger writes", () => {
     await handleUpdate(update(2, "Expense 12000 riel lunch from Cash KHR"));
     expect(db.tables.transactions).toEqual(expect.arrayContaining([
       expect.objectContaining({ amount: 60000, currency: "USD", type: "income" }),
-      expect.objectContaining({ amount: -12000, currency: "KHR", account_id: "cash", base_amount: -293 }),
+      expect.objectContaining({ amount: -1200000, currency: "KHR", account_id: "cash", base_amount: -293 }),
     ]));
   });
   test("a transfer inserts both legs together using the user's actual received amount", async () => {
@@ -568,7 +590,7 @@ describe("retry-safe Telegram ledger writes", () => {
     expect(db.tables.transactions).toHaveLength(2);
     const [out, incoming] = db.tables.transactions;
     expect(out).toMatchObject({ user_id: USER, amount: -1000, currency: "USD", type: "transfer" });
-    expect(incoming).toMatchObject({ user_id: USER, amount: 40500, currency: "KHR", type: "transfer" });
+    expect(incoming).toMatchObject({ user_id: USER, amount: 4050000, currency: "KHR", type: "transfer" });
     expect(out.transfer_group_id).toBe(incoming.transfer_group_id);
     expect(db.unsafeQueries).toEqual([]);
   });
@@ -577,7 +599,7 @@ describe("retry-safe Telegram ledger writes", () => {
     expect(db.tables.transactions).toHaveLength(0);
     expect(mocks.sent.mock.calls[0][1]).toContain("41,000");
     await handleUpdate(update(2, "Yes"));
-    expect(db.tables.transactions[1]).toMatchObject({ amount: 41000, currency: "KHR" });
+    expect(db.tables.transactions[1]).toMatchObject({ amount: 4100000, currency: "KHR" });
   });
   test("retrying Undo never deletes a second transaction", async () => {
     await handleUpdate(update(1, "Expense $5 coffee"));
@@ -625,11 +647,11 @@ describe("web and Telegram ledger consistency", () => {
     const common = { user_id: USER, account_id: currency === "USD" ? "aba" : "cash", category_id: "coffee", type: "expense", currency,
       occurred_at: "2026-10-10T02:00:00Z", updated_at: "2026-10-10T02:00:00Z", deleted_at: null, created_via: "telegram" };
     db.tables.transactions = [
-      { ...common, id: DELETED, amount: currency === "USD" ? -500 : -4000, notes: "delete-me-web" },
-      { ...common, id: REMAINING, amount: currency === "USD" ? -700 : -12000, notes: "keep-me-web" },
+      { ...common, id: DELETED, amount: currency === "USD" ? -500 : -400000, notes: "delete-me-web" },
+      { ...common, id: REMAINING, amount: currency === "USD" ? -700 : -1200000, notes: "keep-me-web" },
       { ...common, id: FOREIGN, user_id: OTHER, account_id: "foreign", notes: "private-other-user", amount: -999999 },
     ];
-    db.tables.budgets = [{ id: "budget", user_id: USER, category_id: "coffee", name: "Coffee budget", amount: 100000, currency,
+    db.tables.budgets = [{ id: "budget", user_id: USER, category_id: "coffee", name: "Coffee budget", amount: currency === "KHR" ? 10000000 : 100000, currency,
       period: "monthly", starts_on: "2026-10-01", alert_threshold: "0.8", is_active: true, deleted_at: null }];
   }
 
@@ -639,7 +661,7 @@ describe("web and Telegram ledger consistency", () => {
 
   test("a 6000 riel coffee summary waiting on rates cannot arrive stale after a web deletion", async () => {
     ledger();
-    db.tables.transactions = [{ ...db.tables.transactions[0], amount: -6000, currency: "KHR", account_id: "cash", notes: "coffee" }];
+    db.tables.transactions = [{ ...db.tables.transactions[0], amount: -600000, currency: "KHR", account_id: "cash", notes: "coffee" }];
     db.tables.exchange_rates.find(row => row.user_id === USER)!.rate = "4050";
     let release!: () => void;
     db.rateReadGate = new Promise<void>(resolve => { release = resolve; });
@@ -659,7 +681,7 @@ describe("web and Telegram ledger consistency", () => {
 
   test("a deletion during delivery repairs the 6000 riel coffee reply once its message id exists", async () => {
     ledger();
-    db.tables.transactions = [{ ...db.tables.transactions[0], amount: -6000, currency: "KHR", account_id: "cash", notes: "coffee" }];
+    db.tables.transactions = [{ ...db.tables.transactions[0], amount: -600000, currency: "KHR", account_id: "cash", notes: "coffee" }];
     db.tables.exchange_rates.find(row => row.user_id === USER)!.rate = "4050";
     let release!: () => void;
     const sending = new Promise<void>(resolve => { release = resolve; });
@@ -684,7 +706,7 @@ describe("web and Telegram ledger consistency", () => {
     ["Budgets", "$0.00 of"], ["Accounts", "0៛"],
   ])("%s waiting for its inbound claim rereads a deleted coffee entry", async (command, expected) => {
     ledger();
-    db.tables.transactions = [{ ...db.tables.transactions[0], amount: -6000, currency: "KHR", account_id: "cash", notes: "coffee" }];
+    db.tables.transactions = [{ ...db.tables.transactions[0], amount: -600000, currency: "KHR", account_id: "cash", notes: "coffee" }];
     db.tables.exchange_rates.find(row => row.user_id === USER)!.rate = "4050";
     let release!: () => void;
     db.claimGate = new Promise<void>(resolve => { release = resolve; });

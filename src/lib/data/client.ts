@@ -20,6 +20,7 @@ import type { Row } from "./mappers";
 
 import { getUser, isDemoMode } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
+import { assertLedgerPrecision } from "./precision";
 
 export class DataError extends Error {
   constructor(
@@ -78,7 +79,9 @@ export const dataContext = cache(async (): Promise<DataContext | null> => {
   const user = await getUser();
   if (!user) return null;
 
-  return { supabase: await createClient(), userId: user.id };
+  const supabase = await createClient();
+  await assertLedgerPrecision(supabase);
+  return { supabase, userId: user.id };
 });
 
 /** Column lists, kept beside the mappers that consume them so the two stay in step. */

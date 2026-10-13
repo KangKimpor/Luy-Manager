@@ -1,5 +1,6 @@
 import type { AccountExport } from "./types";
 import { add, money, type Money } from "@/lib/money";
+export { decimalAmount } from "@/lib/money";
 
 /** Reconcile the exported rows themselves, rather than a balance read at another instant. */
 export function exportBalances(data: AccountExport): Map<string, Money> {
@@ -12,10 +13,3 @@ export function exportBalances(data: AccountExport): Map<string, Money> {
   return balances;
 }
 
-/** Excel has only 15 significant digits. The accompanying minor-unit column stays text. */
-export function decimalAmount(amount: Money): string {
-  const minor = BigInt(amount.minor);
-  if (amount.currency === "KHR") return String(minor);
-  const magnitude = minor < BigInt(0) ? -minor : minor;
-  return `${minor < BigInt(0) ? "-" : ""}${magnitude / BigInt(100)}.${String(magnitude % BigInt(100)).padStart(2, "0")}`;
-}

@@ -52,7 +52,7 @@ test("writes two cross-currency legs in one insert without reading balances", as
   expect(result.ok).toBe(true);
   expect(mocks.insert.mock.calls[0][0]).toMatchObject([
     { account_id: ID, amount: -1000, currency: "USD" },
-    { account_id: OTHER, amount: 41000, currency: "KHR" },
+    { account_id: OTHER, amount: 4100000, currency: "KHR" },
   ]);
   expect(await createTransfer({ fromAccountId: ID, toAccountId: OTHER, amount: "0" })).toMatchObject({ ok: false, error: "A transfer must move a non-zero amount." });
   expect(await createTransfer({ fromAccountId: ID, toAccountId: OTHER, amount: "10", receivedAmount: "0" })).toMatchObject({ ok: false, error: "A transfer must credit a non-zero amount." });

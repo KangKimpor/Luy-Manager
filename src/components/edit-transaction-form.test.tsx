@@ -13,6 +13,13 @@ beforeEach(() => updateTransaction.mockReset().mockResolvedValue({ ok: true, dat
 
 const transaction: Transaction = { ...DEMO_TRANSACTIONS[0], type: "expense", accountId: "acc-aba-usd", categoryId: "cat-coffee", notes: null, currency: "USD", amount: -500, occurredAt: "2026-10-10T19:15:32.000Z" };
 
+test("editing a bank riel expense preserves both fractional digits", async () => {
+  render(<EditTransactionForm transaction={{ ...transaction, accountId: "acc-aba-khr", currency: "KHR", amount: -999355 }} accounts={DEMO_ACCOUNTS} categories={DEMO_CATEGORIES} />);
+  expect(screen.getByLabelText("Amount")).toHaveValue("9993.55");
+  fireEvent.click(screen.getByRole("button", { name: "Save changes" }));
+  await vi.waitFor(() => expect(updateTransaction).toHaveBeenCalledWith(expect.objectContaining({ amount: "9993.55" })));
+});
+
 test("editing asks for just a date in the profile zone and preserves an unchanged day", async () => {
   const user = userEvent.setup();
   render(<EditTransactionForm transaction={transaction} accounts={DEMO_ACCOUNTS} categories={DEMO_CATEGORIES} />);

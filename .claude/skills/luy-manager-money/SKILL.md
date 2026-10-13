@@ -5,6 +5,15 @@ description: Implements and reviews money handling in application code using int
 
 # Multi-currency money handling
 
+## Luy Manager bank precision override (2026-10-13)
+
+The user requires exact bank reconciliation, including `9,993.55៛`. This app now
+stores KHR in integer hundredths after migration 0014. `12,000៛` is `1200000`
+minor units; `9,993.55៛` is `999355`. Parse KHR decimal strings exactly and never
+round an entered bank amount. Physical cash still uses a 100-riel cash step.
+The generic whole-riel examples below describe conventional cash precision;
+for this repository, this override and `CURRENCY_META` take precedence.
+
 Money bugs do not announce themselves. They surface weeks later as a balance
 that is three cents off, a report that changes when nobody edited it, or a
 split invoice that bills $9.99 of a $10.00 charge. Every rule below exists

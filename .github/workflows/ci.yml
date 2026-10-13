@@ -111,7 +111,13 @@ jobs:
         run: |
           for file in supabase/migrations/*.sql; do
             echo "--- $file"
+            if [[ "$file" == *0014_fractional_riel.sql ]]; then
+              psql -h localhost -U postgres -d luy --single-transaction -v ON_ERROR_STOP=1 -q -f supabase/tests/fractional_riel_before.sql
+            fi
             psql -h localhost -U postgres -d luy --single-transaction -v ON_ERROR_STOP=1 -q -f "$file"
+            if [[ "$file" == *0014_fractional_riel.sql ]]; then
+              psql -h localhost -U postgres -d luy --single-transaction -v ON_ERROR_STOP=1 -q -f supabase/tests/fractional_riel_after.sql
+            fi
           done
 
       - name: Check RLS is enabled on every user-facing table

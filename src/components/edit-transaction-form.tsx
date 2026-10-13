@@ -12,7 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardBody } from "@/components/ui/card";
 import { updateTransaction } from "@/app/actions/transactions";
 import type { AccountBalance, Category, Transaction, TransactionType } from "@/lib/domain/types";
-import { CURRENCY_META, type CurrencyCode } from "@/lib/money";
+import { decimalAmount, money, type CurrencyCode } from "@/lib/money";
 import { cn } from "@/lib/utils";
 import { withActionFeedback } from "@/lib/action-feedback";
 
@@ -33,8 +33,7 @@ const EDITABLE_TYPES: TransactionType[] = ["expense", "income", "refund", "adjus
 
 /** Stored minor units as an editable major-unit string. */
 function toInput(minor: number, currency: CurrencyCode): string {
-  const { decimals } = CURRENCY_META[currency];
-  return (Math.abs(minor) / 10 ** decimals).toFixed(decimals);
+  return decimalAmount(money(Math.abs(minor), currency));
 }
 
 export function EditTransactionForm({

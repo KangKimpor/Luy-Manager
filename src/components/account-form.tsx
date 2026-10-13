@@ -10,7 +10,7 @@ import { Card, CardBody } from "@/components/ui/card";
 import { createAccount, updateAccount } from "@/app/actions/accounts";
 import { ACCOUNT_PRESETS, ACCOUNT_TYPE_LABELS } from "@/lib/domain/accounts";
 import { ACCOUNT_TYPES, type Account, type AccountType } from "@/lib/domain/types";
-import { CURRENCIES, type CurrencyCode } from "@/lib/money";
+import { CURRENCIES, decimalAmount, money, type CurrencyCode } from "@/lib/money";
 import { cn } from "@/lib/utils";
 import { withActionFeedback } from "@/lib/action-feedback";
 
@@ -272,6 +272,5 @@ export function AccountForm({ account }: { account?: Account }) {
  */
 function formatMinorForInput(minor: number, currency: CurrencyCode): string {
   if (minor === 0) return "";
-  const decimals = currency === "KHR" ? 0 : 2;
-  return (minor / 10 ** decimals).toFixed(decimals);
+  return decimalAmount(money(minor, currency));
 }

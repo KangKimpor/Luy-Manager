@@ -65,9 +65,11 @@ Read `.claude/skills/luy-manager-money/SKILL.md` before touching an amount. The
 short version, because these are the mistakes that recur:
 
 - Amounts are **integer minor units** plus a currency: `{ minor, currency }`.
-  US cents for USD, whole riel for KHR.
-- **KHR has zero decimals.** `12,000៛` is `12000` minor units, not `1200000`.
-  Getting this wrong inflates riel by 100x.
+  US cents for USD, hundredths of a riel for bank KHR after migration 0014.
+- **Bank KHR has two decimals.** `12,000៛` is `1200000` minor units. Parse bank
+  amounts exactly, without rounding to whole riel. The database precision guard
+  prevents this code from reading a legacy whole-riel ledger. Cash denominations
+  remain separate from stored bank precision.
 - Build money with `money()` or `fromMajor()`, never an object literal. The
   constructor validates the integer and collapses negative zero.
 - Never sum across currencies. Convert first with `convert()` or

@@ -60,7 +60,7 @@ const khr = account({
   name: "Wing",
   type: "ewallet",
   currency: "KHR",
-  currentBalance: 385_000,
+  currentBalance: 38500000,
 });
 
 const cashUsd = account({

@@ -4,7 +4,7 @@ import { Delete } from "lucide-react";
 import type { ReactNode } from "react";
 
 import { Card, CardBody } from "@/components/ui/card";
-import { type CurrencyCode, formatMoney, fromMajor, type Money } from "@/lib/money";
+import { type CurrencyCode, formatMoney, parseAmount, zero, type Money } from "@/lib/money";
 import { CURRENCY_META } from "@/lib/money";
 import { cn } from "@/lib/utils";
 
@@ -16,8 +16,8 @@ import { cn } from "@/lib/utils";
  * and no way to produce a value that needs validating.
  *
  * The keying rules live in the pure functions below rather than in component
- * state, because they are currency rules (riel has no subunit, dollars stop at
- * two places), and rules about money belong somewhere they can be tested.
+ * state, because they are currency rules (bank USD and KHR both retain two
+ * places), and rules about money belong somewhere they can be tested.
  */
 
 export const KEYPAD_KEYS = [
@@ -57,7 +57,7 @@ export function pressAmountKey(
   if (raw === "0") return key;
   const candidate = raw + key;
   try {
-    fromMajor(Number(candidate), currency);
+    parseAmount(candidate, currency);
     return candidate;
   } catch {
     // An oversized amount used to throw during render and replace the whole form.
@@ -68,10 +68,8 @@ export function pressAmountKey(
 /**
  * Re-key an entry for a different currency.
  *
- * Switching from a USD account to a KHR one mid-entry has to drop the fractional
- * part, since riel cannot express it. Truncates rather than rounds: the user is
- * still typing, and rounding a half-finished number up would put digits on screen
- * they never pressed.
+ * USD and bank KHR keep their fractional digits. A currency with no fractional
+ * precision would truncate a draft, never round unpressed digits into it.
  */
 export function truncateForCurrency(raw: string, currency: CurrencyCode): string {
   if (CURRENCY_META[currency].decimals > 0) return raw;
@@ -81,17 +79,15 @@ export function truncateForCurrency(raw: string, currency: CurrencyCode): string
 /**
  * Read the entry as money.
  *
- * `Number` rather than `parseFloat`, and straight into `fromMajor` so the value
- * becomes integer minor units immediately. An empty or half-typed entry reads as
- * zero, which the caller treats as "not yet savable".
+ * Parse the original decimal string so a bank amount never passes through float
+ * arithmetic. A half-typed decimal keeps its whole part until the next digit.
  */
 export function parseKeypadAmount(raw: string, currency: CurrencyCode): Money {
-  const parsed = Number(raw);
-  if (raw === "" || !Number.isFinite(parsed)) return fromMajor(0, currency);
+  if (raw === "") return zero(currency);
   try {
-    return fromMajor(parsed, currency);
+    return parseAmount(raw.endsWith(".") ? `${raw}0` : raw, currency);
   } catch {
-    return fromMajor(0, currency);
+    return zero(currency);
   }
 }
 

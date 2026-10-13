@@ -49,7 +49,7 @@ describe("transaction save feedback", () => {
     await user.click(screen.getByRole("button", { name: "All accounts" }));
     await user.type(screen.getByRole("searchbox", { name: "Search accounts" }), "TrueMoney");
     await user.click(screen.getByRole("button", { name: "TrueMoney" }));
-    expect(screen.getByRole("button", { name: "." })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "." })).toBeEnabled();
     await user.click(screen.getByRole("button", { name: "All categories" }));
     await user.type(screen.getByRole("searchbox", { name: "Search categories" }), "Dental");
     await user.click(screen.getByRole("button", { name: "Dental" }));
@@ -130,7 +130,7 @@ describe("transaction save feedback", () => {
     const user = userEvent.setup();
     renderForm();
     await user.click(screen.getByRole("button", { name: "KHR" }));
-    expect(screen.getByRole("button", { name: "." })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "." })).toBeEnabled();
     for (const digit of "12000") await user.click(screen.getByRole("button", { name: digit }));
     await user.click(screen.getByRole("button", { name: "Save expense" }));
     expect(createTransaction).toHaveBeenCalledWith(expect.objectContaining({ currency: "KHR", amount: "12000", accountId: DEMO_ACCOUNTS.find(account => account.currency === "KHR")!.accountId }));

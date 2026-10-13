@@ -42,8 +42,9 @@ describe("pressAmountKey", () => {
     expect(pressAmountKey("1.25", "9", "USD")).toBe("1.25");
   });
 
-  it("refuses a decimal point for KHR, which has no subunit", () => {
-    expect(pressAmountKey("12000", ".", "KHR")).toBe("12000");
+  it("accepts a decimal point for KHR bank amounts and caps precision at two places", () => {
+    expect(pressAmountKey("12000", ".", "KHR")).toBe("12000.");
+    expect(pressAmountKey("9993.55", "9", "KHR")).toBe("9993.55");
   });
 
   it("keeps accepting digits for KHR past two characters", () => {
@@ -53,16 +54,16 @@ describe("pressAmountKey", () => {
 });
 
 describe("truncateForCurrency", () => {
-  it("drops the fractional part for a zero-decimal currency", () => {
-    expect(truncateForCurrency("12.75", "KHR")).toBe("12");
+  it("keeps bank decimals when switching to riel", () => {
+    expect(truncateForCurrency("12.75", "KHR")).toBe("12.75");
   });
 
   it("leaves a two-decimal currency alone", () => {
     expect(truncateForCurrency("12.75", "USD")).toBe("12.75");
   });
 
-  it("truncates rather than rounds, so no unpressed digit appears", () => {
-    expect(truncateForCurrency("12.99", "KHR")).toBe("12");
+  it("keeps the same fractional digits instead of changing the bank amount", () => {
+    expect(truncateForCurrency("12.99", "KHR")).toBe("12.99");
   });
 });
 
@@ -74,10 +75,9 @@ describe("parseKeypadAmount", () => {
     expect(parseKeypadAmount("5.25", "USD").minor).toBe(525);
   });
 
-  it("reads riel as whole units, not hundredths", () => {
-    // 12,000៛ is 12000 minor units. Treating KHR as two-decimal would store
-    // 1,200,000 and inflate the balance 100x.
-    expect(parseKeypadAmount("12000", "KHR").minor).toBe(12_000);
+  it("reads riel into integer hundredths", () => {
+    expect(parseKeypadAmount("12000", "KHR").minor).toBe(1200000);
+    expect(parseKeypadAmount("9993.55", "KHR").minor).toBe(999355);
   });
 
   it("treats an empty entry as zero", () => {

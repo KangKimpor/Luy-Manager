@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
 
-import { CONFIRM_THRESHOLD, needsConfirmation, parseMessage } from "./parse";
+import { CONFIRM_THRESHOLD, needsConfirmation, parseMessage, parseTelegramRiel } from "./parse";
 
 /**
  * Every example message in PRD Section 9 is a test here, because that list is the
@@ -16,10 +16,43 @@ function record(text: string) {
   return intent;
 }
 
+describe("Telegram exact bank-riel precision", () => {
+  test.each([
+    ["9,993.55", 999355], ["9993.55", 999355], ["12,000", 1200000],
+    ["9993.49", 999349], ["9993.50", 999350], ["-9993.50", -999350],
+    ["90071992547409.91", 9007199254740991],
+  ])("%s preserves every bank decimal", (raw, minor) => {
+    expect(parseTelegramRiel(raw)).toEqual({ minor, currency: "KHR" });
+  });
+  test.each(["9,99", "1,2345", "1234,000", "12,,000", "9993.555", "9007199254740991.50"])("refuses invalid or unsafe %s", raw => {
+    expect(() => parseTelegramRiel(raw)).toThrow();
+  });
+  test.each(["9,993.55 Fuel", "9993.55 fuel", "12,000 lunch"])("a selected KHR wallet accepts %s without an extra confirmation", text => {
+    const intent = parseMessage(text, { type: "expense", currency: "KHR" });
+    expect(intent).toMatchObject({ kind: "record", amount: { minor: text.startsWith("12") ? 1200000 : 999355, currency: "KHR" } });
+    expect(needsConfirmation(intent)).toBe(false);
+  });
+  test.each(["Expense 9,993.55៛ Fuel", "Expense 9993.55 riel fuel", "Expense 9993.55 khr fuel", "Expense ៛9993.55 fuel"])("explicit riel marker in %s", text => {
+    expect(parseMessage(text)).toMatchObject({ kind: "record", amount: { minor: 999355, currency: "KHR" }, confidence: 1 });
+  });
+  test("ambiguity still asks, malformed commas refuse, and USD is unchanged", () => {
+    const intent = parseMessage("9,993.55 Fuel");
+    expect(needsConfirmation(intent)).toBe(true);
+    expect(intent).toMatchObject({ amount: { minor: 999355, currency: "KHR" } });
+    expect(parseMessage("9,99 Fuel", { type: "expense", currency: "KHR" }).kind).toBe("unknown");
+    expect(record("Spent $9,993.55 fuel").amount).toEqual({ minor: 999355, currency: "USD" });
+    expect(record("Spent $9,993.55 fuel")).not.toHaveProperty("roundedFrom");
+  });
+  test("transfers preserve bank decimals on either leg", () => {
+    expect(parseMessage("Transfer 9,993.55 riel Cash to ABA received $2.50")).toMatchObject({ kind: "transfer", amount: { minor: 999355 } });
+    expect(parseMessage("Transfer $2.50 ABA to Cash received 9,993.55 riel")).toMatchObject({ kind: "transfer", receivedAmount: { minor: 999355 } });
+  });
+});
+
 test("one message can include a date without menus or weakening confirmation rules", () => {
   for (const suffix of ["yesterday", "today", "2026-10-10", "on 2026-10-10"]) {
     const intent = parseMessage(`-6000r coffee ${suffix}`);
-    expect(intent).toMatchObject({ kind: "record", descriptor: "coffee", date: suffix.replace("on ", ""), amount: { minor: 6000, currency: "KHR" } });
+    expect(intent).toMatchObject({ kind: "record", descriptor: "coffee", date: suffix.replace("on ", ""), amount: { minor: 600000, currency: "KHR" } });
     expect(needsConfirmation(intent)).toBe(false);
   }
   expect(parseMessage("+$50 salary yesterday")).toMatchObject({ kind: "record", type: "income", date: "yesterday" });
@@ -52,11 +85,11 @@ test("fast shortcuts keep explicit direction and still confirm an unstated curre
 test("an explicit entry mode supplies direction and currency only for amount-first entries", () => {
   const mode = { type: "expense", currency: "KHR" } as const;
   expect(parseMessage("Expense KHR")).toMatchObject({ kind: "entry", mode });
-  expect(parseMessage("6000 coffee", mode)).toMatchObject({ kind: "record", type: "expense", amount: { minor: 6000, currency: "KHR" }, confidence: 1 });
+  expect(parseMessage("6000 coffee", mode)).toMatchObject({ kind: "record", type: "expense", amount: { minor: 600000, currency: "KHR" }, confidence: 1 });
   expect(parseMessage("$5 salary", mode)).toMatchObject({ kind: "record", type: "expense", amount: { minor: 500, currency: "USD" } });
   expect(parseMessage("Income $50 salary", mode)).toMatchObject({ kind: "record", type: "income" });
   expect(parseMessage("Transfer $100", mode).kind).toBe("unknown");
-  expect(parseMessage("6.5 coffee", mode).kind).toBe("unknown");
+  expect(parseMessage("6.5 coffee", mode)).toMatchObject({ kind: "record", amount: { minor: 650, currency: "KHR" } });
   expect(parseMessage("6000 coffee 3000 lunch", mode).kind).toBe("unknown");
 });
 
@@ -73,7 +106,7 @@ describe("PRD Section 9 examples", () => {
     const intent = record("Spent 12000 riel lunch");
     expect(intent.type).toBe("expense");
     // Zero-decimal currency: 12,000 riel is 12000 minor units, not 1,200,000.
-    expect(intent.amount).toEqual({ minor: 12000, currency: "KHR" });
+    expect(intent.amount).toEqual({ minor: 1200000, currency: "KHR" });
     expect(intent.descriptor).toBe("lunch");
     expect(needsConfirmation(intent)).toBe(false);
   });
@@ -135,9 +168,9 @@ describe("currency detection", () => {
     ["Spent $3 coffee", 300, "USD"],
     ["Spent 3 usd coffee", 300, "USD"],
     ["Spent 3 dollars coffee", 300, "USD"],
-    ["Spent 12000 khr lunch", 12000, "KHR"],
-    ["Spent 12000៛ lunch", 12000, "KHR"],
-    ["Spent 12000 riels lunch", 12000, "KHR"],
+    ["Spent 12000 khr lunch", 1200000, "KHR"],
+    ["Spent 12000៛ lunch", 1200000, "KHR"],
+    ["Spent 12000 riels lunch", 1200000, "KHR"],
   ])("%s", (text, minor, currency) => {
     expect(record(text).amount).toEqual({ minor, currency });
   });
@@ -145,7 +178,7 @@ describe("currency detection", () => {
   test("a trailing bare r means riel", () => {
     // The lookbehind in the marker pattern cannot be reused on the captured text
     // alone; this asserts the separate resolver handles it.
-    expect(record("Spent 12000r lunch").amount).toEqual({ minor: 12000, currency: "KHR" });
+    expect(record("Spent 12000r lunch").amount).toEqual({ minor: 1200000, currency: "KHR" });
   });
 
   test("rice does not parse as riel", () => {
@@ -158,7 +191,7 @@ describe("currency detection", () => {
 
   test("thousands separators are ignored", () => {
     expect(record("Spent 20,000 riel groceries").amount).toEqual({
-      minor: 20000,
+      minor: 2000000,
       currency: "KHR",
     });
   });
@@ -172,7 +205,7 @@ describe("the magnitude heuristic for a bare number", () => {
 
   test("a large bare number reads as riel", () => {
     const intent = record("Spent 12000 lunch");
-    expect(intent.amount).toEqual({ minor: 12000, currency: "KHR" });
+    expect(intent.amount).toEqual({ minor: 1200000, currency: "KHR" });
   });
 
   test("either way it is a guess, so it must be confirmed", () => {
@@ -312,7 +345,7 @@ describe("command menu and explicit account selection", () => {
     expect(record("Expense $5 coffee from ABA USD")).toMatchObject({ descriptor: "coffee", accountHint: "aba usd" });
   });
   test("explicit bank conversion credits the actual received riel", () => {
-    expect(parseMessage("/transfer $10 from ABA to Cash received 41000 riel")).toMatchObject({ kind: "transfer", fromHint: "aba", toHint: "cash", receivedAmount: { minor: 41000, currency: "KHR" } });
+    expect(parseMessage("/transfer $10 from ABA to Cash received 41000 riel")).toMatchObject({ kind: "transfer", fromHint: "aba", toHint: "cash", receivedAmount: { minor: 4100000, currency: "KHR" } });
   });
   test("a received amount without a currency is refused", () => {
     expect(parseMessage("Transfer $10 ABA to Cash received 41000").kind).toBe("unknown");
@@ -324,7 +357,7 @@ describe("command menu and explicit account selection", () => {
 });
 
 describe("amounts must not be partially matched or silently rounded", () => {
-  test.each(["Spent -5 coffee", "Spent -$5 coffee", "Spent $-5 coffee", "Spent $5.999 coffee", "Spent 5,00 usd coffee", "Spent 5.5 riel coffee", "Spent $999999999999999999999 coffee"])("%s is refused", (text) => {
+  test.each(["Spent -5 coffee", "Spent -$5 coffee", "Spent $-5 coffee", "Spent $5.999 coffee", "Spent 5,00 usd coffee", "Spent $999999999999999999999 coffee"])("%s is refused", (text) => {
     expect(parseMessage(text).kind).toBe("unknown");
   });
 });

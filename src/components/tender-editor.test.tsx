@@ -43,7 +43,7 @@ describe("tenderTotal", () => {
     );
 
     // 12,300៛ + 20,000៛ = 32,300៛. Not 3,230,000: riel has no subunit.
-    expect(total?.minor).toBe(32_300);
+    expect(total?.minor).toBe(3230000);
   });
 
   it("ignores rows still being typed", () => {
@@ -148,7 +148,7 @@ describe("TenderEditor", () => {
     ]);
   });
 
-  it("drops the fractional part when a row switches to riel", async () => {
+  it("keeps bank decimals when a row switches to riel", async () => {
     const onChange = vi.fn();
     const user = userEvent.setup();
 
@@ -163,9 +163,8 @@ describe("TenderEditor", () => {
 
     await user.click(screen.getByRole("button", { name: "KHR" }));
 
-    // Riel has no subunit, so "3.50" cannot survive the switch.
     expect(onChange).toHaveBeenCalledWith([
-      { id: "1", amount: "3", currency: "KHR" },
+      { id: "1", amount: "3.50", currency: "KHR" },
     ]);
   });
 

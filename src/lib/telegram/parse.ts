@@ -182,6 +182,13 @@ interface AmountMatch {
   inferredUnit: boolean;
 }
 
+/** Commas are thousands separators; preserve bank precision without rounding. */
+export function parseTelegramRiel(raw: string): Money {
+  const match = raw.match(/^([+-]?)((?:\d{1,3}(?:,\d{3})+|\d+))(?:\.(\d{1,2}))?$/);
+  if (!match) throw new Error("Use comma thousands separators and a decimal point.");
+  return parseAmount(raw, "KHR");
+}
+
 /**
  * Pull the figure and its currency out of a message.
  *
@@ -196,12 +203,16 @@ export function extractAmount(text: string, selectedCurrency?: CurrencyCode): Am
   // amount. Refuse the entire message rather than extract its valid-looking tail.
   if (/(?:-\s*\$?\s*\d|\$\s*-\s*\d)/.test(lower)) return null;
   if (/\d\.\d{3,}|\d,\d{1,2}(?!\d)|\d\.(?!\d)/.test(lower)) return null;
+  if (/\d,(?!\d{3}(?:[^\d]|$))|\d{4},/.test(lower)) return null;
 
   // "$5", "$ 5.25"
   const dollarPrefixed = lower.match(new RegExp(`\\$\\s*${NUMBER.source}`));
   if (dollarPrefixed) {
     return build(dollarPrefixed[1], "USD", dollarPrefixed[0], false);
   }
+
+  const rielPrefixed = lower.match(new RegExp(`(?:៛|\\b(?:khr|riel)\\b)\\s*${NUMBER.source}`));
+  if (rielPrefixed) return build(rielPrefixed[1], "KHR", rielPrefixed[0], false);
 
   // "5 usd", "12000 riel", "12000៛", "12000r"
   const suffixed = lower.match(
@@ -227,11 +238,8 @@ export function extractAmount(text: string, selectedCurrency?: CurrencyCode): Am
     consumed: string,
     inferredUnit: boolean,
   ): AmountMatch | null {
-    // Riel has no fractional minor unit. Rounding a decimal here would save an
-    // amount the user did not type, so ask them to use a whole riel figure.
-    if (unit === "KHR" && /\.\d*[1-9]/.test(raw)) return null;
     try {
-      const amount = parseAmount(raw, unit);
+      const amount = unit === "KHR" ? parseTelegramRiel(raw) : parseAmount(raw, unit);
       if (amount.minor <= 0) return null;
       return { amount, consumed, inferredUnit };
     } catch {

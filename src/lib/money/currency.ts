@@ -18,10 +18,8 @@ export interface CurrencyMeta {
   /**
    * Decimal places used for display and for the minor-unit scale.
    *
-   * KHR is a zero-decimal currency: riel is not subdivided in practice, and the
-   * smallest circulating note is 100 riel. Storing it with 2 decimals would
-   * invent precision that does not exist and would make round-tripping through
-   * exchange rates noisier than it needs to be.
+   * Bank ledgers can contain hundredths of a riel. Store that precision exactly;
+   * physical cash denominations are a separate rule in cashStep.
    */
   decimals: number;
   /**
@@ -45,8 +43,8 @@ export const CURRENCY_META: Record<CurrencyCode, CurrencyMeta> = {
     code: "KHR",
     symbol: "៛",
     symbolLeading: false,
-    decimals: 0,
-    cashStep: 100,
+    decimals: 2,
+    cashStep: 10000,
   },
 };
 

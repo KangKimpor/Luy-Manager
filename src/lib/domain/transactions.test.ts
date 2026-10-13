@@ -21,7 +21,7 @@ const rate = exchangeRate(4100, "USD", "KHR", new Date("2026-01-01"));
 it("income categories exclude outflows and transfers, retain historical rounding, and sum to one", () => {
   const rows = [
     txn({ type: "income", amount: 300, currency: "USD", categoryId: "salary" }),
-    txn({ type: "refund", amount: 12000, currency: "KHR", baseAmount: 293, baseCurrency: "USD", categoryId: "refund" }),
+    txn({ type: "refund", amount: 1200000, currency: "KHR", baseAmount: 293, baseCurrency: "USD", categoryId: "refund" }),
     txn({ type: "expense", amount: -900, currency: "USD", categoryId: "food" }),
     txn({ type: "transfer", amount: 99900, currency: "USD", categoryId: "salary" }),
   ];
@@ -108,7 +108,7 @@ describe("buildTransaction", () => {
       rate,
     );
 
-    expect(row.amount).toBe(-12000);
+    expect(row.amount).toBe(-1200000);
     expect(row.currency).toBe("KHR");
     expect(row.exchange_rate).toBeCloseTo(1 / 4100, 12);
     // 12,000 riel at 4100 is $2.93.
@@ -171,7 +171,7 @@ describe("buildTransfer", () => {
 
     expect(out.amount).toBe(-10000);
     expect(out.currency).toBe("USD");
-    expect(incoming.amount).toBe(410000);
+    expect(incoming.amount).toBe(41000000);
     expect(incoming.currency).toBe("KHR");
     // The receiving leg is converted back for reporting.
     expect(incoming.base_amount).toBe(10000);
@@ -192,7 +192,7 @@ describe("buildTransfer", () => {
       rate,
     );
 
-    expect(incoming.amount).toBe(400000);
+    expect(incoming.amount).toBe(40000000);
   });
 
   it("refuses a transfer to the same account", () => {
@@ -229,7 +229,7 @@ describe("buildTransfer", () => {
     expect(out.currency).toBe("USD");
     expect(out.amount).toBe(-10000);
     expect(incoming.currency).toBe("KHR");
-    expect(incoming.amount).toBe(410_000);
+    expect(incoming.amount).toBe(41000000);
   });
 
   it("refuses a received amount that contradicts the destination currency", () => {
@@ -254,7 +254,7 @@ describe("buildTransfer", () => {
 describe("amountInBase", () => {
   it("prefers the stored base amount, so history stays stable", () => {
     const stored = txn({
-      amount: -12000,
+      amount: -1200000,
       currency: "KHR",
       baseAmount: -293,
       baseCurrency: "USD",
@@ -267,7 +267,7 @@ describe("amountInBase", () => {
   });
 
   it("converts on the fly when no base amount was stored", () => {
-    const row = txn({ amount: -12000, currency: "KHR" });
+    const row = txn({ amount: -1200000, currency: "KHR" });
     expect(amountInBase(row, "USD", rate).minor).toBe(-293);
   });
 });
@@ -276,7 +276,7 @@ describe("summarizeCashFlow", () => {
   const transactions = [
     txn({ type: "income", amount: 60000, currency: "USD" }), // +$600 salary
     txn({ type: "expense", amount: -500, currency: "USD" }), // -$5 coffee
-    txn({ type: "expense", amount: -20000, currency: "KHR" }), // -20,000 riel = -$4.88
+    txn({ type: "expense", amount: -2000000, currency: "KHR" }), // -20,000 riel = -$4.88
     txn({ type: "refund", amount: 1000, currency: "USD" }), // +$10 refund
   ];
 
@@ -311,7 +311,7 @@ describe("summarizeCashFlow", () => {
       "KHR",
       rate,
     );
-    expect(summary.expense.minor).toBe(20500);
+    expect(summary.expense.minor).toBe(2050000);
   });
 });
 
