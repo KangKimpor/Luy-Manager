@@ -39,6 +39,7 @@ import {
   type Tag,
   TRANSACTION_TYPES,
   type Transaction,
+  type LedgerLine,
   type TransactionSplit,
   type TransactionTender,
   type TransactionType,
@@ -273,27 +274,30 @@ export function toMerchant(row: Row): Merchant {
 
 export function toTransaction(row: Row): Transaction {
   return {
+    ...toLedgerLine(row),
     id: str(row, "id"),
     userId: str(row, "user_id"),
     accountId: str(row, "account_id"),
-    categoryId: nullableStr(row, "category_id"),
     merchantId: nullableStr(row, "merchant_id"),
-    type: enumValue<TransactionType>(row, "type", TRANSACTION_TYPES),
-    amount: minorUnits(row, "amount"),
-    currency: currency(row, "currency"),
     // numeric(18,8): a string from PostgREST, and a rate, not an amount.
     exchangeRate: nullableDecimal(row, "exchange_rate"),
-    baseAmount:
-      row.base_amount === null || row.base_amount === undefined
-        ? null
-        : minorUnits(row, "base_amount"),
-    baseCurrency: nullableCurrency(row, "base_currency"),
-    occurredAt: str(row, "occurred_at"),
     notes: nullableStr(row, "notes"),
     location: nullableStr(row, "location"),
     transferGroupId: nullableStr(row, "transfer_group_id"),
     createdVia: str(row, "created_via"),
     isPending: bool(row, "is_pending", false),
+  };
+}
+
+export function toLedgerLine(row: Row): LedgerLine {
+  return {
+    type: enumValue<TransactionType>(row, "type", TRANSACTION_TYPES),
+    amount: minorUnits(row, "amount"),
+    currency: currency(row, "currency"),
+    baseAmount: row.base_amount === null || row.base_amount === undefined ? null : minorUnits(row, "base_amount"),
+    baseCurrency: nullableCurrency(row, "base_currency"),
+    categoryId: nullableStr(row, "category_id"),
+    occurredAt: str(row, "occurred_at"),
   };
 }
 

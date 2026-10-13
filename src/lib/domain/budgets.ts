@@ -24,7 +24,7 @@ import {
 } from "@/lib/money";
 
 import { amountInBase } from "./transactions";
-import type { Budget, BudgetPeriod, Transaction } from "./types";
+import type { Budget, BudgetPeriod, LedgerLine } from "./types";
 import { cambodiaDateParts, cambodiaMidnight } from "@/lib/period";
 
 export interface DateWindow {
@@ -155,7 +155,7 @@ export interface BudgetProgress {
  */
 export function spentForBudget(
   budget: Budget,
-  transactions: readonly Transaction[],
+  transactions: readonly LedgerLine[],
   rate: ExchangeRate = DEFAULT_RATE,
   now: Date = new Date(),
 ): { spent: Money; period: DateWindow } {
@@ -184,7 +184,7 @@ export function spentForBudget(
 /** Combine a budget with its actual spending. */
 export function budgetProgress(
   budget: Budget,
-  transactions: readonly Transaction[],
+  transactions: readonly LedgerLine[],
   rate: ExchangeRate = DEFAULT_RATE,
   now: Date = new Date(),
 ): BudgetProgress {
@@ -225,7 +225,7 @@ export function budgetProgress(
  */
 export function summarizeBudgets(
   budgets: readonly Budget[],
-  transactions: readonly Transaction[],
+  transactions: readonly LedgerLine[],
   rate: ExchangeRate = DEFAULT_RATE,
   now: Date = new Date(),
 ): BudgetProgress[] {

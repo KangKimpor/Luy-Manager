@@ -126,6 +126,9 @@ export interface Transaction {
   isPending: boolean;
 }
 
+/** Only the fields needed for ledger totals, without row presentation metadata. */
+export type LedgerLine = Pick<Transaction, "type" | "amount" | "currency" | "baseAmount" | "baseCurrency" | "categoryId" | "occurredAt">;
+
 /** One currency's worth of a mixed-currency payment. */
 export interface TransactionTender {
   id: string;

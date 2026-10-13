@@ -4,11 +4,11 @@ import { after } from "next/server";
 
 import { ACCOUNT_BALANCE_COLUMNS, ACCOUNT_COLUMNS, asRows, BUDGET_COLUMNS, CATEGORY_COLUMNS, TRANSACTION_COLUMNS } from "@/lib/data/client";
 import { mapRows, toAccount, toAccountBalance, toBudget, toCategory, toTransaction } from "@/lib/data/mappers";
-import { readTransactionsInRange } from "@/lib/data/transactions";
+import { readLedgerLinesInRange } from "@/lib/data/transactions";
 import { currentPeriod, summarizeBudgets } from "@/lib/domain/budgets";
 import { buildTransaction, summarizeCashFlow } from "@/lib/domain/transactions";
 import { planTransfer, transferInserts } from "@/lib/domain/transfers";
-import type { AccountBalance, Budget, Category, Transaction } from "@/lib/domain/types";
+import type { AccountBalance, Budget, Category, LedgerLine, Transaction } from "@/lib/domain/types";
 // CurrencyCode comes from the money layer; domain/types imports it rather than
 // re-exporting it.
 import { formatMoney, money, type CurrencyCode, type Money } from "@/lib/money";
@@ -202,7 +202,7 @@ interface UserContext {
   timezone: string;
   rate: RateSnapshot;
   rateDate: string | null;
-  report: { transactions: Transaction[]; budgets: Budget[]; now: Date };
+  report: { transactions: LedgerLine[]; recent: Transaction[]; budgets: Budget[]; now: Date };
 }
 
 /** Report reads share the same network window as wallet, rate and claim reads. */
@@ -210,29 +210,29 @@ async function loadReport(admin: Admin, profile: LinkedProfile, intent: Telegram
   const context = { supabase: admin, userId: profile.id };
   if (intent.kind === "summary") {
     const { from, to } = reportingWindow(now, intent.window, validTimezone(profile.timezone));
-    const transactions = await readTransactionsInRange(context, from, new Date(to.getTime() - 1));
-    return { transactions, budgets: [], now };
+    const transactions = await readLedgerLinesInRange(context, from, new Date(to.getTime() - 1));
+    return { transactions, recent: [], budgets: [], now };
   }
   if (intent.kind === "recent") {
     const { data, error } = await admin.from("transactions").select(TRANSACTION_COLUMNS)
       .eq("user_id", profile.id).is("deleted_at", null)
       .order("occurred_at", { ascending: false }).order("id", { ascending: false }).limit(8);
     if (error) throw new Error("Could not read recent transactions.");
-    return { transactions: mapRows(asRows(data), toTransaction, "transactions"), budgets: [], now };
+    return { transactions: [], recent: mapRows(asRows(data), toTransaction, "transactions"), budgets: [], now };
   }
   if (intent.kind === "budget") {
     const { data, error } = await admin.from("budgets").select(BUDGET_COLUMNS)
       .eq("user_id", profile.id).is("deleted_at", null).eq("is_active", true);
     if (error) throw new Error("Could not read your budgets.");
     const budgets = mapRows(asRows(data), toBudget, "budgets");
-    if (budgets.length === 0) return { transactions: [], budgets, now };
+    if (budgets.length === 0) return { transactions: [], recent: [], budgets, now };
     const periods = budgets.map((budget) => currentPeriod(budget, now));
     const from = new Date(Math.min(...periods.map((period) => period.from.getTime())));
     const to = new Date(Math.max(...periods.map((period) => period.to.getTime())) - 1);
-    const transactions = await readTransactionsInRange(context, from, to);
-    return { transactions, budgets, now };
+    const transactions = await readLedgerLinesInRange(context, from, to);
+    return { transactions, recent: [], budgets, now };
   }
-  return { transactions: [], budgets: [], now };
+  return { transactions: [], recent: [], budgets: [], now };
 }
 
 async function loadContext(admin: Admin, profile: LinkedProfile, intent: TelegramIntent, mayChangeCurrency = false, now = new Date()): Promise<UserContext> {
@@ -595,7 +595,7 @@ function entryPrompt(mode: EntryMode, account: BotAccount): string {
 }
 
 function recentTransactions(context: UserContext): string {
-  const { transactions } = context.report;
+  const { recent: transactions } = context.report;
   if (transactions.length === 0) return "Your ledger has no transactions yet. Try <code>Spent $5 coffee</code>.";
   return ["<b>Recent transactions</b>", ...transactions.map((transaction) => {
     const account = context.accounts.find((entry) => entry.accountId === transaction.accountId);

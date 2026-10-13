@@ -7,7 +7,7 @@ import { DeferredNetWorthTrend } from "@/components/reports/deferred-net-worth-t
 import { Card, CardBody, CardHeader, CardTitle } from "@/components/ui/card";
 import { listAccountBalances } from "@/lib/data/accounts";
 import { categoryLookup } from "@/lib/data/reference";
-import { listTransactionsInRange } from "@/lib/data/transactions";
+import { listLedgerLinesInRange } from "@/lib/data/transactions";
 import { readDisplayCurrency } from "@/lib/display-currency";
 import { summarizeNetWorth } from "@/lib/domain/accounts";
 import { spendingByCategory, summarizeCashFlow } from "@/lib/domain/transactions";
@@ -35,7 +35,7 @@ export default async function ReportsPage() {
     readDisplayCurrency(),
     loadUsdKhrRate(),
     listAccountBalances(),
-    listTransactionsInRange(window.from, window.to),
+    listLedgerLinesInRange(window.from, window.to),
     categoryLookup(),
   ]);
 

@@ -12,7 +12,7 @@ import type { Budget } from "@/lib/domain/types";
 import { DEMO_BUDGETS } from "@/lib/demo-data";
 import { currentPeriod, summarizeBudgets } from "@/lib/domain/budgets";
 import type { ExchangeRate } from "@/lib/money";
-import { listTransactionsInRange } from "./transactions";
+import { listLedgerLinesInRange } from "./transactions";
 
 import { asRows, BUDGET_COLUMNS, DataError, dataContext } from "./client";
 import { mapRows, toBudget } from "./mappers";
@@ -42,6 +42,6 @@ export async function listBudgetProgress(rate: ExchangeRate, now = new Date()) {
   const from = new Date(Math.min(...periods.map((period) => period.from.getTime())));
   // The transaction reader is inclusive; budget periods have an exclusive end.
   const to = new Date(Math.max(...periods.map((period) => period.to.getTime())) - 1);
-  const transactions = await listTransactionsInRange(from, to);
+  const transactions = await listLedgerLinesInRange(from, to);
   return summarizeBudgets(budgets, transactions, rate, now);
 }

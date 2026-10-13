@@ -1,4 +1,3 @@
-import { Suspense } from "react";
 import { ArrowRightLeft, ArrowUpRight, ChartNoAxesCombined, Plus, Wallet } from "lucide-react";
 import { AppLink as Link } from "@/components/app-link";
 
@@ -11,9 +10,8 @@ import { RateStrip } from "@/components/rate-strip";
 import { TransactionList } from "@/components/transaction-list";
 import { isDemoMode } from "@/lib/auth";
 import { accountLookup, listAccountBalances } from "@/lib/data/accounts";
-import { listBudgetProgress } from "@/lib/data/budgets";
+import { loadDashboardLedger } from "@/lib/data/dashboard";
 import { categoryLookup } from "@/lib/data/reference";
-import { listTransactionsInRange } from "@/lib/data/transactions";
 import { otherCurrency, readDisplayCurrency } from "@/lib/display-currency";
 import { summarizeNetWorth } from "@/lib/domain/accounts";
 import {
@@ -40,17 +38,19 @@ export default async function DashboardPage(props: {
   const { month } = await props.searchParams;
   const period = monthFromParam(month);
 
-  const [displayCurrency, snapshot, accounts, transactions, categories, lookup] =
+  const ratePromise = loadUsdKhrRate();
+  const [displayCurrency, snapshot, accounts, categories, lookup, ledger] =
     await Promise.all([
       readDisplayCurrency(),
-      loadUsdKhrRate(),
+      ratePromise,
       listAccountBalances(),
-      listTransactionsInRange(period.from, period.to),
       categoryLookup(),
       accountLookup(),
+      ratePromise.then(snapshot => loadDashboardLedger(period, snapshot.rate)),
     ]);
 
   const { rate } = snapshot;
+  const { lines: transactions, recent, progress } = ledger;
 
   const netWorth = summarizeNetWorth(accounts, displayCurrency, rate);
   const cashFlow = summarizeCashFlow(transactions, displayCurrency, rate);
@@ -102,11 +102,9 @@ export default async function DashboardPage(props: {
         <RateStrip snapshot={snapshot}><CurrencyToggle current={displayCurrency} /></RateStrip>
       </div>
       <div className="stagger-children grid items-start gap-5 lg:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)]">
-        <TransactionList transactions={transactions} categories={categories} accounts={lookup} limit={5} />
+        <TransactionList transactions={recent} categories={categories} accounts={lookup} limit={5} />
         <div className="space-y-5">
-          <Suspense fallback={<div className="skeleton h-48 rounded-card" role="status" aria-label="Loading budgets" />}>
-            <DashboardBudgets categories={categories} snapshot={snapshot} />
-          </Suspense>
+          {progress.length > 0 ? <BudgetSummaryCard progress={progress} categories={categories} limit={3} /> : null}
           <CategoryBreakdown totals={categoryTotals} categories={categories} limit={4} />
           <Link href="/reports" className="card-interactive group block rounded-card border border-brand/10 bg-brand-soft p-5">
             <span className="mb-4 flex size-10 items-center justify-center rounded-2xl bg-surface text-brand"><ChartNoAxesCombined size={20} aria-hidden="true" /></span>
@@ -120,12 +118,3 @@ export default async function DashboardPage(props: {
   );
 }
 
-// Longer budget windows stream separately so the current month's figures and
-// quick actions are usable while an annual budget is still loading.
-async function DashboardBudgets({ categories, snapshot }: {
-  categories: Awaited<ReturnType<typeof categoryLookup>>;
-  snapshot: Awaited<ReturnType<typeof loadUsdKhrRate>>;
-}) {
-  const progress = await listBudgetProgress(snapshot.rate);
-  return progress.length > 0 ? <BudgetSummaryCard progress={progress} categories={categories} limit={3} /> : null;
-}

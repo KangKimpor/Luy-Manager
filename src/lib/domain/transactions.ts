@@ -21,7 +21,7 @@ import {
   zero,
 } from "@/lib/money";
 
-import type { Transaction, TransactionType } from "./types";
+import type { LedgerLine, Transaction, TransactionType } from "./types";
 
 /** Types that move money out of an account. */
 const OUTFLOW_TYPES: readonly TransactionType[] = ["expense"];
@@ -240,7 +240,7 @@ export interface CashFlowSummary {
  * the user's control, making the dashboard cards in PRD Section 11 misleading.
  */
 export function summarizeCashFlow(
-  transactions: readonly Transaction[],
+  transactions: readonly LedgerLine[],
   base: CurrencyCode,
   rate: ExchangeRate = DEFAULT_RATE,
 ): CashFlowSummary {
@@ -277,7 +277,7 @@ export interface CategoryTotal {
  * Only outflows are counted; mixing income in would make the shares meaningless.
  */
 export function spendingByCategory(
-  transactions: readonly Transaction[],
+  transactions: readonly LedgerLine[],
   base: CurrencyCode,
   rate: ExchangeRate = DEFAULT_RATE,
 ): CategoryTotal[] {

@@ -14,6 +14,7 @@ import type {
   TransactionSplit,
   TransactionTender,
   TransactionType,
+  LedgerLine,
 } from "@/lib/domain/types";
 import { DEMO_TRANSACTIONS } from "@/lib/demo-data";
 
@@ -25,9 +26,10 @@ import {
   SPLIT_COLUMNS,
   TENDER_COLUMNS,
   TRANSACTION_COLUMNS,
+  LEDGER_LINE_COLUMNS,
   type DataContext,
 } from "./client";
-import { mapRows, toTransaction, toTransactionSplit, toTransactionTender } from "./mappers";
+import { mapRows, toLedgerLine, toTransaction, toTransactionSplit, toTransactionTender, type Row } from "./mappers";
 
 export interface TransactionFilter {
   /** Inclusive lower bound on `occurred_at`. */
@@ -176,8 +178,8 @@ export async function listTransactions(
  * Every transaction in a date range, for the dashboard aggregates.
  *
  * Aggregations need every matching row. Explicit pages avoid PostgREST's response
- * cap silently cutting an annual report short. Count once, then advance by the
- * rows actually received so a lower configured API cap cannot truncate totals.
+ * cap silently cutting an annual report short. Count once, then read the remaining
+ * pages in parallel, using the first page's actual size if the API cap is lower.
  */
 export const listTransactionsInRange = cache(
   async (from: Date, to: Date): Promise<Transaction[]> => {
@@ -187,6 +189,13 @@ export const listTransactionsInRange = cache(
     return readTransactionsInRange(context, from, to);
   },
 );
+
+export const listLedgerLinesInRange = cache(async (from: Date, to: Date): Promise<LedgerLine[]> => {
+  validateRange(from, to);
+  const context = await dataContext();
+  if (!context) return filterDemo({ from, to });
+  return readLedgerLinesInRange(context, from, to);
+});
 
 function validateRange(from: Date, to: Date) {
   if (!Number.isFinite(from.getTime()) || !Number.isFinite(to.getTime()) || from > to) {
@@ -200,44 +209,51 @@ export async function readTransactionsInRange(
   from: Date,
   to: Date,
 ): Promise<Transaction[]> {
+  return (await readRangeRows(context, from, to, TRANSACTION_COLUMNS)).map(toTransaction);
+}
+
+export async function readLedgerLinesInRange(context: DataContext, from: Date, to: Date): Promise<LedgerLine[]> {
+  return (await readRangeRows(context, from, to, LEDGER_LINE_COLUMNS)).map(toLedgerLine);
+}
+
+// Must not exceed the project's configured PostgREST max_rows (default 1000).
+export const LEDGER_PAGE_SIZE = 1000;
+
+async function readRangeRows(context: DataContext, from: Date, to: Date, columns: string): Promise<Row[]> {
   validateRange(from, to);
-  const pageSize = 500;
-  const transactions: Transaction[] = [];
-  const ids = new Set<string>();
-  let total: number | undefined;
-  do {
-    const offset = transactions.length;
-    const { data, error, count } = await context.supabase
+  const readPage = async (offset: number, size: number, counted = false) => {
+    const result = await context.supabase
       .from("transactions")
-      .select(TRANSACTION_COLUMNS, total === undefined ? { count: "exact" } : undefined)
+      .select(columns, counted ? { count: "exact" } : undefined)
       .eq("user_id", context.userId)
       .is("deleted_at", null)
       .gte("occurred_at", from.toISOString())
       .lte("occurred_at", to.toISOString())
       .order("occurred_at", { ascending: false })
       .order("id", { ascending: false })
-      .range(offset, offset + pageSize - 1);
-
-    if (error) throw new DataError("load transactions for that period", error);
-    if (total === undefined) {
-      if (count === null || !Number.isSafeInteger(count) || count < 0) {
-        throw new DataError("load transactions for that period", new Error("The entry count could not be verified."));
-      }
-      total = count;
-    }
-    const rows = mapRows(asRows(data), toTransaction, "transactions");
-    if ((rows.length === 0 && offset < total) || offset + rows.length > total) {
-      throw new DataError("load transactions for that period", new Error("Entries changed while loading. Reload to get complete totals."));
-    }
-    for (const row of rows) {
-      // Concurrent inserts can shift an offset page. Refuse a repeated row
-      // instead of double-counting money until the next refresh.
-      if (ids.has(row.id)) throw new DataError("load transactions for that period", new Error("Entries changed while loading. Reload to get complete totals."));
-      ids.add(row.id);
-      transactions.push(row);
-    }
-  } while (transactions.length < total);
-  return transactions;
+      .range(offset, offset + size - 1);
+    if (result.error) throw new DataError("load transactions for that period", result.error);
+    return { rows: asRows(result.data), count: result.count };
+  };
+  const first = await readPage(0, LEDGER_PAGE_SIZE, true);
+  const total = first.count;
+  if (total === null || !Number.isSafeInteger(total) || total < 0) {
+    throw new DataError("load transactions for that period", new Error("The entry count could not be verified."));
+  }
+  const changed = () => new DataError("load transactions for that period", new Error("Entries changed while loading. Reload to get complete totals."));
+  if ((first.rows.length === 0 && total > 0) || first.rows.length > total) throw changed();
+  const size = first.rows.length || LEDGER_PAGE_SIZE;
+  const offsets = Array.from({ length: Math.ceil((total - first.rows.length) / size) }, (_, index) => (index + 1) * size);
+  const rest = await Promise.all(offsets.map(offset => readPage(offset, size)));
+  if (rest.some(page => page.count !== null && page.count !== total)) throw changed();
+  const rows = [...first.rows, ...rest.flatMap(page => page.rows)];
+  const ids = new Set<string>();
+  for (const row of rows) {
+    if (typeof row.id !== "string" || ids.has(row.id)) throw changed();
+    ids.add(row.id);
+  }
+  if (rows.length !== total) throw changed();
+  return rows;
 }
 
 /** One transaction, for the edit form. */

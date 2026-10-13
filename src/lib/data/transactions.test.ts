@@ -4,7 +4,12 @@ import type { Row } from "./mappers";
 const { dataContext } = vi.hoisted(() => ({ dataContext: vi.fn() }));
 vi.mock("./client", async (original) => ({ ...await original<typeof import("./client")>(), dataContext }));
 
-import { listTransactionsInRange } from "./transactions";
+import { listLedgerLinesInRange, listTransactionsInRange } from "./transactions";
+import { LEDGER_LINE_COLUMNS } from "./client";
+import { toLedgerLine, toTransaction } from "./mappers";
+import { spendingByCategory, summarizeCashFlow } from "@/lib/domain/transactions";
+import { summarizeBudgets } from "@/lib/domain/budgets";
+import { DEMO_BUDGETS, DEMO_RATE } from "@/lib/demo-data";
 
 const from = new Date("2026-01-01T00:00:00Z");
 const to = new Date("2026-12-31T23:59:59.999Z");
@@ -16,7 +21,7 @@ function row(index: number): Row {
   };
 }
 
-function database(size: number, cap = 500) {
+function database(size: number, cap = 1000) {
   const rows = Array.from({ length: size }, (_, index) => row(index));
   const queries: Array<{ eq: ReturnType<typeof vi.fn>; order: ReturnType<typeof vi.fn>; range: ReturnType<typeof vi.fn>; select: ReturnType<typeof vi.fn> }> = [];
   const fromTable = vi.fn(() => {
@@ -49,8 +54,8 @@ describe("complete reporting ranges", () => {
     expect(transactions).toHaveLength(1205);
     expect(new Set(transactions.map((entry) => entry.id)).size).toBe(1205);
     expect(transactions.reduce((sum, entry) => sum + entry.amount, 0)).toBe(-120500);
-    expect(db.queries).toHaveLength(3);
-    expect(db.queries.map((query) => query.range.mock.calls[0])).toEqual([[0, 499], [500, 999], [1000, 1499]]);
+    expect(db.queries).toHaveLength(2);
+    expect(db.queries.map((query) => query.range.mock.calls[0])).toEqual([[0, 999], [1000, 1999]]);
     for (const query of db.queries) {
       expect(query.eq).toHaveBeenCalledWith("user_id", "u1");
       expect(query.order.mock.calls).toEqual([["occurred_at", { ascending: false }], ["id", { ascending: false }]]);
@@ -73,7 +78,7 @@ describe("complete reporting ranges", () => {
   });
 
   it("fails instead of returning partial totals after a page error", async () => {
-    const db = database(600);
+    const db = database(1600);
     const normal = db.fromTable.getMockImplementation()!;
     db.fromTable.mockImplementation(() => {
       const query = normal();
@@ -84,7 +89,7 @@ describe("complete reporting ranges", () => {
   });
 
   it("refuses an incomplete response instead of understating spending", async () => {
-    const db = database(600);
+    const db = database(1600);
     const normal = db.fromTable.getMockImplementation()!;
     db.fromTable.mockImplementation(() => {
       const query = normal();
@@ -95,7 +100,7 @@ describe("complete reporting ranges", () => {
   });
 
   it("refuses repeated rows when a concurrent write shifts pagination", async () => {
-    const db = database(600);
+    const db = database(1600);
     const normal = db.fromTable.getMockImplementation()!;
     db.fromTable.mockImplementation(() => {
       const query = normal();
@@ -109,5 +114,44 @@ describe("complete reporting ranges", () => {
     await expect(listTransactionsInRange(to, from)).rejects.toThrow("Choose a valid date range");
     await expect(listTransactionsInRange(new Date("invalid"), to)).rejects.toThrow("Choose a valid date range");
     expect(dataContext).not.toHaveBeenCalled();
+  });
+
+  it("starts every remaining page before waiting for any one of them", async () => {
+    const db = database(3200);
+    let release!: () => void;
+    const gate = new Promise<void>(resolve => { release = resolve; });
+    const normal = db.fromTable.getMockImplementation()!;
+    db.fromTable.mockImplementation(() => {
+      const query = normal();
+      const read = query.range.getMockImplementation()!;
+      if (db.queries.length > 1) query.range.mockImplementation(async (...args) => { await gate; return read(...args); });
+      return query;
+    });
+    const loading = listTransactionsInRange(from, to);
+    await vi.waitFor(() => expect(db.queries).toHaveLength(4));
+    release();
+    expect(await loading).toHaveLength(3200);
+  });
+
+  it("uses slim fields while keeping full and slim totals identical", async () => {
+    const db = database(1205);
+    db.rows[0] = { ...db.rows[0], amount: -12000, currency: "KHR", base_amount: -293, base_currency: "USD", category_id: "food" };
+    db.rows[1] = { ...db.rows[1], amount: 25000, type: "income" };
+    db.rows[2] = { ...db.rows[2], amount: -123, type: "transfer" };
+    const slim = await listLedgerLinesInRange(from, to);
+    expect(db.queries[0].select.mock.calls[0][0]).toBe(LEDGER_LINE_COLUMNS);
+    const full = db.rows.map(toTransaction);
+    expect(slim).toEqual(db.rows.map(toLedgerLine));
+    for (const currency of ["USD", "KHR"] as const) {
+      expect(summarizeCashFlow(slim, currency, DEMO_RATE)).toEqual(summarizeCashFlow(full, currency, DEMO_RATE));
+      expect(spendingByCategory(slim, currency, DEMO_RATE)).toEqual(spendingByCategory(full, currency, DEMO_RATE));
+    }
+    expect(summarizeBudgets(DEMO_BUDGETS, slim, DEMO_RATE, from)).toEqual(summarizeBudgets(DEMO_BUDGETS, full, DEMO_RATE, from));
+  });
+
+  it("refuses a slim response with invalid stored money", async () => {
+    const db = database(1);
+    db.rows[0].amount = -1.5;
+    await expect(listLedgerLinesInRange(from, to)).rejects.toThrow("integer count");
   });
 });

@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, test, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({ dataContext: vi.fn(), transactions: vi.fn() }));
 vi.mock("./client", async (original) => ({ ...await original<typeof import("./client")>(), dataContext: mocks.dataContext }));
-vi.mock("./transactions", () => ({ listTransactionsInRange: mocks.transactions }));
+vi.mock("./transactions", () => ({ listLedgerLinesInRange: mocks.transactions }));
 
 import { listBudgetProgress } from "./budgets";
 import { DEFAULT_RATE } from "@/lib/money";
