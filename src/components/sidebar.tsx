@@ -24,7 +24,6 @@ export function Sidebar() {
           </Link>
         ))}
       </nav>
-      <div className="bg-surface-muted rounded-2xl mt-auto p-4"><p className="text-ink text-sm font-semibold">A little clearer.</p><p className="text-ink-muted mt-1 text-xs leading-relaxed">Dollars and riel.<br />One place for your money.</p></div>
     </aside>
   );
 }
