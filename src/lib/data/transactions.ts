@@ -318,13 +318,13 @@ export async function listSplits(transactionId: string): Promise<TransactionSpli
 }
 
 /** Soft-deleted transactions, newest first, for the restore view. */
-export async function listDeletedTransactions(limit = 50): Promise<Transaction[]> {
+export async function listDeletedTransactions(limit = 50, filter: TransactionFilter = {}): Promise<Transaction[]> {
   const context = await dataContext();
   if (!context) return [];
 
-  const { data, error } = await context.supabase
+  const { data, error } = await applyFilter(context.supabase
     .from("transactions")
-    .select(TRANSACTION_COLUMNS)
+    .select(TRANSACTION_COLUMNS).eq("user_id", context.userId), { ...filter, includeDeleted: true })
     .not("deleted_at", "is", null)
     .order("deleted_at", { ascending: false })
     .limit(limit);

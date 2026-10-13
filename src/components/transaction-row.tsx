@@ -1,4 +1,6 @@
-import { ArrowDownLeft, ArrowRightLeft, ArrowUpRight, Send } from "lucide-react";
+import { ArrowDownLeft, ArrowRightLeft, ArrowUpRight, Ellipsis, Send } from "lucide-react";
+import { AppLink as Link } from "@/components/app-link";
+import { CategoryIcon } from "@/components/category-icon";
 
 import { CurrencyBadge, MoneyAmount } from "@/components/money-amount";
 import { TransactionRowActions } from "@/components/transaction-row-actions";
@@ -52,6 +54,8 @@ export function TransactionRow({
   editable = true,
   deleted = false,
   showDate = true,
+  activity = false,
+  merchant,
 }: {
   transaction: Transaction;
   /** The rows on screen, used to find a transfer's counterpart leg. */
@@ -62,12 +66,38 @@ export function TransactionRow({
   /** Renders the restore affordance instead of delete. */
   deleted?: boolean;
   showDate?: boolean;
+  activity?: boolean;
+  merchant?: string;
 }) {
   const category = transaction.categoryId ? categories[transaction.categoryId] : undefined;
   const account = accounts[transaction.accountId];
   const amount = money(transaction.amount, transaction.currency);
   const route = transferRoute(transaction, transactions, accounts);
-  const isTransfer = route !== null;
+  const isTransfer = transaction.type === "transfer";
+
+  if (activity) {
+    const contents = <>
+      <span className="flex min-w-0 flex-col items-center gap-1 text-ink-muted">
+        {isTransfer ? <ArrowRightLeft size={19} aria-hidden="true" /> : <CategoryIcon icon={category?.icon} size={19} />}
+        <span className="w-full truncate text-center text-[10px]">{isTransfer ? "Transfer" : category?.name ?? "Uncategorised"}</span>
+      </span>
+      <span className="min-w-0">
+        <span className={cn("block truncate text-xs font-semibold text-ink", deleted && "line-through")}>{merchant ?? transaction.notes ?? category?.name ?? "Transaction"}</span>
+        <span className="mt-1 block truncate text-[10px] text-ink-faint">{route ?? account?.name ?? "Account"}</span>
+      </span>
+      <MoneyAmount amount={amount} colorBySign={!isTransfer} showPlus={!isTransfer} className="whitespace-nowrap text-xs font-semibold tracking-tight" />
+    </>;
+    const rowClass = "grid min-h-14 min-w-0 flex-1 grid-cols-[3.25rem_minmax(0,1fr)_auto] items-center gap-2 py-3";
+    return <li className="flex min-w-0 items-center gap-1">
+      {editable && !deleted && !isTransfer ? <Link href={`/transactions/${transaction.id}/edit`} className={rowClass} aria-label={`Edit ${transaction.notes ?? category?.name ?? "transaction"}`}>{contents}</Link> : <div className={rowClass}>{contents}</div>}
+      {editable ? <details className="relative shrink-0">
+        <summary aria-label="Transaction actions" className="flex size-11 list-none items-center justify-center rounded-xl text-ink-faint"><Ellipsis size={18} aria-hidden="true" /></summary>
+        <div className="absolute right-0 z-10 rounded-xl border border-surface-variant bg-surface p-1 shadow-card">
+          <TransactionRowActions transactionId={transaction.id} isTransfer={isTransfer} deleted={deleted} />
+        </div>
+      </details> : null}
+    </li>;
+  }
 
   return (
     <li className={cn("grid grid-cols-[2.25rem_minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1 py-4", editable && "sm:grid-cols-[2.5rem_minmax(0,1fr)_auto_auto]")}>

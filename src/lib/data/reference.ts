@@ -9,7 +9,7 @@
 import { cache } from "react";
 
 import { getUser } from "@/lib/auth";
-import type { Category, Profile, Settings } from "@/lib/domain/types";
+import type { Category, Merchant, Profile, Settings } from "@/lib/domain/types";
 import type { CurrencyCode } from "@/lib/money";
 import { CATEGORY_LOOKUP, DEMO_CATEGORIES } from "@/lib/demo-data";
 
@@ -21,7 +21,24 @@ import {
   dataContext,
   SETTINGS_COLUMNS,
 } from "./client";
-import { mapRows, toCategory, toProfile, toSettings } from "./mappers";
+import { mapRows, toCategory, toMerchant, toProfile, toSettings } from "./mappers";
+
+export async function merchantLookup(ids: readonly string[]): Promise<Record<string, Merchant>> {
+  const unique = [...new Set(ids)];
+  if (!unique.length) return {};
+  const context = await dataContext();
+  if (!context) return {};
+  // Bound each URL and response below PostgREST's row cap.
+  const chunks = Array.from({ length: Math.ceil(unique.length / 100) }, (_, index) => unique.slice(index * 100, (index + 1) * 100));
+  const groups = await Promise.all(chunks.map(async chunk => {
+    const { data, error } = await context.supabase.from("merchants")
+      .select("id, user_id, name, normalized_name, default_category_id, logo_url")
+      .eq("user_id", context.userId).in("id", chunk);
+    if (error) throw new DataError("load transaction merchants", error);
+    return mapRows(asRows(data), toMerchant, "merchants");
+  }));
+  return Object.fromEntries(groups.flat().map(merchant => [merchant.id, merchant]));
+}
 
 export const listCategories = cache(async (): Promise<Category[]> => {
   const context = await dataContext();

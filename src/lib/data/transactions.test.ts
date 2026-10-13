@@ -4,7 +4,7 @@ import type { Row } from "./mappers";
 const { dataContext } = vi.hoisted(() => ({ dataContext: vi.fn() }));
 vi.mock("./client", async (original) => ({ ...await original<typeof import("./client")>(), dataContext }));
 
-import { listLedgerLinesInRange, listTransactionsInRange } from "./transactions";
+import { listDeletedTransactions, listLedgerLinesInRange, listTransactionsInRange } from "./transactions";
 import { LEDGER_LINE_COLUMNS } from "./client";
 import { toLedgerLine, toTransaction } from "./mappers";
 import { spendingByCategory, summarizeCashFlow } from "@/lib/domain/transactions";
@@ -46,6 +46,18 @@ function database(size: number, cap = 1000) {
 }
 
 beforeEach(() => dataContext.mockReset());
+
+it("bounds the restore list to the caller and shown month, and propagates errors", async () => {
+  const query = { select: vi.fn().mockReturnThis(), eq: vi.fn().mockReturnThis(), not: vi.fn().mockReturnThis(), gte: vi.fn().mockReturnThis(), lte: vi.fn().mockReturnThis(), order: vi.fn().mockReturnThis(), limit: vi.fn().mockResolvedValue({ data: [], error: null }) };
+  dataContext.mockResolvedValue({ userId: "u1", supabase: { from: () => query } });
+  expect(await listDeletedTransactions(50, { from, to })).toEqual([]);
+  expect(query.eq).toHaveBeenCalledWith("user_id", "u1");
+  expect(query.not).toHaveBeenCalledWith("deleted_at", "is", null);
+  expect(query.gte).toHaveBeenCalledWith("occurred_at", from.toISOString());
+  expect(query.lte).toHaveBeenCalledWith("occurred_at", to.toISOString());
+  query.limit.mockResolvedValue({ data: [], error: new Error("offline") });
+  await expect(listDeletedTransactions()).rejects.toThrow("offline");
+});
 
 describe("complete reporting ranges", () => {
   it("loads more than the API's default thousand-row cap without dropping money", async () => {

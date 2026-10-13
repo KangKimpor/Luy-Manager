@@ -1,12 +1,13 @@
 "use client";
 
-import { ChevronDown, Search, X } from "lucide-react";
+import { Search, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useOptimistic, useState, useTransition } from "react";
 
 import { Card, CardBody } from "@/components/ui/card";
 import type { AccountBalance, Category } from "@/lib/domain/types";
 import { TRANSACTION_TYPES } from "@/lib/domain/types";
+import { activityHref, type ActivityParams } from "@/lib/activity-url";
 
 /**
  * Filters for the ledger view.
@@ -34,12 +35,7 @@ export function TransactionFilters({
   accounts: readonly AccountBalance[];
   categories: readonly Category[];
   month: string;
-  selected: {
-    account?: string;
-    category?: string;
-    type?: string;
-    q?: string;
-  };
+  selected: ActivityParams;
 }) {
   const router = useRouter();
   const [search, setSearch] = useState(selected.q ?? "");
@@ -50,24 +46,9 @@ export function TransactionFilters({
 
   /** Rebuild the URL with one filter changed, dropping the page. */
   function go(patch: Record<string, string | undefined>) {
-    const params = new URLSearchParams();
-
-    // month is part of the merge, not set separately, or a patch changing it would
-    // be silently overwritten by the current value.
-    const merged: Record<string, string | undefined> = {
-      ...optimistic,
-      ...patch,
-    };
-
-    for (const [key, value] of Object.entries(merged)) {
-      if (value) params.set(key, value);
-    }
-
-    // Changing a filter must reset paging: page 4 of a narrower result set is
-    // usually empty, which reads as "no transactions" rather than "wrong page".
     startTransition(() => {
       select(patch);
-      router.push(`/transactions?${params.toString()}`);
+      router.push(activityHref(optimistic, patch));
     });
   }
 
@@ -108,10 +89,6 @@ export function TransactionFilters({
           </button>
         </form>
 
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <input type="month" value={optimistic.month ?? month} onChange={(event) => { if (event.target.value) go({ month: event.target.value }); }} aria-label="Month" className="border-border-subtle bg-surface rounded-xl text-ink-muted min-h-11 max-w-full border px-3 text-sm" />
-          <details open={hasFilters} className="min-w-0 flex-1 open:basis-full">
-          <summary className="text-ink-muted flex min-h-11 items-center justify-end gap-2 text-sm font-medium">Filters{hasFilters ? " applied" : ""}<ChevronDown className="disclosure-icon" size={16} aria-hidden="true" /></summary>
         <div className="mt-3 flex flex-wrap gap-2">
           <select
             value={optimistic.account ?? ""}
@@ -134,6 +111,7 @@ export function TransactionFilters({
             className="border-border-subtle bg-surface rounded-pill text-ink-muted min-h-11 border px-3 text-xs"
           >
             <option value="">All categories</option>
+            <option value="none">Uncategorised</option>
             {categories.map((category) => (
               <option key={category.id} value={category.id}>
                 {category.name}
@@ -168,8 +146,6 @@ export function TransactionFilters({
               Clear
             </button>
           ) : null}
-        </div>
-        </details>
         </div>
         <p role="status" data-pending={pending || undefined} className="pending-status text-brand text-sm">{pending ? "Updating activity..." : ""}</p>
       </CardBody>

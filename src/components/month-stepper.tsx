@@ -29,7 +29,7 @@ export function MonthStepper({
         href={prevHref}
         aria-label={`Previous period, ${label}`}
         rel="prev"
-        className="text-ink-muted hover:bg-surface-container flex size-10 items-center justify-center rounded-xl transition-colors"
+        className="text-ink-muted hover:bg-surface-container flex size-11 items-center justify-center rounded-xl transition-colors"
       >
         <ChevronLeft size={20} aria-hidden="true" />
       </Link>
@@ -43,7 +43,7 @@ export function MonthStepper({
         href={nextHref}
         aria-label={`Next period, ${label}`}
         rel="next"
-        className="text-ink-muted hover:bg-surface-container flex size-10 items-center justify-center rounded-xl transition-colors"
+        className="text-ink-muted hover:bg-surface-container flex size-11 items-center justify-center rounded-xl transition-colors"
       >
         <ChevronRight size={20} aria-hidden="true" />
       </Link>

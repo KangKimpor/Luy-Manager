@@ -1,168 +1,86 @@
-import { ChevronLeft, ChevronRight, Plus, Search } from "lucide-react";
+import { Plus, Search, SlidersHorizontal } from "lucide-react";
 import { AppLink as Link } from "@/components/app-link";
-
+import { ActivityCalendar } from "@/components/activity-calendar";
+import { CurrencyToggle } from "@/components/currency-toggle";
+import { MoneyAmount } from "@/components/money-amount";
+import { MonthStepper } from "@/components/month-stepper";
 import { TransactionFilters } from "@/components/transaction-filters";
 import { TransactionHistory } from "@/components/transaction-history";
 import { Card, CardBody } from "@/components/ui/card";
+import { activityHref, type ActivityParams } from "@/lib/activity-url";
 import { isDemoMode } from "@/lib/auth";
-import { accountLookup, listAccountBalances } from "@/lib/data/accounts";
-import { listCategories, categoryLookup } from "@/lib/data/reference";
-import { DEFAULT_PAGE_SIZE, listTransactions } from "@/lib/data/transactions";
-import { TRANSACTION_TYPES, type TransactionType } from "@/lib/domain/types";
-import { monthFromParam, monthParam } from "@/lib/period";
+import { listAccountBalances } from "@/lib/data/accounts";
+import { getSettings, listCategories, merchantLookup } from "@/lib/data/reference";
+import { listDeletedTransactions, listTransactionsInRange } from "@/lib/data/transactions";
+import { readDisplayCurrency } from "@/lib/display-currency";
+import { activityDays, filterActivity, weekStart } from "@/lib/domain/activity";
+import { summarizeCashFlow } from "@/lib/domain/transactions";
+import { TRANSACTION_TYPES } from "@/lib/domain/types";
+import { monthFromParam, monthParam, shiftMonth } from "@/lib/period";
+import { loadUsdKhrRate } from "@/lib/rates/repository";
+import { cn } from "@/lib/utils";
 
-/**
- * The full ledger, filtered and paged (PRD Section 8).
- *
- * The dashboard's recent list is a `slice(0, 8)` of one month. This is the view for
- * finding a specific transaction, so the filtering and paging happen in the
- * database (on the `(user_id, occurred_at desc) where deleted_at is null` index
- * from migration 0001) rather than by fetching a whole history and cutting it down
- * in the browser.
- *
- * Every filter lives in the URL. That makes a filtered view shareable and
- * bookmarkable, keeps the arithmetic on the server, and means the back button does
- * what the user expects.
- */
-
-function parseType(raw: string | undefined): TransactionType | undefined {
-  return raw && (TRANSACTION_TYPES as readonly string[]).includes(raw)
-    ? (raw as TransactionType)
-    : undefined;
-}
-
-function parsePage(raw: string | undefined): number {
-  const value = Number(raw);
-  return Number.isInteger(value) && value > 0 ? value : 1;
-}
-
-export default async function TransactionsPage(props: {
-  searchParams: Promise<{
-    month?: string;
-    account?: string;
-    category?: string;
-    type?: string;
-    q?: string;
-    page?: string;
-  }>;
+export default async function TransactionsPage({ searchParams }: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  const params = await props.searchParams;
-  const period = monthFromParam(params.month);
-  const page = parsePage(params.page);
-
-  const filter = {
-    from: period.from,
-    to: period.to,
-    accountId: params.account || undefined,
-    categoryId: params.category || undefined,
-    type: parseType(params.type),
-    search: params.q || undefined,
+  const raw = await searchParams;
+  const single = (key: string) => typeof raw[key] === "string" ? raw[key] as string : undefined;
+  const period = monthFromParam(single("month"));
+  const month = monthParam(period);
+  const view = single("view") === "calendar" ? "calendar" : "daily";
+  const day = single("day");
+  const params: ActivityParams = {
+    month, view, day: day && /^\d{4}-\d{2}-\d{2}$/.test(day) && day.startsWith(`${month}-`) ? day : undefined,
+    account: single("account"), category: single("category"), q: single("q"),
+    type: TRANSACTION_TYPES.find(type => type === single("type")), deleted: single("deleted") === "1" ? "1" : undefined,
   };
-
-  const [result, accounts, categories, lookup, categories2] = await Promise.all([
-    listTransactions(filter, { number: page, size: DEFAULT_PAGE_SIZE }),
-    listAccountBalances(),
-    listCategories(),
-    accountLookup(),
-    categoryLookup(),
+  const [transactions, accounts, categories, settings, currency, { rate }, deleted] = await Promise.all([
+    listTransactionsInRange(period.from, period.to), listAccountBalances(), listCategories(), getSettings(),
+    readDisplayCurrency(), loadUsdKhrRate(), params.deleted ? listDeletedTransactions(50, { from: period.from, to: period.to }) : Promise.resolve([]),
   ]);
+  const lookup = Object.fromEntries(accounts.map(account => [account.accountId, account]));
+  const categoryMap = Object.fromEntries(categories.map(category => [category.id, category]));
+  const merchants = await merchantLookup([...transactions, ...deleted].flatMap(transaction => transaction.merchantId ? [transaction.merchantId] : []));
+  const filtered = filterActivity(transactions, params);
+  const filteredDeleted = filterActivity(deleted, params);
+  const days = activityDays(filtered, currency, rate);
+  const flow = summarizeCashFlow(filtered, currency, rate);
+  const selectedDays = view === "calendar" ? days.filter(group => group.date === params.day) : days;
+  const hasFilters = Boolean(params.account || params.category || params.type || params.q);
+  const converted = filtered.some(transaction => transaction.type !== "transfer" && transaction.currency !== currency);
+  const editable = !isDemoMode();
+  const historyProps = { transactions, accounts: lookup, categories: categoryMap, merchants, editable };
 
-  const shownFrom = result.total === 0 ? 0 : (page - 1) * result.pageSize + 1;
-  const shownTo = (page - 1) * result.pageSize + result.transactions.length;
-
-  /** Preserve every filter when changing page. */
-  function pageHref(target: number): string {
-    const next = new URLSearchParams();
-    next.set("month", monthParam(period));
-    if (params.account) next.set("account", params.account);
-    if (params.category) next.set("category", params.category);
-    if (params.type) next.set("type", params.type);
-    if (params.q) next.set("q", params.q);
-    if (target > 1) next.set("page", String(target));
-    return `/transactions?${next.toString()}`;
-  }
-
-  return (
-    <div className="page-enter mx-auto max-w-4xl space-y-5 sm:space-y-6">
-      {/* The screen name lives in the app bar, so this is only the result count. */}
-      <div className="flex items-center justify-between gap-3">
-        <div className="min-w-0"><p className="text-sm font-medium text-ink">Every money move, in one place.</p><p className="mt-1 text-xs text-ink-faint">{result.total === 0 ? "No matching entries" : result.transactions.length === 0 ? "No entries on this page" : `Showing ${shownFrom} to ${shownTo} of ${result.total}`}</p></div>
-        <Link href="/add" aria-label="Add a transaction" className="card-interactive flex size-11 shrink-0 items-center justify-center rounded-2xl bg-brand text-on-action"><Plus size={20} aria-hidden="true" /></Link>
-      </div>
-
-      <TransactionFilters
-        key={`${monthParam(period)}:${params.q ?? ""}`}
-        accounts={accounts}
-        categories={categories}
-        month={monthParam(period)}
-        selected={{
-          account: params.account,
-          category: params.category,
-          type: params.type,
-          q: params.q,
-        }}
-      />
-
-      {result.transactions.length === 0 ? (
-        <Card>
-          <CardBody className="py-8 text-center">
-            <span className="mx-auto mb-4 flex size-12 items-center justify-center rounded-2xl bg-brand-soft text-brand"><Search size={22} aria-hidden="true" /></span>
-            <p className="font-semibold text-ink">Nothing here yet</p>
-            <p className="mt-2 text-sm text-ink-muted">
-              No transactions for {period.label} with these filters.
-            </p>
-            <Link href={`/transactions?month=${monthParam(period)}`} className="card-interactive mt-4 inline-flex min-h-11 items-center text-sm font-semibold text-brand">Clear filters</Link>
-          </CardBody>
-        </Card>
-      ) : (
-        <TransactionHistory transactions={result.transactions} categories={categories2} accounts={lookup} editable={!isDemoMode()} />
-      )}
-
-      {/* Prev/next rather than numbered pages: on a phone, two large targets beat
-          a row of small ones, and the total above already gives a sense of scale. */}
-      {result.total > result.pageSize ? (
-        <nav className="flex items-center justify-between gap-2 rounded-card border border-surface-variant bg-surface p-2 text-sm shadow-card" aria-label="Pages">
-          {/*
-            Chevron icons rather than "←" and "→". The arrow characters are outside
-            every font subset the app ships and rendered as tofu boxes.
-          */}
-          {page > 1 ? (
-            <Link
-              href={pageHref(page - 1)}
-              rel="prev"
-              className="card-interactive flex min-h-11 items-center gap-1 rounded-xl px-3 text-xs font-semibold text-brand"
-            >
-              <ChevronLeft size={16} aria-hidden="true" />
-              Newer
-            </Link>
-          ) : (
-            <span className="flex min-h-11 items-center gap-1 px-3 text-xs text-ink-faint">
-              <ChevronLeft size={16} aria-hidden="true" />
-              Newer
-            </span>
-          )}
-
-          <span className="text-ink-muted text-xs">
-            Page {page} of {Math.max(1, Math.ceil(result.total / result.pageSize))}
-          </span>
-
-          {result.hasMore ? (
-            <Link
-              href={pageHref(page + 1)}
-              rel="next"
-              className="card-interactive flex min-h-11 items-center gap-1 rounded-xl px-3 text-xs font-semibold text-brand"
-            >
-              Older
-              <ChevronRight size={16} aria-hidden="true" />
-            </Link>
-          ) : (
-            <span className="flex min-h-11 items-center gap-1 px-3 text-xs text-ink-faint">
-              Older
-              <ChevronRight size={16} aria-hidden="true" />
-            </span>
-          )}
-        </nav>
-      ) : null}
+  return <div className="page-enter mx-auto max-w-4xl space-y-5">
+    <div className="flex items-center justify-between gap-2">
+      <p className="text-xs text-ink-faint">{filtered.length} {filtered.length === 1 ? "entry" : "entries"} this month</p>
+      <div className="flex items-center gap-2"><CurrencyToggle current={currency} /><Link href="/add" aria-label="Add a transaction" className="flex size-11 shrink-0 items-center justify-center rounded-2xl bg-brand text-on-action"><Plus size={20} aria-hidden="true" /></Link></div>
     </div>
-  );
+    <MonthStepper label={period.label} prevHref={activityHref(params, { month: monthParam(shiftMonth(period, -1)) })} nextHref={activityHref(params, { month: monthParam(shiftMonth(period, 1)) })} />
+    <div className="flex items-center gap-2">
+      <nav aria-label="Activity view" className="grid flex-1 grid-cols-2 gap-1 rounded-2xl bg-surface-container-low p-1">
+        {(["daily", "calendar"] as const).map(value => <Link key={value} href={activityHref(params, { view: value })} aria-current={view === value ? "page" : undefined} className={cn("flex min-h-11 items-center justify-center rounded-xl text-sm font-semibold", view === value ? "bg-surface text-ink shadow-card" : "text-ink-muted")}>{value === "daily" ? "Daily" : "Calendar"}</Link>)}
+      </nav>
+      <details className="relative shrink-0">
+        <summary aria-label={hasFilters ? "Filters applied" : "Filters and search"} className={cn("flex size-11 list-none items-center justify-center rounded-xl", hasFilters ? "bg-brand-soft text-brand" : "bg-surface text-ink-muted")}><SlidersHorizontal size={19} aria-hidden="true" /></summary>
+        <div className="absolute right-0 z-20 mt-2 w-[min(335px,calc(100vw-40px))]">
+          <TransactionFilters key={`${month}:${params.q ?? ""}`} accounts={accounts} categories={categories} month={month} selected={params} />
+        </div>
+      </details>
+    </div>
+    <Card><CardBody className="pt-4 pb-4"><dl className="grid grid-cols-3 gap-2 text-center">
+      {(["income", "expense", "net"] as const).map(key => <div key={key} className="min-w-0"><dt className="text-[10px] font-medium text-ink-muted">{key === "net" ? "Total" : key === "income" ? "Income" : "Expense"}</dt><dd className={cn("mt-1 truncate text-sm font-semibold", key === "income" ? "text-inflow" : key === "expense" ? "text-outflow" : "text-ink")}><MoneyAmount amount={flow[key]} /></dd></div>)}
+    </dl>{converted ? <p className="mt-3 text-center text-[10px] text-ink-faint">Converted to {currency}. Transfers excluded.</p> : null}</CardBody></Card>
+    {view === "calendar" ? <ActivityCalendar period={period} days={days} currency={currency} startsOn={weekStart(settings?.weekStartsOn)} params={params} /> : null}
+    {selectedDays.length ? <TransactionHistory {...historyProps} days={selectedDays} /> : <Card><CardBody className="py-8 text-center">
+      <Search size={22} aria-hidden="true" className="mx-auto mb-3 text-brand" />
+      <p className="font-semibold text-ink">{view === "calendar" && !params.day ? "Choose a day" : "Nothing here yet"}</p>
+      <p className="mt-2 text-sm text-ink-muted">{view === "calendar" && !params.day ? "Tap a date to see its transactions." : `No matching transactions for ${params.day ?? period.label}.`}</p>
+      {hasFilters ? <Link href={activityHref({ month, view, day: params.day })} className="mt-3 inline-flex min-h-11 items-center text-sm font-semibold text-brand">Clear filters</Link> : null}
+    </CardBody></Card>}
+    {editable ? <section aria-label="Recently deleted" className="space-y-4">
+      <Link href={activityHref(params, { deleted: params.deleted ? undefined : "1" })} className="inline-flex min-h-11 items-center text-xs font-semibold text-ink-muted">{params.deleted ? "Hide deleted entries" : "Recently deleted"}</Link>
+      {params.deleted ? <><p className="text-xs text-ink-faint">Up to 50 recently deleted entries for this month. Restore a transfer to bring back both legs.</p><TransactionHistory {...historyProps} days={activityDays(filteredDeleted, currency, rate)} transactions={deleted} deleted />{filteredDeleted.length === 0 ? <p className="text-sm text-ink-muted">No matching deleted entries.</p> : null}</> : null}
+    </section> : null}
+  </div>;
 }
