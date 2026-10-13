@@ -5,10 +5,10 @@ import { revalidatePath } from "next/cache";
 import { validTimezone } from "@/lib/calendar";
 import { requireUserId } from "@/lib/auth";
 import { dataContext } from "@/lib/data/client";
+import { getAccount } from "@/lib/data/accounts";
 import { getProfile } from "@/lib/data/reference";
-import { buildTransaction } from "@/lib/domain/transactions";
-import { planTransfer, transferInserts } from "@/lib/domain/transfers";
-import type { AccountBalance } from "@/lib/domain/types";
+import { buildTransaction, buildTransfer } from "@/lib/domain/transactions";
+import type { Account } from "@/lib/domain/types";
 import {
   absolute,
   type CurrencyCode,
@@ -75,9 +75,8 @@ function revalidateLedger(userId: string): void {
  * Row Level Security means a missing row and someone else's row are
  * indistinguishable here, which is the correct amount of information to leak.
  */
-async function loadAccount(accountId: string): Promise<AccountBalance> {
-  const { listAccountBalances } = await import("@/lib/data/accounts");
-  const account = (await listAccountBalances()).find((a) => a.accountId === accountId);
+async function loadAccount(accountId: string): Promise<Account> {
+  const account = await getAccount(accountId);
 
   if (!account) throw new Error("That account does not exist.");
   if (!account.isActive) {
@@ -123,13 +122,15 @@ export async function createTransaction(
     const context = await dataContext();
     if (!context) return { ok: false, error: "Connect Supabase to save transactions." };
 
-    const account = await loadAccount(parsed.data.accountId);
-    const profile = await getProfile();
-    const baseCurrency = profile?.baseCurrency ?? "USD";
-    const { rate } = await loadUsdKhrRate({
+    const profilePromise = getProfile();
+    const [account, profile, { rate }] = await Promise.all([
+      loadAccount(parsed.data.accountId), profilePromise,
+      profilePromise.then(profile => loadUsdKhrRate({
       asOf: parsed.data.occurredAt ? new Date(parsed.data.occurredAt) : new Date(),
       timezone: validTimezone(profile?.timezone),
-    });
+      })),
+    ]);
+    const baseCurrency = profile?.baseCurrency ?? "USD";
 
     // Derived from the tenders when present, so the stored total is exactly the
     // sum of what was handed over, converted into the account's currency.
@@ -148,7 +149,7 @@ export async function createTransaction(
 
     const row = buildTransaction(
       {
-        accountId: account.accountId,
+        accountId: account.id,
         type: parsed.data.type,
         amount,
         categoryId: parsed.data.categoryId ?? null,
@@ -298,20 +299,22 @@ export async function updateTransaction(
     const context = await dataContext();
     if (!context) return { ok: false, error: "Connect Supabase to edit transactions." };
 
-    const account = await loadAccount(parsed.data.accountId);
-    const profile = await getProfile();
-    const baseCurrency = profile?.baseCurrency ?? "USD";
-    const { rate } = await loadUsdKhrRate({
+    const profilePromise = getProfile();
+    const [account, profile, { rate }] = await Promise.all([
+      loadAccount(parsed.data.accountId), profilePromise,
+      profilePromise.then(profile => loadUsdKhrRate({
       asOf: parsed.data.occurredAt ? new Date(parsed.data.occurredAt) : new Date(),
       timezone: validTimezone(profile?.timezone),
-    });
+      })),
+    ]);
+    const baseCurrency = profile?.baseCurrency ?? "USD";
 
     const amount = parseMoney(parsed.data.amount, account.currency);
     if (isZero(amount)) return { ok: false, error: "Enter an amount above zero." };
 
     const row = buildTransaction(
       {
-        accountId: account.accountId,
+        accountId: account.id,
         type: parsed.data.type,
         amount,
         categoryId: parsed.data.categoryId ?? null,
@@ -458,17 +461,17 @@ export async function createTransfer(
     const context = await dataContext();
     if (!context) return { ok: false, error: "Connect Supabase to save transfers." };
 
-    const [from, to] = await Promise.all([
+    const profilePromise = getProfile();
+    const [from, to, profile, { rate }] = await Promise.all([
       loadAccount(parsed.data.fromAccountId),
       loadAccount(parsed.data.toAccountId),
-    ]);
-
-    const profile = await getProfile();
-    const baseCurrency = profile?.baseCurrency ?? "USD";
-    const { rate } = await loadUsdKhrRate({
+      profilePromise,
+      profilePromise.then(profile => loadUsdKhrRate({
       asOf: parsed.data.occurredAt ? new Date(parsed.data.occurredAt) : new Date(),
       timezone: validTimezone(profile?.timezone),
-    });
+      })),
+    ]);
+    const baseCurrency = profile?.baseCurrency ?? "USD";
 
     const amount = parseMoney(parsed.data.amount, from.currency);
     const received =
@@ -476,22 +479,16 @@ export async function createTransfer(
         ? parseMoney(parsed.data.receivedAmount, to.currency)
         : undefined;
 
-    // planTransfer enforces the invariants the database would otherwise reject:
-    // two different accounts, a non-zero amount, and each leg in its own currency.
-    const plan = planTransfer(
-      {
-        from,
-        to,
-        amount,
-        receivedAmount: received,
-        occurredAt: parsed.data.occurredAt ? new Date(parsed.data.occurredAt) : undefined,
-        notes: parsed.data.notes ?? null,
-      },
-      rate,
-    );
-
+    if (isZero(amount)) throw new Error("A transfer must move a non-zero amount.");
+    if (received && isZero(received)) throw new Error("A transfer must credit a non-zero amount.");
     const transferGroupId = crypto.randomUUID();
-    const [out, incoming] = transferInserts(plan, transferGroupId, baseCurrency, rate);
+    // Only the preview needs balances; the write validates and builds both legs.
+    const [out, incoming] = buildTransfer({
+      fromAccountId: from.id, toAccountId: to.id, toCurrency: to.currency,
+      amount, receivedAmount: received,
+      occurredAt: parsed.data.occurredAt ? new Date(parsed.data.occurredAt) : undefined,
+      notes: parsed.data.notes ?? null,
+    }, transferGroupId, baseCurrency, rate);
 
     const { error } = await context.supabase
       .from("transactions")
