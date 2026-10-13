@@ -9,6 +9,6 @@ function Pending() {
   return <span className="link-pending pointer-events-none absolute inset-0 rounded-[inherit] border-2 border-brand" data-pending={pending || undefined} aria-hidden="true" />;
 }
 
-export function AppLink({ children, className, prefetch = true, ...props }: ComponentProps<typeof Link>) {
+export function AppLink({ children, className, prefetch, ...props }: ComponentProps<typeof Link>) {
   return <Link {...props} prefetch={prefetch} className={cn("app-link relative", className)}>{children}<Pending /></Link>;
 }

@@ -92,7 +92,7 @@ export default async function DashboardPage(props: {
           { href: "/add?type=transfer", label: "Transfer", icon: ArrowRightLeft },
           { href: "/accounts", label: "Accounts", icon: Wallet },
         ].map(({ href, label, icon: Icon }) => (
-          <Link prefetch={true} key={href} href={href} className="card-interactive flex min-h-20 flex-col items-center justify-center gap-2 rounded-card border border-surface-variant bg-surface px-2 py-4 text-center text-xs font-semibold text-ink shadow-card sm:flex-row sm:text-sm">
+          <Link key={href} href={href} className="card-interactive flex min-h-20 flex-col items-center justify-center gap-2 rounded-card border border-surface-variant bg-surface px-2 py-4 text-center text-xs font-semibold text-ink shadow-card sm:flex-row sm:text-sm">
             <Icon size={19} className="text-brand" aria-hidden="true" />{label}
           </Link>
         ))}
@@ -108,7 +108,7 @@ export default async function DashboardPage(props: {
             <DashboardBudgets categories={categories} snapshot={snapshot} />
           </Suspense>
           <CategoryBreakdown totals={categoryTotals} categories={categories} limit={4} />
-          <Link prefetch={true} href="/reports" className="card-interactive group block rounded-card border border-brand/10 bg-brand-soft p-5">
+          <Link href="/reports" className="card-interactive group block rounded-card border border-brand/10 bg-brand-soft p-5">
             <span className="mb-4 flex size-10 items-center justify-center rounded-2xl bg-surface text-brand"><ChartNoAxesCombined size={20} aria-hidden="true" /></span>
             <span className="block font-semibold text-ink">A little clarity goes a long way.</span>
             <span className="mt-1.5 block text-sm leading-relaxed text-ink-muted">See how your spending and balance change over time.</span>
