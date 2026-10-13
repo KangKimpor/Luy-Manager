@@ -6,14 +6,13 @@ import { ThemeToggle } from "@/components/theme-toggle";
 import { readTheme } from "@/lib/theme-cookie";
 import { ManualRateForm } from "@/components/manual-rate-form";
 import { TelegramStatusCheck } from "@/components/telegram-status";
-import { MoneyAmount } from "@/components/money-amount";
 import { buttonVariants } from "@/components/ui/button";
 import { Card, CardBody, CardHeader, CardTitle } from "@/components/ui/card";
 import { getUser, isDemoMode } from "@/lib/auth";
 import { getProfile } from "@/lib/data/reference";
 import { readDisplayCurrency } from "@/lib/display-currency";
 import { formatMoney, fromMajor } from "@/lib/money";
-import { describeFreshness, listRateHistory, loadUsdKhrRate } from "@/lib/rates/repository";
+import { describeFreshness, loadUsdKhrRate } from "@/lib/rates/repository";
 import { botUsername, isTelegramConfigured, requireTelegramEnv } from "@/lib/telegram/env";
 import { connectUrl, createLinkToken } from "@/lib/telegram/link";
 
@@ -63,11 +62,10 @@ async function telegramConnectState(): Promise<TelegramState> {
  * gets written.
  */
 export default async function SettingsPage() {
-  const [displayCurrency, snapshot, user, history, telegram, theme] = await Promise.all([
+  const [displayCurrency, snapshot, user, telegram, theme] = await Promise.all([
     readDisplayCurrency(),
     loadUsdKhrRate(),
     getUser(),
-    listRateHistory(14),
     telegramConnectState(),
     readTheme(),
   ]);
@@ -209,40 +207,6 @@ export default async function SettingsPage() {
           </div>
         </CardBody>
       </Card>
-
-      {history.length > 0 ? (
-        <details className="bg-surface border-surface-variant rounded-card border p-5">
-          <summary className="text-ink flex min-h-11 items-center font-semibold">Recent exchange rates</summary>
-          <CardBody>
-            <ul className="divide-surface-variant divide-y">
-              {history.map((entry) => (
-                <li
-                  key={entry.asOf}
-                  className="flex items-center justify-between gap-3 py-2 text-sm"
-                >
-                  <span className="text-ink-muted text-xs">{entry.asOf}</span>
-                  <span className="flex items-center gap-3">
-                    {entry.publishedRate !== null ? (
-                      <span className="text-ink-faint tabular text-xs">
-                        published{" "}
-                        <MoneyAmount amount={fromMajor(entry.publishedRate, "KHR")} />
-                      </span>
-                    ) : null}
-                    <span className="tabular text-sm font-semibold">
-                      <MoneyAmount amount={fromMajor(entry.effectiveRate, "KHR")} />
-                    </span>
-                    {entry.isOverride ? (
-                      <span className="bg-brand-soft text-brand rounded-pill px-2 py-0.5 text-[0.625rem] font-bold">
-                        YOURS
-                      </span>
-                    ) : null}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          </CardBody>
-        </details>
-      ) : null}
 
       {user ? (
         <form action={signOut}>
