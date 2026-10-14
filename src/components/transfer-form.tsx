@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowRight, ArrowRightLeft, Check, TriangleAlert } from "lucide-react";
+import { ArrowRight, ArrowRightLeft, Check, TriangleAlert } from "@/components/app-icon";
 import { useMemo, useState } from "react";
 
 import {

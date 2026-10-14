@@ -1,6 +1,6 @@
 "use client";
 
-import { Check, TriangleAlert } from "lucide-react";
+import { Check, TriangleAlert } from "@/components/app-icon";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 

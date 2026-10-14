@@ -1,6 +1,6 @@
 "use client";
 
-import { Check, ChevronDown, Layers, TriangleAlert, Wallet } from "lucide-react";
+import { Check, ChevronDown, Layers, TriangleAlert, Wallet } from "@/components/app-icon";
 import { useMemo, useState } from "react";
 
 import {
@@ -28,6 +28,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { AccountPicker } from "@/components/account-picker";
 import { CategoryPicker } from "@/components/category-picker";
+import { resolveCategory } from "@/lib/domain/categories";
 import { TransactionDateField } from "@/components/transaction-date-field";
 import { useEntryDate } from "@/components/use-entry-date";
 import { calendarDate, isCalendarDate, transactionDate } from "@/lib/calendar";
@@ -92,7 +93,7 @@ export function QuickAddForm({
   const [raw, setRaw] = useState("");
   const [accountId, setAccountId] = useState(accounts[0]?.accountId ?? "");
   const [currency, setCurrency] = useState<CurrencyCode>(accounts[0]?.currency ?? "USD");
-  const [categoryId, setCategoryId] = useState<string | null>(null);
+  const [categoryId, setCategoryId] = useState<string | null | undefined>(undefined);
   const [note, setNote] = useState("");
   const [saved, setSaved] = useState<Money | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -105,6 +106,9 @@ export function QuickAddForm({
     () => categories.filter((category) => category.appliesTo.includes(type)),
     [categories, type],
   );
+  const resolvedCategoryId = categoryId === undefined
+    ? resolveCategory(relevantCategories, note)?.id ?? null
+    : relevantCategories.some((category) => category.id === categoryId) ? categoryId : null;
 
   const keypadAmount = useMemo(() => parseKeypadAmount(raw, currency), [raw, currency]);
 
@@ -146,7 +150,7 @@ export function QuickAddForm({
         // because the total is derived from them.
         amount: raw.trim() === "" ? "0" : raw.trim(),
         currency,
-        categoryId,
+        categoryId: resolvedCategoryId,
         occurredAt: transactionDate(date, timezone).toISOString(),
         notes: note.trim() === "" ? null : note.trim(),
         tenders: tenders ? parseTenders(tenders) : undefined,
@@ -162,7 +166,7 @@ export function QuickAddForm({
       setRaw("");
       setNote("");
       void selectDate(calendarDate(new Date(), timezone));
-      setCategoryId(null);
+      setCategoryId(undefined);
       setTenders(null);
       setSplits(null);
     } catch {
@@ -240,8 +244,9 @@ export function QuickAddForm({
       <AccountPicker accounts={accounts} selectedId={accountId} onSelect={selectAccount} />
 
       {/* A split has its own category for each part. */}
-      {!splits ? <CategoryPicker categories={relevantCategories} selectedId={categoryId}
+      {!splits ? <CategoryPicker categories={relevantCategories} selectedId={resolvedCategoryId}
         onSelect={(id) => { setSaved(null); setCategoryId(id); }} /> : null}
+      {!splits && categoryId === undefined && resolvedCategoryId ? <p role="status" className="text-ink-faint text-xs">Suggested from your note. Choose another category or clear it.</p> : null}
 
       <details className="border-surface-variant rounded-2xl border bg-surface p-4">
       <summary className="text-ink-muted flex min-h-11 items-center justify-between text-sm font-medium">More options<ChevronDown className="disclosure-icon" size={17} aria-hidden="true" /></summary>

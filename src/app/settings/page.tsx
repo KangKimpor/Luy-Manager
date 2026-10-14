@@ -1,4 +1,4 @@
-import { ArrowRightLeft, Check, LogOut, Send, User } from "lucide-react";
+import { ArrowRightLeft, Check, LogOut, Send, User } from "@/components/app-icon";
 
 import { signOut } from "@/app/actions/auth";
 import { CurrencyToggle } from "@/components/currency-toggle";

@@ -1,9 +1,10 @@
 "use client";
 
-import { Check, TriangleAlert } from "lucide-react";
+import { Check, TriangleAlert } from "@/components/app-icon";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
+import { CategoryPicker } from "@/components/category-picker";
 import { Button } from "@/components/ui/button";
 import { Card, CardBody } from "@/components/ui/card";
 import { createBudget } from "@/app/actions/budgets";
@@ -79,27 +80,8 @@ export function BudgetForm({
     <form onSubmit={handleSubmit} className="page-enter space-y-5" aria-busy={pending}>
       <Card>
         <CardBody className="space-y-3 pt-4">
-          <div>
-            <label
-              htmlFor="budget-category"
-              className="text-ink-muted mb-2 block text-sm font-medium"
-            >
-              Category
-            </label>
-            <select
-              id="budget-category"
-              value={categoryId ?? ""}
-              onChange={(event) => setCategoryId(event.target.value || null)}
-              className="border-border-subtle bg-surface rounded-card text-ink min-h-11 w-full border px-3 text-sm"
-            >
-              <option value="">Everything (one overall cap)</option>
-              {spendingCategories.map((category) => (
-                <option key={category.id} value={category.id}>
-                  {category.name}
-                </option>
-              ))}
-            </select>
-          </div>
+          <CategoryPicker categories={spendingCategories} selectedId={categoryId} onSelect={setCategoryId}
+            emptyLabel="Everything (one overall cap)" clearLabel="Use an overall cap" />
 
           <div>
             <label

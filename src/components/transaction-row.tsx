@@ -1,4 +1,5 @@
-import { ArrowDownLeft, ArrowRightLeft, ArrowUpRight, Ellipsis, Send } from "lucide-react";
+import { categoryLabel } from "@/lib/domain/categories";
+import { ArrowDownLeft, ArrowRightLeft, ArrowUpRight, Ellipsis, Send } from "@/components/app-icon";
 import { AppLink as Link } from "@/components/app-link";
 import { CategoryIcon } from "@/components/category-icon";
 
@@ -78,18 +79,18 @@ export function TransactionRow({
   if (activity) {
     const contents = <>
       <span className="flex min-w-0 flex-col items-center gap-1 text-ink-muted">
-        {isTransfer ? <ArrowRightLeft size={19} aria-hidden="true" /> : <CategoryIcon icon={category?.icon} size={19} />}
-        <span className="w-full truncate text-center text-[10px]">{isTransfer ? "Transfer" : category?.name ?? "Uncategorised"}</span>
+        {isTransfer ? <ArrowRightLeft size={19} aria-hidden="true" /> : <CategoryIcon category={category} size={19} />}
+        <span className="w-full truncate text-center text-[10px]">{isTransfer ? "Transfer" : categoryLabel(category)}</span>
       </span>
       <span className="min-w-0">
-        <span className={cn("block truncate text-xs font-semibold text-ink", deleted && "line-through")}>{merchant ?? transaction.notes ?? category?.name ?? "Transaction"}</span>
+        <span className={cn("block truncate text-xs font-semibold text-ink", deleted && "line-through")}>{merchant ?? transaction.notes ?? (category ? categoryLabel(category) : "Transaction")}</span>
         <span className="mt-1 block truncate text-[10px] text-ink-faint">{route ?? account?.name ?? "Account"}</span>
       </span>
       <MoneyAmount amount={amount} colorBySign={!isTransfer} showPlus={!isTransfer} className="whitespace-nowrap text-xs font-semibold tracking-tight" />
     </>;
     const rowClass = "grid min-h-14 min-w-0 flex-1 grid-cols-[3.25rem_minmax(0,1fr)_auto] items-center gap-2 py-3";
     return <li className="flex min-w-0 items-center gap-1">
-      {editable && !deleted && !isTransfer ? <Link href={`/transactions/${transaction.id}/edit`} className={rowClass} aria-label={`Edit ${transaction.notes ?? category?.name ?? "transaction"}`}>{contents}</Link> : <div className={rowClass}>{contents}</div>}
+      {editable && !deleted && !isTransfer ? <Link href={`/transactions/${transaction.id}/edit`} className={rowClass} aria-label={`Edit ${transaction.notes ?? (category ? categoryLabel(category) : "transaction")}`}>{contents}</Link> : <div className={rowClass}>{contents}</div>}
       {editable ? <details className="relative shrink-0">
         <summary aria-label="Transaction actions" className="flex size-11 list-none items-center justify-center rounded-xl text-ink-faint"><Ellipsis size={18} aria-hidden="true" /></summary>
         <div className="absolute right-0 z-10 rounded-xl border border-surface-variant bg-surface p-1 shadow-card">
@@ -118,7 +119,7 @@ export function TransactionRow({
             deleted ? "text-ink-faint line-through" : "text-ink",
           )}
         >
-          {transaction.notes ?? category?.name ?? (isTransfer ? "Transfer" : "Transaction")}
+          {transaction.notes ?? (category ? categoryLabel(category) : isTransfer ? "Transfer" : "Transaction")}
         </p>
         <p className="mt-1 flex min-w-0 items-center gap-1.5 text-[11px] text-ink-faint">
           {showDate ? <span className="shrink-0">{formatDate(transaction.occurredAt)}</span> : null}

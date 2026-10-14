@@ -38,7 +38,7 @@ The visible consequence: **middleware is called `proxy`.** The file is
 | Validation | Zod 4 |
 | Tests | Vitest 4, two projects (node and jsdom) |
 | Charts | Recharts 3 |
-| Icons | `lucide-react` (**not** Material Symbols, whatever a design mockup uses) |
+| Icons | Local Lets Icons SVGs through `src/components/app-icon.tsx`. Use the shared registry and existing tokens |
 
 ## Layers, and what each is allowed to do
 

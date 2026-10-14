@@ -1,5 +1,5 @@
 import { AppLink as Link } from "@/components/app-link";
-import { Wallet } from "lucide-react";
+import { Wallet } from "@/components/app-icon";
 
 import { LoginForm } from "@/components/login-form";
 import { Card, CardBody } from "@/components/ui/card";

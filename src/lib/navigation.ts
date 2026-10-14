@@ -1,4 +1,4 @@
-import { ChartNoAxesColumn, Ellipsis, House, List, PieChart, Settings, Wallet } from "lucide-react";
+import { ChartNoAxesColumn, Ellipsis, House, List, PieChart, Settings, Wallet } from "@/components/app-icon";
 
 export const MAIN_NAV = [
   { href: "/", label: "Home", icon: House },

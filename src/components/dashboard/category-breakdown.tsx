@@ -3,6 +3,8 @@ import { Card, CardBody, CardHeader, CardTitle } from "@/components/ui/card";
 import type { Category } from "@/lib/domain/types";
 import type { CategoryTotal } from "@/lib/domain/transactions";
 import { CHART_COLORS } from "@/lib/theme";
+import { categoryLabel } from "@/lib/domain/categories";
+import { CategoryIcon } from "@/components/category-icon";
 
 /**
  * Spending by category, PRD Section 11.
@@ -37,14 +39,14 @@ export function CategoryBreakdown({
           <ul className="stagger-children space-y-5">
             {shown.map((entry) => {
               const category = entry.categoryId ? categories[entry.categoryId] : undefined;
-              const name = category?.name ?? "Uncategorised";
+              const name = categoryLabel(category);
               const color = category?.color ?? CHART_COLORS.inkFaint;
               const percent = Math.round(entry.share * 100);
 
               return (
                 <li key={entry.categoryId ?? "none"}>
                   <div className="mb-2 flex items-baseline justify-between gap-2 text-sm">
-                    <span className="min-w-0 truncate font-medium text-ink">{name}</span>
+                    <span className="flex min-w-0 items-center gap-2 font-medium text-ink"><CategoryIcon category={category} size={16} /><span className="truncate">{name}</span></span>
                     <span className="flex shrink-0 items-baseline gap-2">
                       <MoneyAmount amount={entry.total} className="text-xs font-semibold" />
                       <span className="w-8 text-right text-[11px] text-ink-faint">{percent}%</span>

@@ -1,3 +1,4 @@
+import { CATEGORY_CATALOG } from "@/lib/domain/categories";
 /**
  * Demo data for local development before Supabase is connected.
  *
@@ -143,7 +144,7 @@ export const DEMO_ACCOUNTS: AccountBalance[] = [
   }),
 ];
 
-export const DEMO_CATEGORIES: Category[] = [
+const EXISTING_DEMO_CATEGORIES: Category[] = [
   { id: "cat-coffee", userId: "demo", parentId: "cat-food", name: "Coffee", icon: "coffee", color: "#b45309", appliesTo: ["expense"], isSystem: true, sortOrder: 11 },
   { id: "cat-restaurant", userId: "demo", parentId: "cat-food", name: "Restaurant", icon: "utensils-crossed", color: "#ea580c", appliesTo: ["expense"], isSystem: true, sortOrder: 12 },
   { id: "cat-groceries", userId: "demo", parentId: null, name: "Groceries", icon: "shopping-cart", color: "#22c55e", appliesTo: ["expense"], isSystem: true, sortOrder: 30 },
@@ -184,6 +185,14 @@ export const DEMO_CATEGORIES: Category[] = [
   { id: "cat-other-income", userId: "demo", parentId: null, name: "Other Income", icon: null, color: null, appliesTo: ["income"], isSystem: true, sortOrder: 290 },
 ];
 
+export const DEMO_CATEGORIES: Category[] = CATEGORY_CATALOG.map(([name, icon, group], index) => {
+  const existing = EXISTING_DEMO_CATEGORIES.find((category) => category.name === name);
+  if (existing) return { ...existing, icon };
+  const id = name === "Food & Drink" ? "cat-food" : `cat-${name.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`;
+  return { id, userId: "demo", name, icon, color: null, parentId: name === "Delivery" ? "cat-food" : null,
+    appliesTo: name === "Refund" ? ["income", "refund"] : [group === "Income" ? "income" : "expense"],
+    isSystem: true, sortOrder: index };
+});
 export const CATEGORY_LOOKUP: Record<string, Category> = Object.fromEntries(
   DEMO_CATEGORIES.map((category) => [category.id, category]),
 );

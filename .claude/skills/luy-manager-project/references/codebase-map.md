@@ -35,6 +35,7 @@ No React, no I/O, no Supabase. Ever.
 | --- | --- |
 | `types.ts` | Every domain type: `Account`, `AccountBalance`, `Transaction`, `Budget`, `Profile` |
 | `accounts.ts` | `balanceOf`, `summarizeNetWorth`, `ACCOUNT_TYPE_LABELS`, `ACCOUNT_PRESETS` |
+| `categories.ts` | Shared category catalog, display labels, icons, groups, search aliases and conservative automatic matching |
 | `transactions.ts` | `buildTransaction`, `signedAmount`, `summarizeCashFlow`, `spendingByCategory` |
 | `transfers.ts` | `planTransfer`, `transferInserts`, `describeTransfer` |
 | `budgets.ts` | Budget periods and progress |
@@ -144,6 +145,8 @@ delivery into a redirect to `/login`.
 `reports/net-worth-trend.tsx`.
 
 **Primitives:** `ui/card.tsx`, `ui/button.tsx`.
+
+**Icons and category selection:** `app-icon.tsx` renders local Lets Icons assets. `category-icon.tsx` resolves category names and legacy keys. `category-picker.tsx` shares the grouped picker across entry, editing, splits and budgets. Never render a stored category icon as text.
 
 Recharts components are client-only, so they render nothing in server HTML. A
 chart that looks empty in a static capture is not necessarily broken.

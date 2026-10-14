@@ -1,6 +1,6 @@
 "use client";
 
-import { CalendarDays } from "lucide-react";
+import { CalendarDays } from "@/components/app-icon";
 import { useId } from "react";
 
 import { shiftCalendarDate } from "@/lib/calendar";

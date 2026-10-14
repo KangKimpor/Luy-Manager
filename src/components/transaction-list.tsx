@@ -1,5 +1,5 @@
 import { AppLink as Link } from "@/components/app-link";
-import { ArrowUpRight, ReceiptText } from "lucide-react";
+import { ArrowUpRight, ReceiptText } from "@/components/app-icon";
 
 import { TransactionRow } from "@/components/transaction-row";
 import { Card, CardBody, CardHeader, CardTitle } from "@/components/ui/card";

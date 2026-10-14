@@ -1,12 +1,9 @@
-import { Banknote, CarTaxiFront, Coffee, Fuel, House, Laptop, Shapes, ShoppingBag, ShoppingCart, UtensilsCrossed, Zap, type LucideIcon } from "lucide-react";
+import { APP_ICON_KEYS, AppIcon } from "@/components/app-icon";
+import { categoryIconKey } from "@/lib/domain/categories";
+import type { Category } from "@/lib/domain/types";
 
-const ICONS: Record<string, LucideIcon> = {
-  banknote: Banknote, "car-taxi-front": CarTaxiFront, coffee: Coffee, fuel: Fuel,
-  home: House, laptop: Laptop, "shopping-bag": ShoppingBag, "shopping-cart": ShoppingCart,
-  "utensils-crossed": UtensilsCrossed, zap: Zap,
-};
-
-export function CategoryIcon({ icon, size = 18 }: { icon?: string | null; size?: number }) {
-  const Icon = icon ? ICONS[icon] ?? Shapes : Shapes;
-  return <Icon size={size} aria-hidden="true" className="shrink-0" />;
+export function CategoryIcon({ category, icon, size = 18 }: { category?: Category | null; icon?: string | null; size?: number }) {
+  const key = category ? categoryIconKey(category) : icon ?? "widget";
+  const name = APP_ICON_KEYS.find((name) => name === key) ?? "widget";
+  return <AppIcon name={name} size={size} className="shrink-0" />;
 }

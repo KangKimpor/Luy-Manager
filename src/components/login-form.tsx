@@ -1,6 +1,6 @@
 "use client";
 
-import { Mail, TriangleAlert } from "lucide-react";
+import { Mail, TriangleAlert } from "@/components/app-icon";
 import { useState } from "react";
 
 import { Button } from "@/components/ui/button";

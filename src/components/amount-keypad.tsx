@@ -1,6 +1,6 @@
 "use client";
 
-import { Delete } from "lucide-react";
+import { Delete } from "@/components/app-icon";
 import type { ReactNode } from "react";
 
 import { Card, CardBody } from "@/components/ui/card";

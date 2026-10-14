@@ -1,4 +1,5 @@
-import { Plus, Target } from "lucide-react";
+import { categoryLabel } from "@/lib/domain/categories";
+import { Plus, Target } from "@/components/app-icon";
 import { AppLink as Link } from "@/components/app-link";
 
 import { BudgetRowActions } from "@/components/budget-row-actions";
@@ -96,7 +97,7 @@ export default async function BudgetsPage() {
             const name =
               entry.budget.name ??
               (entry.budget.categoryId
-                ? categories[entry.budget.categoryId]?.name ?? "Category"
+                ? categoryLabel(categories[entry.budget.categoryId])
                 : "Everything");
 
             // The category's own colour, so a budget is recognisable by the same

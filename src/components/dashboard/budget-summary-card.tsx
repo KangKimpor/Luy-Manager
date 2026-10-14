@@ -1,3 +1,4 @@
+import { categoryLabel } from "@/lib/domain/categories";
 import { AppLink as Link } from "@/components/app-link";
 
 import { MoneyAmount } from "@/components/money-amount";
@@ -51,7 +52,7 @@ export function BudgetSummaryCard({
             const name =
               entry.budget.name ??
               (entry.budget.categoryId
-                ? categories[entry.budget.categoryId]?.name ?? "Category"
+                ? categoryLabel(categories[entry.budget.categoryId])
                 : "Everything");
 
             return (

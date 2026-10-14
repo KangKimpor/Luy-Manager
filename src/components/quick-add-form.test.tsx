@@ -19,6 +19,31 @@ function renderForm() {
 }
 
 describe("transaction save feedback", () => {
+  it("suggests from the note and preserves an explicit clear when the note changes", async () => {
+    createTransaction.mockResolvedValue({ ok: false, error: "Keep the draft" });
+    const user = userEvent.setup(); renderForm();
+    await user.type(screen.getByLabelText("Note"), "Brown coffee");
+    expect(screen.getByText("Suggested from your note. Choose another category or clear it.")).toBeVisible();
+    await user.click(screen.getByRole("button", { name: "5" }));
+    await user.click(screen.getByRole("button", { name: "Save expense" }));
+    expect(createTransaction.mock.lastCall?.[0]).toMatchObject({ categoryId: "cat-coffee" });
+    await user.click(screen.getByRole("button", { name: "Clear category" }));
+    await user.clear(screen.getByLabelText("Note"));
+    await user.type(screen.getByLabelText("Note"), "Rent");
+    await user.click(screen.getByRole("button", { name: "Save expense" }));
+    expect(createTransaction.mock.lastCall?.[0]).toMatchObject({ categoryId: null });
+  });
+
+  it("keeps a manually selected category when the note suggests another", async () => {
+    createTransaction.mockResolvedValue({ ok: true, data: { id: "saved" } });
+    const user = userEvent.setup(); renderForm();
+    await user.click(screen.getByRole("button", { name: "Groceries" }));
+    await user.type(screen.getByLabelText("Note"), "Coffee");
+    await user.click(screen.getByRole("button", { name: "5" }));
+    await user.click(screen.getByRole("button", { name: "Save expense" }));
+    expect(createTransaction.mock.lastCall?.[0]).toMatchObject({ categoryId: "cat-groceries" });
+  });
+
   it("saves a chosen date and visible note without opening More options, then returns to today", async () => {
     createTransaction.mockResolvedValue({ ok: true, data: { id: "saved" } });
     const user = userEvent.setup();

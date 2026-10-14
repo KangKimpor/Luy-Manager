@@ -1,6 +1,6 @@
 "use client";
 
-import { Archive, ArchiveRestore, Pencil, Trash2 } from "lucide-react";
+import { Archive, ArchiveRestore, Pencil, Trash2 } from "@/components/app-icon";
 import { AppLink as Link } from "@/components/app-link";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";

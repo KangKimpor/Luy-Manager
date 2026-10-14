@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { Activity, CheckCircle2, Loader2 } from "lucide-react";
+import { Activity, CheckCircle2, Loader2 } from "@/components/app-icon";
 import { checkTelegramStatus } from "@/app/actions/telegram";
 import type { TelegramStatus } from "@/lib/telegram/status";
 

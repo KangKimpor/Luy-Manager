@@ -1,4 +1,5 @@
-import { ArrowUpRight } from "lucide-react";
+import { categoryLabel } from "@/lib/domain/categories";
+import { ArrowUpRight } from "@/components/app-icon";
 import { AppLink as Link } from "@/components/app-link";
 import { CategoryIcon } from "@/components/category-icon";
 import { CurrencyToggle } from "@/components/currency-toggle";
@@ -26,7 +27,7 @@ export default async function ReportsPage({ searchParams }: { searchParams: Prom
   const flow = summarizeCashFlow(lines, currency, rate);
   const totals = type === "income" ? incomeByCategory(lines, currency, rate) : spendingByCategory(lines, currency, rate);
   const slices = categoryChartShares(totals).map((entry, index) => ({
-    ...entry, name: entry.other ? "Everything else" : entry.categoryId ? categories[entry.categoryId]?.name ?? "Uncategorised" : "Uncategorised",
+    ...entry, name: entry.other ? "Everything else" : entry.categoryId ? categoryLabel(categories[entry.categoryId]) : "Uncategorised",
     color: CHART_COLORS.categories[index],
   }));
   const monthHref = (offset: number) => `/reports?month=${monthParam(shiftMonth(period, offset))}&type=${type}`;
@@ -49,7 +50,7 @@ export default async function ReportsPage({ searchParams }: { searchParams: Prom
         <DeferredCategoryDonut slices={slices} />
         <ul aria-label="Chart labels" className="mt-4 grid grid-cols-2 gap-x-3 gap-y-3">
           {slices.map((slice, index) => <li key={index} className="flex min-w-0 items-center gap-2 text-xs">
-            <span style={{ color: slice.color }}><CategoryIcon icon={slice.other ? null : categories[slice.categoryId ?? ""]?.icon} size={15} /></span>
+            <span style={{ color: slice.color }}><CategoryIcon category={slice.other ? null : categories[slice.categoryId ?? ""]} size={15} /></span>
             <span className="min-w-0 flex-1 truncate text-ink-muted">{slice.name}</span>
             <span className="tabular shrink-0 font-semibold text-ink">{Math.round(slice.share * 100)}%</span>
           </li>)}
@@ -63,8 +64,8 @@ export default async function ReportsPage({ searchParams }: { searchParams: Prom
           return <li key={entry.categoryId ?? "none"}>
             <Link href={`/transactions?${query}`} className="flex min-h-16 items-center gap-3 py-3">
               <span className="tabular flex min-h-9 w-12 shrink-0 items-center justify-center rounded-xl text-xs font-bold" style={{ color, backgroundColor: `color-mix(in srgb, ${color} 12%, transparent)` }}>{Math.round(entry.share * 100)}%</span>
-              <span className="text-ink-muted"><CategoryIcon icon={category?.icon} /></span>
-              <span className="min-w-0 flex-1 truncate text-sm font-medium text-ink">{category?.name ?? "Uncategorised"}</span>
+              <span className="text-ink-muted"><CategoryIcon category={category} /></span>
+              <span className="min-w-0 flex-1 truncate text-sm font-medium text-ink">{categoryLabel(category)}</span>
               <MoneyAmount amount={entry.total} className="shrink-0 text-sm font-semibold" />
             </Link>
           </li>;

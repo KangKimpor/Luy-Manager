@@ -43,7 +43,7 @@ class TestDatabase {
       { account_id: "foreign", user_id: OTHER, name: "Other wallet", institution: null, type: "bank", currency: "USD", is_active: true, include_in_net_worth: true, counts_toward_net_worth: true, current_balance: 999999, transaction_count: 0 },
     ],
     categories: [{ id: "coffee", user_id: USER, name: "Coffee", applies_to: ["expense"], deleted_at: null }],
-    transactions: [], budgets: [], telegram_logs: [],
+    transactions: [], budgets: [], telegram_logs: [], merchants: [],
     exchange_rates: [
       { rate: "4000", base_currency: "USD", quote_currency: "KHR", as_of: "2026-10-09", source: "api", user_id: null },
       { rate: "4100", base_currency: "USD", quote_currency: "KHR", as_of: "2026-10-09", source: "manual", user_id: USER },
@@ -163,6 +163,20 @@ beforeEach(() => {
 });
 
 describe("retry-safe Telegram ledger writes", () => {
+  test("automatic categories use only the owner's merchant rules and preserve explicit none", async () => {
+    db.tables.merchants.push(
+      { id: "mine", user_id: USER, name: "Starbucks", normalized_name: "starbucks", default_category_id: "coffee", logo_url: null },
+      { id: "foreign", user_id: OTHER, name: "Starbucks", normalized_name: "starbucks", default_category_id: "private-category", logo_url: null },
+    );
+    await handleUpdate(update(1, "Spent $5 Starbucks"));
+    expect(db.tables.transactions[0]).toMatchObject({ user_id: USER, category_id: "coffee" });
+    await handleUpdate(update(2, "Expense USD"));
+    await handleUpdate(update(3, "Category none"));
+    await handleUpdate(update(4, "5 coffee"));
+    expect(db.tables.transactions[1]).toMatchObject({ user_id: USER, category_id: null });
+    expect(db.unsafeQueries).toEqual([]);
+  });
+
   test("one-tap Yesterday uses the profile day and a date on one message does not change subsequent entries", async () => {
     vi.useFakeTimers(); vi.setSystemTime(new Date("2026-10-10T20:00:00Z"));
     await handleUpdate(update(1, "Expense KHR"));

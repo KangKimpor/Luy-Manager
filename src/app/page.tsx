@@ -1,4 +1,4 @@
-import { ArrowRightLeft, ArrowUpRight, ChartNoAxesCombined, Plus, Wallet } from "lucide-react";
+import { ArrowRightLeft, ArrowUpRight, ChartNoAxesCombined, Plus, Wallet } from "@/components/app-icon";
 import { AppLink as Link } from "@/components/app-link";
 
 import { CurrencyToggle } from "@/components/currency-toggle";

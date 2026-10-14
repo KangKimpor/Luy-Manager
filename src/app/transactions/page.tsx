@@ -1,4 +1,4 @@
-import { Plus, Search, SlidersHorizontal } from "lucide-react";
+import { Plus, Search, SlidersHorizontal } from "@/components/app-icon";
 import { AppLink as Link } from "@/components/app-link";
 import { ActivityCalendar } from "@/components/activity-calendar";
 import { CurrencyToggle } from "@/components/currency-toggle";

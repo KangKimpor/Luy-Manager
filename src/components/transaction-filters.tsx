@@ -1,6 +1,6 @@
 "use client";
 
-import { Search, X } from "lucide-react";
+import { Search, X } from "@/components/app-icon";
 import { useRouter } from "next/navigation";
 import { useOptimistic, useState, useTransition } from "react";
 
@@ -8,6 +8,7 @@ import { Card, CardBody } from "@/components/ui/card";
 import type { AccountBalance, Category } from "@/lib/domain/types";
 import { TRANSACTION_TYPES } from "@/lib/domain/types";
 import { activityHref, type ActivityParams } from "@/lib/activity-url";
+import { categoryLabel, groupedCategories } from "@/lib/domain/categories";
 
 /**
  * Filters for the ledger view.
@@ -112,11 +113,11 @@ export function TransactionFilters({
           >
             <option value="">All categories</option>
             <option value="none">Uncategorised</option>
-            {categories.map((category) => (
+            {groupedCategories(categories).map((group) => <optgroup key={group.name} label={group.name}>{group.categories.map((category) => (
               <option key={category.id} value={category.id}>
-                {category.name}
+                {categoryLabel(category)}
               </option>
-            ))}
+            ))}</optgroup>)}
           </select>
 
           <select

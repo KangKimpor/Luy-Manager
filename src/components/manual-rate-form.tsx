@@ -1,6 +1,6 @@
 "use client";
 
-import { Check, LoaderCircle, RotateCcw, TriangleAlert } from "lucide-react";
+import { Check, LoaderCircle, RotateCcw, TriangleAlert } from "@/components/app-icon";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 

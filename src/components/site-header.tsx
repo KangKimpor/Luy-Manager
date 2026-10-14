@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowLeft, Settings, Wallet } from "lucide-react";
+import { ArrowLeft, Settings, Wallet } from "@/components/app-icon";
 import { AppLink as Link } from "@/components/app-link";
 import { usePathname, useRouter } from "next/navigation";
 

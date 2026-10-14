@@ -1,4 +1,4 @@
-import { ChevronRight, Send } from "lucide-react";
+import { ChevronRight, Send } from "@/components/app-icon";
 import { AppLink as Link } from "@/components/app-link";
 
 import { Card } from "@/components/ui/card";

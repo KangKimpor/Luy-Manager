@@ -1,6 +1,6 @@
 "use client";
 
-import { Pencil, Trash2, Undo2 } from "lucide-react";
+import { Pencil, Trash2, Undo2 } from "@/components/app-icon";
 import { AppLink as Link } from "@/components/app-link";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";

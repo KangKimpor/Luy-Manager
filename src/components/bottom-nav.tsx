@@ -1,6 +1,6 @@
 "use client";
 
-import { Plus } from "lucide-react";
+import { Plus } from "@/components/app-icon";
 import { AppLink as Link } from "@/components/app-link";
 import { usePathname } from "next/navigation";
 
@@ -21,7 +21,7 @@ export function BottomNav() {
             <Link key={item.href} href={item.href} aria-current={active ? "page" : undefined}
               className={cn("row-start-1 flex min-h-12 flex-col items-center justify-center gap-1 rounded-xl text-[10px] font-semibold transition-colors", active ? "text-brand" : "text-ink-faint hover:text-ink")}
               style={{ gridColumn: index >= 2 ? index + 2 : index + 1 }}>
-              <span className={cn("nav-icon flex h-8 w-12 items-center justify-center rounded-xl", active && "bg-brand-soft")}><Icon size={21} strokeWidth={active ? 2.2 : 1.8} aria-hidden="true" /></span>
+              <span className={cn("nav-icon flex h-8 w-12 items-center justify-center rounded-xl", active && "bg-brand-soft")}><Icon size={21} aria-hidden="true" /></span>
               {item.label}
             </Link>
           );

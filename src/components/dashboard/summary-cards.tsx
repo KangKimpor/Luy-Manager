@@ -1,4 +1,4 @@
-import { ArrowDownRight, ArrowUpRight, Wallet } from "lucide-react";
+import { ArrowDownRight, ArrowUpRight, Wallet } from "@/components/app-icon";
 import { AppLink as Link } from "@/components/app-link";
 
 import { MoneyAmount } from "@/components/money-amount";

@@ -1,6 +1,6 @@
 "use client";
 
-import { Plus, Wallet } from "lucide-react";
+import { Plus, Wallet } from "@/components/app-icon";
 import { AppLink as Link } from "@/components/app-link";
 import { usePathname } from "next/navigation";
 

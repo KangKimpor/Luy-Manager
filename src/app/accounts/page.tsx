@@ -6,8 +6,8 @@ import {
   Smartphone,
   TrendingUp,
   Wallet,
-  type LucideIcon,
-} from "lucide-react";
+  type AppIconType,
+} from "@/components/app-icon";
 import { AppLink as Link } from "@/components/app-link";
 
 import { AccountRowActions } from "@/components/account-row-actions";
@@ -46,7 +46,7 @@ const GROUP_ORDER: AccountType[] = [
   "credit_card",
 ];
 
-const GROUP_ICONS: Record<AccountType, LucideIcon> = {
+const GROUP_ICONS: Record<AccountType, AppIconType> = {
   bank: Landmark,
   ewallet: Smartphone,
   cash: Wallet,

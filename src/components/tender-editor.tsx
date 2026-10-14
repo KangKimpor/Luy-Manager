@@ -1,6 +1,6 @@
 "use client";
 
-import { Plus, X } from "lucide-react";
+import { Plus, X } from "@/components/app-icon";
 
 import { CurrencyBadge, MoneyAmount } from "@/components/money-amount";
 import { Card, CardBody } from "@/components/ui/card";

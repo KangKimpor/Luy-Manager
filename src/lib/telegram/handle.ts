@@ -1,15 +1,17 @@
 import { calendarDate, isCalendarDate, shiftCalendarDate, transactionDate } from "@/lib/calendar";
 import { categoryGroup, quickCategories } from "@/lib/domain/entry-choices";
+import { categoryLabel, categoryKeywords, resolveCategory } from "@/lib/domain/categories";
+export { resolveCategory } from "@/lib/domain/categories";
 import { after } from "next/server";
 
 import { ACCOUNT_BALANCE_COLUMNS, ACCOUNT_COLUMNS, asRows, BUDGET_COLUMNS, CATEGORY_COLUMNS, TRANSACTION_COLUMNS } from "@/lib/data/client";
-import { mapRows, toAccount, toAccountBalance, toBudget, toCategory, toTransaction } from "@/lib/data/mappers";
+import { mapRows, toAccount, toAccountBalance, toBudget, toCategory, toMerchant, toTransaction } from "@/lib/data/mappers";
 import { readLedgerLinesInRange } from "@/lib/data/transactions";
 import { assertLedgerPrecision } from "@/lib/data/precision";
 import { currentPeriod, summarizeBudgets } from "@/lib/domain/budgets";
 import { buildTransaction, summarizeCashFlow } from "@/lib/domain/transactions";
 import { planTransfer, transferInserts } from "@/lib/domain/transfers";
-import type { AccountBalance, Budget, Category, LedgerLine, Transaction } from "@/lib/domain/types";
+import type { AccountBalance, Budget, Category, LedgerLine, Merchant, Transaction } from "@/lib/domain/types";
 // CurrencyCode comes from the money layer; domain/types imports it rather than
 // re-exporting it.
 import { formatMoney, money, type CurrencyCode, type Money } from "@/lib/money";
@@ -200,6 +202,7 @@ interface UserContext {
   accounts: BotAccount[];
   balances: AccountBalance[];
   categories: Category[];
+  merchants: Merchant[];
   timezone: string;
   rate: RateSnapshot;
   rateDate: string | null;
@@ -270,7 +273,7 @@ async function loadContext(admin: Admin, profile: LinkedProfile, intent: Telegra
   };
   // Read commands should not wait on data they never use, or fail because an
   // unrelated part of the ledger is unavailable.
-  const [settings, accounts, categories, rate, report] = await Promise.all([
+  const [settings, accounts, categories, rate, report, merchants] = await Promise.all([
     writing || kind === "accounts" || kind === "entry" || kind === "start-entry" || kind === "set-date" || kind === "select-category"
       ? menuOnly ? readMenuMetadata(userId, "settings", () => checked(settingsQuery()), changingMode) : settingsQuery()
       : { data: null, error: null },
@@ -282,9 +285,12 @@ async function loadContext(admin: Admin, profile: LinkedProfile, intent: Telegra
       .is("deleted_at", null) : { data: [], error: null },
     needsRate ? loadBotRate(admin, userId, rateAt, timezone) : fallbackSnapshot(),
     loadReport(admin, profile, intent, now),
+    intent.kind === "record" && intent.resolvedCategoryId === undefined ? admin.from("merchants")
+      .select("id, user_id, name, normalized_name, default_category_id, logo_url").eq("user_id", userId)
+      : { data: [], error: null },
   ]);
 
-  if (settings.error || accounts.error || categories.error) {
+  if (settings.error || accounts.error || categories.error || merchants.error) {
     throw new Error("Could not load your ledger.");
   }
 
@@ -303,6 +309,7 @@ async function loadContext(admin: Admin, profile: LinkedProfile, intent: Telegra
     accounts: wallets,
     balances,
     categories: mapRows(asRows(categories.data), toCategory, "categories"),
+    merchants: mapRows(asRows(merchants.data), toMerchant, "merchants"),
     timezone,
     rate,
     rateDate: needsRate ? calendarDate(rateAt, timezone) : null,
@@ -372,32 +379,6 @@ export function namedAccount<T extends BotAccount>(
   return matches.length === 1 ? matches[0] : null;
 }
 
-/**
- * Match free text to one of the user's categories.
- *
- * Exact name first, then a containment match either way round so "coffee" finds
- * "Coffee" and "brown coffee" also finds it. Anything cleverer belongs behind a
- * model, which is why this returns null rather than guessing: an uncategorised
- * transaction is easy to fix later, a wrongly categorised one is invisible.
- */
-export function resolveCategory(
-  categories: readonly Category[],
-  descriptor: string,
-): Category | null {
-  const needle = descriptor.trim().toLowerCase();
-  if (needle === "") return null;
-
-  const exact = categories.find((category) => category.name.toLowerCase() === needle);
-  if (exact) return exact;
-
-  return (
-    categories.find((category) => {
-      const name = category.name.toLowerCase();
-      return needle.includes(name) || name.includes(needle);
-    }) ?? null
-  );
-}
-
 /* -------------------------------------------------------------------------- */
 /* Writes                                                                      */
 /* -------------------------------------------------------------------------- */
@@ -434,7 +415,7 @@ async function saveRecord(
   }
 
   const usableCategories = context.categories.filter((entry) => entry.appliesTo.includes(intent.type));
-  const category = intent.resolvedCategoryId === undefined ? resolveCategory(usableCategories, intent.descriptor)
+  const category = intent.resolvedCategoryId === undefined ? resolveCategory(usableCategories, intent.descriptor, context.merchants)
     : usableCategories.find((entry) => entry.id === intent.resolvedCategoryId) ?? null;
   if (intent.resolvedCategoryId && !category) return { ok: false, message: "The selected category is unavailable. Choose category again." };
   const { rate } = context.rate;
@@ -466,7 +447,7 @@ async function saveRecord(
   const parts = [
     `Saved ${intent.type}: ${describeAmount(intent.amount)}`,
     `in ${escapeHtml(account.name)}`,
-    category ? `as ${escapeHtml(category.name)}` : "with no category",
+    category ? `as ${escapeHtml(categoryLabel(category))}` : "with no category",
   ];
 
   return { ok: true, transactionId, message: `${parts.join(" ")}.${intent.date ? `\nDate: ${intent.date}` : ""}` };
@@ -567,8 +548,7 @@ function budgetSummary(context: UserContext): string {
   const progress = summarizeBudgets(budgets, transactions, context.rate.rate, now);
   const lines = progress.slice(0, 12).map((entry) => {
     const name = entry.budget.name ??
-      context.categories.find((category) => category.id === entry.budget.categoryId)?.name ??
-      "Everything";
+      (entry.budget.categoryId ? categoryLabel(context.categories.find((category) => category.id === entry.budget.categoryId)) : "Everything");
     return `• <b>${escapeHtml(name)}</b>\n  ${describeAmount(entry.spent)} of ${describeAmount(entry.limit)} spent, ${describeAmount(entry.remaining)} left.`;
   });
   return ["<b>Budget progress</b>", ...lines, ...(progress.length > 12 ? ["Open the app for all budgets."] : [])].join("\n");
@@ -1024,10 +1004,10 @@ export async function handleUpdate(update: unknown, deliver: ReplySender = sendM
       const { query, group } = intent;
       const categories = context.categories.filter((category) => category.appliesTo.includes(mode?.type ?? "expense"));
       const filtered = categories.filter((category) => query
-        ? `${category.name} ${categoryGroup(category, categories)}`.toLowerCase().includes(query.toLowerCase())
+        ? `${categoryLabel(category)} ${categoryKeywords(category)} ${categoryGroup(category, categories)}`.toLowerCase().includes(query.toLowerCase())
         : !group || categoryGroup(category, categories) === group);
       const picks = query || group ? filtered.slice(0, 8) : quickCategories(categories, mode?.categoryId ?? null);
-      const labels = picks.map((category) => `Category ${category.name}`);
+      const labels = picks.map((category) => `Category ${categoryLabel(category)}`);
       const groups = query || group ? [] : [...new Set(categories.map((category) => categoryGroup(category, categories)))].map((name) => `Categories ${name}`);
       const rows: string[][] = [];
       for (let index = 0; index < labels.length; index += 2) rows.push(labels.slice(index, index + 2));
@@ -1056,10 +1036,10 @@ export async function handleUpdate(update: unknown, deliver: ReplySender = sendM
         label = intent.name.toLowerCase() === "auto" ? "Automatic category selected." : "Uncategorised selected.";
       } else {
         const { name } = intent;
-        const matches = context.categories.filter((category) => category.appliesTo.includes(nextMode.type) && category.name.toLowerCase() === name.toLowerCase());
+        const matches = context.categories.filter((category) => category.appliesTo.includes(nextMode.type) && categoryLabel(category).toLowerCase() === categoryLabel({ name }).toLowerCase());
         if (matches.length !== 1) { await respond(admin, inbound.chatId, userId, "That category is unavailable or its name is ambiguous. Choose category again."); return; }
         nextMode.categoryId = matches[0].id;
-        label = `Category: ${escapeHtml(matches[0].name)}`;
+        label = `Category: ${escapeHtml(categoryLabel(matches[0]))}`;
       }
       const saved = await admin.from("telegram_logs").update({ parsed: { kind: "entry", mode: nextMode } })
         .eq("id", inboundLogId).eq("user_id", userId).eq("chat_id", inbound.chatId);

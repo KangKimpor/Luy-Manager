@@ -1,4 +1,4 @@
-import { ArrowDownRight, ArrowUpRight, ChartNoAxesCombined } from "lucide-react";
+import { ArrowDownRight, ArrowUpRight, ChartNoAxesCombined } from "@/components/app-icon";
 
 import { CurrencyToggle } from "@/components/currency-toggle";
 import { CategoryBreakdown } from "@/components/dashboard/category-breakdown";

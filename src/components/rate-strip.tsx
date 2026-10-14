@@ -1,4 +1,4 @@
-import { ArrowLeftRight, TriangleAlert } from "lucide-react";
+import { ArrowLeftRight, TriangleAlert } from "@/components/app-icon";
 import { AppLink as Link } from "@/components/app-link";
 import type { ReactNode } from "react";
 
