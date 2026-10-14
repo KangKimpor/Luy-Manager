@@ -59,6 +59,9 @@ changed by the precision release. Remediation references:
 [unused indexes](https://supabase.com/docs/guides/database/database-linter?lint=0005_unused_index).
 
 Supabase remains in Sydney (`ap-southeast-2`); Vercel remains in Singapore (`sin1`).
+The Singapore database restore and remaining cutover are recorded in
+[Singapore migration status](SINGAPORE_MIGRATION.md). Production remains on
+Sydney until the cutover passes its final checks.
 No region or JWT signing-key change was made. Physical-phone/PWA testing and an
 authenticated browser save were not performed during this takeover. Reload open
 app tabs and installed PWAs after this release.
