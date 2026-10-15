@@ -26,7 +26,7 @@ describe("transaction save feedback", () => {
     expect(screen.getByText("Suggested from your note. Choose another category or clear it.")).toBeVisible();
     await user.click(screen.getByRole("button", { name: "5" }));
     await user.click(screen.getByRole("button", { name: "Save expense" }));
-    expect(createTransaction.mock.lastCall?.[0]).toMatchObject({ categoryId: "cat-coffee" });
+    expect(createTransaction.mock.lastCall?.[0]).toMatchObject({ categoryId: "cat-drinks" });
     await user.click(screen.getByRole("button", { name: "Clear category" }));
     await user.clear(screen.getByLabelText("Note"));
     await user.type(screen.getByLabelText("Note"), "Rent");
@@ -76,11 +76,11 @@ describe("transaction save feedback", () => {
     await user.click(screen.getByRole("button", { name: "TrueMoney" }));
     expect(screen.getByRole("button", { name: "." })).toBeEnabled();
     await user.click(screen.getByRole("button", { name: "All categories" }));
-    await user.type(screen.getByRole("searchbox", { name: "Search categories" }), "Dental");
-    await user.click(screen.getByRole("button", { name: "Dental" }));
+    await user.type(screen.getByRole("searchbox", { name: "Search categories" }), "Health");
+    await user.click(screen.getByRole("button", { name: "Health" }));
     for (const digit of "6000") await user.click(screen.getByRole("button", { name: digit }));
     await user.click(screen.getByRole("button", { name: "Save expense" }));
-    expect(createTransaction).toHaveBeenCalledWith(expect.objectContaining({ accountId: "acc-truemoney", currency: "KHR", amount: "6000", categoryId: "cat-dental" }));
+    expect(createTransaction).toHaveBeenCalledWith(expect.objectContaining({ accountId: "acc-truemoney", currency: "KHR", amount: "6000", categoryId: "cat-health" }));
   });
 
   it("searches categories independently for each split and keeps the chosen IDs when saving", async () => {
@@ -91,7 +91,7 @@ describe("transaction save feedback", () => {
     await user.click(screen.getByRole("button", { name: "Split it" }));
     await user.type(screen.getByLabelText("Split 1 amount"), "2");
     await user.type(screen.getByLabelText("Split 2 amount"), "3");
-    for (const [index, name] of ["Dental", "Groceries"].entries()) {
+    for (const [index, name] of ["Health", "Groceries"].entries()) {
       const picker = within(screen.getByRole("group", { name: `Split ${index + 1} category` }));
       await user.click(picker.getByRole("button", { name: "All categories" }));
       await user.type(picker.getByRole("searchbox", { name: "Search categories" }), name);
@@ -99,7 +99,7 @@ describe("transaction save feedback", () => {
     }
     await user.click(screen.getByRole("button", { name: "Save expense" }));
     expect(createTransaction).toHaveBeenCalledWith(expect.objectContaining({
-      splits: [{ categoryId: "cat-dental", amount: "2", notes: null }, { categoryId: "cat-groceries", amount: "3", notes: null }],
+      splits: [{ categoryId: "cat-health", amount: "2", notes: null }, { categoryId: "cat-groceries", amount: "3", notes: null }],
     }));
   });
   it("confirms the saved amount after clearing the keypad", async () => {

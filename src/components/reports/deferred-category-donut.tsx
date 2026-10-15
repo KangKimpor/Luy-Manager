@@ -1,12 +1,11 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import type { CategorySlice } from "./category-donut";
 
 type ChartComponent = typeof import("./category-donut").CategoryDonut;
 
 /** Match the existing report chart: import Recharts only near the viewport. */
-export function DeferredCategoryDonut({ slices }: { slices: readonly CategorySlice[] }) {
+export function DeferredCategoryDonut(props: React.ComponentProps<ChartComponent>) {
   const host = useRef<HTMLDivElement>(null);
   const [Chart, setChart] = useState<ChartComponent | null>(null);
   const [failed, setFailed] = useState(false);
@@ -22,7 +21,7 @@ export function DeferredCategoryDonut({ slices }: { slices: readonly CategorySli
     observer.observe(element);
     return () => observer.disconnect();
   }, [Chart]);
-  return <div ref={host} className="h-52 min-w-0" aria-busy={!Chart && !failed}>
-    {Chart ? <Chart slices={slices} /> : failed ? <p role="status" className="flex h-full items-center justify-center text-sm text-ink-muted">The chart could not load. The ranked list is still available.</p> : <div className="skeleton h-full rounded-2xl"><span className="sr-only">Loading category chart...</span></div>}
+  return <div ref={host} className="h-60 min-w-0" aria-busy={!Chart && !failed}>
+    {Chart ? <Chart {...props} /> : failed ? <p role="status" className="flex h-full items-center justify-center text-sm text-ink-muted">The chart could not load. The ranked list is still available.</p> : <div className="skeleton h-full rounded-2xl"><span className="sr-only">Loading category chart...</span></div>}
   </div>;
 }

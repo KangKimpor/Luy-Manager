@@ -18,6 +18,7 @@ import {
   type Money,
   MoneyError,
   negate,
+  sum,
   zero,
 } from "@/lib/money";
 
@@ -318,8 +319,11 @@ function categoryTotals(transactions: readonly LedgerLine[], base: CurrencyCode,
 
 /** Bound chart labels while the complete ranked list remains the source of truth. */
 export function categoryChartShares(totals: readonly CategoryTotal[]) {
-  const shown = totals.slice(0, 6).map(entry => ({ categoryId: entry.categoryId, share: entry.share, other: false }));
-  if (totals.length > 6) shown.push({ categoryId: null, share: totals.slice(6).reduce((share, entry) => share + entry.share, 0), other: true });
+  const shown = totals.slice(0, 6).map(entry => ({ ...entry, other: false }));
+  const tail = totals.slice(6);
+  if (tail.length) shown.push({ categoryId: null, share: tail.reduce((share, entry) => share + entry.share, 0),
+    total: sum(tail.map(entry => entry.total), tail[0].total.currency),
+    transactionCount: tail.reduce((count, entry) => count + entry.transactionCount, 0), other: true });
   return shown;
 }
 

@@ -1004,11 +1004,11 @@ export async function handleUpdate(update: unknown, deliver: ReplySender = sendM
       const { query, group } = intent;
       const categories = context.categories.filter((category) => category.appliesTo.includes(mode?.type ?? "expense"));
       const filtered = categories.filter((category) => query
-        ? `${categoryLabel(category)} ${categoryKeywords(category)} ${categoryGroup(category, categories)}`.toLowerCase().includes(query.toLowerCase())
-        : !group || categoryGroup(category, categories) === group);
+        ? `${categoryLabel(category)} ${categoryKeywords(category)} ${categoryGroup(category)}`.toLowerCase().includes(query.toLowerCase())
+        : !group || categoryGroup(category) === group);
       const picks = query || group ? filtered.slice(0, 8) : quickCategories(categories, mode?.categoryId ?? null);
       const labels = picks.map((category) => `Category ${categoryLabel(category)}`);
-      const groups = query || group ? [] : [...new Set(categories.map((category) => categoryGroup(category, categories)))].map((name) => `Categories ${name}`);
+      const groups = query || group ? [] : [...new Set(categories.map((category) => categoryGroup(category)))].map((name) => `Categories ${name}`);
       const rows: string[][] = [];
       for (let index = 0; index < labels.length; index += 2) rows.push(labels.slice(index, index + 2));
       for (let index = 0; index < groups.length; index += 2) rows.push(groups.slice(index, index + 2));

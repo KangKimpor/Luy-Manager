@@ -19,7 +19,7 @@ it("uses a local semantic icon for an emoji and a safe fallback for unknown keys
 it("draws common custom categories with their own icon instead of the generic grid", () => {
   const base: Category = { id: "1", userId: "owner", name: "", icon: null, color: null,
     parentId: null, appliesTo: ["expense"], isSystem: false, sortOrder: 0 };
-  const expected = { Game: "gamepad", Internet: "wifi", Selfcare: "sparkle", "Social Life": "chat-smile", Subscription: "refresh", Trading: "candlestick" };
+  const expected = { Game: "gamepad", Internet: "wifi", Selfcare: "pipette", "Social Life": "chat-smile", Subscription: "refresh", Trading: "candlestick" };
   for (const [name, file] of Object.entries(expected)) {
     const { container, unmount } = render(<CategoryIcon category={{ ...base, name }} />);
     expect(container.firstElementChild?.getAttribute("style")).toContain(`/icons/lets-icons/${file}.svg`);

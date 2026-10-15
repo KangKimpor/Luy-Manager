@@ -144,55 +144,12 @@ export const DEMO_ACCOUNTS: AccountBalance[] = [
   }),
 ];
 
-const EXISTING_DEMO_CATEGORIES: Category[] = [
-  { id: "cat-coffee", userId: "demo", parentId: "cat-food", name: "Coffee", icon: "coffee", color: "#b45309", appliesTo: ["expense"], isSystem: true, sortOrder: 11 },
-  { id: "cat-restaurant", userId: "demo", parentId: "cat-food", name: "Restaurant", icon: "utensils-crossed", color: "#ea580c", appliesTo: ["expense"], isSystem: true, sortOrder: 12 },
-  { id: "cat-groceries", userId: "demo", parentId: null, name: "Groceries", icon: "shopping-cart", color: "#22c55e", appliesTo: ["expense"], isSystem: true, sortOrder: 30 },
-  { id: "cat-fuel", userId: "demo", parentId: "cat-transport", name: "Fuel", icon: "fuel", color: "#1d4ed8", appliesTo: ["expense"], isSystem: true, sortOrder: 21 },
-  { id: "cat-grab", userId: "demo", parentId: "cat-transport", name: "Tuk Tuk / Grab", icon: "car-taxi-front", color: "#2563eb", appliesTo: ["expense"], isSystem: true, sortOrder: 22 },
-  { id: "cat-utilities", userId: "demo", parentId: null, name: "Utilities", icon: "zap", color: "#eab308", appliesTo: ["expense"], isSystem: true, sortOrder: 50 },
-  { id: "cat-housing", userId: "demo", parentId: null, name: "Housing", icon: "home", color: "#8b5cf6", appliesTo: ["expense"], isSystem: true, sortOrder: 40 },
-  { id: "cat-shopping", userId: "demo", parentId: null, name: "Shopping", icon: "shopping-bag", color: "#ec4899", appliesTo: ["expense"], isSystem: true, sortOrder: 70 },
-  { id: "cat-salary", userId: "demo", parentId: null, name: "Salary", icon: "banknote", color: "#16a34a", appliesTo: ["income"], isSystem: true, sortOrder: 200 },
-  { id: "cat-freelance", userId: "demo", parentId: null, name: "Freelance", icon: "laptop", color: "#0ea5e9", appliesTo: ["income"], isSystem: true, sortOrder: 210 },
-  { id: "cat-travel", userId: "demo", parentId: null, name: "Travel", icon: null, color: null, appliesTo: ["expense"], isSystem: true, sortOrder: 110 },
-  { id: "cat-personal-care", userId: "demo", parentId: null, name: "Personal Care", icon: null, color: null, appliesTo: ["expense"], isSystem: true, sortOrder: 120 },
-  { id: "cat-fitness", userId: "demo", parentId: null, name: "Fitness", icon: null, color: null, appliesTo: ["expense"], isSystem: true, sortOrder: 130 },
-  { id: "cat-subscriptions", userId: "demo", parentId: null, name: "Subscriptions", icon: null, color: null, appliesTo: ["expense"], isSystem: true, sortOrder: 140 },
-  { id: "cat-insurance", userId: "demo", parentId: null, name: "Insurance", icon: null, color: null, appliesTo: ["expense"], isSystem: true, sortOrder: 150 },
-  { id: "cat-taxes", userId: "demo", parentId: null, name: "Taxes", icon: null, color: null, appliesTo: ["expense"], isSystem: true, sortOrder: 160 },
-  { id: "cat-debt-payments", userId: "demo", parentId: null, name: "Debt Payments", icon: null, color: null, appliesTo: ["expense"], isSystem: true, sortOrder: 170 },
-  { id: "cat-family-kids", userId: "demo", parentId: null, name: "Family & Kids", icon: null, color: null, appliesTo: ["expense"], isSystem: true, sortOrder: 180 },
-  { id: "cat-pets", userId: "demo", parentId: null, name: "Pets", icon: null, color: null, appliesTo: ["expense"], isSystem: true, sortOrder: 190 },
-  { id: "cat-gifts-donations", userId: "demo", parentId: null, name: "Gifts & Donations", icon: null, color: null, appliesTo: ["expense"], isSystem: true, sortOrder: 200 },
-  { id: "cat-business", userId: "demo", parentId: null, name: "Business", icon: null, color: null, appliesTo: ["expense"], isSystem: true, sortOrder: 210 },
-  { id: "cat-repairs-maintenance", userId: "demo", parentId: null, name: "Repairs & Maintenance", icon: null, color: null, appliesTo: ["expense"], isSystem: true, sortOrder: 220 },
-  { id: "cat-phone-internet", userId: "demo", parentId: null, name: "Phone & Internet", icon: null, color: null, appliesTo: ["expense"], isSystem: true, sortOrder: 230 },
-  { id: "cat-savings-contributions", userId: "demo", parentId: null, name: "Savings Contributions", icon: null, color: null, appliesTo: ["expense"], isSystem: true, sortOrder: 240 },
-  { id: "cat-rent", userId: "demo", parentId: null, name: "Rent", icon: null, color: null, appliesTo: ["expense"], isSystem: true, sortOrder: 41 },
-  { id: "cat-electricity", userId: "demo", parentId: null, name: "Electricity", icon: null, color: null, appliesTo: ["expense"], isSystem: true, sortOrder: 51 },
-  { id: "cat-water", userId: "demo", parentId: null, name: "Water", icon: null, color: null, appliesTo: ["expense"], isSystem: true, sortOrder: 52 },
-  { id: "cat-clothing", userId: "demo", parentId: null, name: "Clothing", icon: null, color: null, appliesTo: ["expense"], isSystem: true, sortOrder: 71 },
-  { id: "cat-electronics", userId: "demo", parentId: null, name: "Electronics", icon: null, color: null, appliesTo: ["expense"], isSystem: true, sortOrder: 72 },
-  { id: "cat-medical", userId: "demo", parentId: null, name: "Medical", icon: null, color: null, appliesTo: ["expense"], isSystem: true, sortOrder: 61 },
-  { id: "cat-dental", userId: "demo", parentId: null, name: "Dental", icon: null, color: null, appliesTo: ["expense"], isSystem: true, sortOrder: 62 },
-  { id: "cat-flights", userId: "demo", parentId: null, name: "Flights", icon: null, color: null, appliesTo: ["expense"], isSystem: true, sortOrder: 111 },
-  { id: "cat-hotels", userId: "demo", parentId: null, name: "Hotels", icon: null, color: null, appliesTo: ["expense"], isSystem: true, sortOrder: 112 },
-  { id: "cat-bonus", userId: "demo", parentId: null, name: "Bonus", icon: null, color: null, appliesTo: ["income"], isSystem: true, sortOrder: 250 },
-  { id: "cat-sales", userId: "demo", parentId: null, name: "Sales", icon: null, color: null, appliesTo: ["income"], isSystem: true, sortOrder: 260 },
-  { id: "cat-rental-income", userId: "demo", parentId: null, name: "Rental Income", icon: null, color: null, appliesTo: ["income"], isSystem: true, sortOrder: 270 },
-  { id: "cat-interest", userId: "demo", parentId: null, name: "Interest", icon: null, color: null, appliesTo: ["income"], isSystem: true, sortOrder: 280 },
-  { id: "cat-other-income", userId: "demo", parentId: null, name: "Other Income", icon: null, color: null, appliesTo: ["income"], isSystem: true, sortOrder: 290 },
-];
-
-export const DEMO_CATEGORIES: Category[] = CATEGORY_CATALOG.map(([name, icon, group], index) => {
-  const existing = EXISTING_DEMO_CATEGORIES.find((category) => category.name === name);
-  if (existing) return { ...existing, icon };
-  const id = name === "Food & Drink" ? "cat-food" : `cat-${name.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`;
-  return { id, userId: "demo", name, icon, color: null, parentId: name === "Delivery" ? "cat-food" : null,
-    appliesTo: name === "Refund" ? ["income", "refund"] : [group === "Income" ? "income" : "expense"],
-    isSystem: true, sortOrder: index };
-});
+export const DEMO_CATEGORIES: Category[] = CATEGORY_CATALOG.map(([name, icon, group], index) => ({
+  id: name === "Food" ? "cat-food" : `cat-${name.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`,
+  userId: "demo", name, icon, color: null, parentId: null,
+  appliesTo: name === "Refund" ? ["income", "refund"] : [group === "Income" ? "income" : group === "Adjustments" ? "adjustment" : "expense"],
+  isSystem: true, sortOrder: index,
+}));
 export const CATEGORY_LOOKUP: Record<string, Category> = Object.fromEntries(
   DEMO_CATEGORIES.map((category) => [category.id, category]),
 );
@@ -283,28 +240,28 @@ function transferPair(
 export const DEMO_TRANSACTIONS: Transaction[] = [
   transaction("t-01", "acc-aba-usd", "income", 160_000, "USD", "cat-salary", "2026-07-01T02:00:00.000Z", "July salary"),
   transaction("t-02", "acc-aba-usd", "expense", -45_000, "USD", "cat-housing", "2026-07-02T03:00:00.000Z", "Rent"),
-  transaction("t-03", "acc-cash-khr", "expense", -800000, "KHR", "cat-coffee", "2026-07-02T01:30:00.000Z", "Iced coffee", "telegram"),
-  transaction("t-04", "acc-wing", "expense", -3200000, "KHR", "cat-grab", "2026-07-03T09:20:00.000Z", "Grab to office"),
+  transaction("t-03", "acc-cash-khr", "expense", -800000, "KHR", "cat-drinks", "2026-07-02T01:30:00.000Z", "Iced coffee", "telegram"),
+  transaction("t-04", "acc-wing", "expense", -3200000, "KHR", "cat-transportation", "2026-07-03T09:20:00.000Z", "Grab to office"),
   transaction("t-05", "acc-aba-usd", "expense", -2_450, "USD", "cat-groceries", "2026-07-04T10:15:00.000Z", "Lucky Supermarket"),
-  transaction("t-06", "acc-cash-usd", "expense", -500, "USD", "cat-coffee", "2026-07-05T01:45:00.000Z", "Brown Coffee", "telegram"),
+  transaction("t-06", "acc-cash-usd", "expense", -500, "USD", "cat-drinks", "2026-07-05T01:45:00.000Z", "Brown Coffee", "telegram"),
   transaction("t-07", "acc-aba-khr", "expense", -12000000, "KHR", "cat-utilities", "2026-07-06T04:00:00.000Z", "Electricity"),
   transaction("t-08", "acc-card", "expense", -8_900, "USD", "cat-shopping", "2026-07-08T12:30:00.000Z", "Shoes"),
-  transaction("t-09", "acc-cash-khr", "expense", -2000000, "KHR", "cat-restaurant", "2026-07-09T12:00:00.000Z", "Lunch", "telegram"),
-  transaction("t-10", "acc-wing", "expense", -8200000, "KHR", "cat-fuel", "2026-07-10T08:10:00.000Z", "Caltex"),
+  transaction("t-09", "acc-cash-khr", "expense", -2000000, "KHR", "cat-food", "2026-07-09T12:00:00.000Z", "Lunch", "telegram"),
+  transaction("t-10", "acc-wing", "expense", -8200000, "KHR", "cat-transportation", "2026-07-10T08:10:00.000Z", "Caltex"),
   transaction("t-11", "acc-aba-usd", "income", 35_000, "USD", "cat-freelance", "2026-07-12T06:00:00.000Z", "Design work"),
-  transaction("t-12", "acc-cash-usd", "expense", -350, "USD", "cat-coffee", "2026-07-13T02:00:00.000Z", "Coffee", "telegram"),
+  transaction("t-12", "acc-cash-usd", "expense", -350, "USD", "cat-drinks", "2026-07-13T02:00:00.000Z", "Coffee", "telegram"),
   transaction("t-13", "acc-aba-usd", "expense", -3_120, "USD", "cat-groceries", "2026-07-15T11:00:00.000Z", "Aeon"),
-  transaction("t-14", "acc-truemoney", "expense", -4500000, "KHR", "cat-restaurant", "2026-07-17T13:20:00.000Z", "Dinner"),
-  transaction("t-15", "acc-cash-khr", "expense", -1200000, "KHR", "cat-coffee", "2026-07-19T01:15:00.000Z", "Coffee", "telegram"),
-  transaction("t-16", "acc-card", "expense", -4_200, "USD", "cat-restaurant", "2026-07-20T13:00:00.000Z", "Riverside dinner"),
-  transaction("t-17", "acc-wing", "expense", -2800000, "KHR", "cat-grab", "2026-07-22T09:00:00.000Z", "Grab"),
+  transaction("t-14", "acc-truemoney", "expense", -4500000, "KHR", "cat-food", "2026-07-17T13:20:00.000Z", "Dinner"),
+  transaction("t-15", "acc-cash-khr", "expense", -1200000, "KHR", "cat-drinks", "2026-07-19T01:15:00.000Z", "Coffee", "telegram"),
+  transaction("t-16", "acc-card", "expense", -4_200, "USD", "cat-food", "2026-07-20T13:00:00.000Z", "Riverside dinner"),
+  transaction("t-17", "acc-wing", "expense", -2800000, "KHR", "cat-transportation", "2026-07-22T09:00:00.000Z", "Grab"),
   transaction("t-18", "acc-aba-usd", "expense", -1_800, "USD", "cat-shopping", "2026-07-24T15:30:00.000Z", "Household"),
-  transaction("t-19", "acc-cash-khr", "expense", -1600000, "KHR", "cat-restaurant", "2026-07-26T12:10:00.000Z", "Lunch", "telegram"),
+  transaction("t-19", "acc-cash-khr", "expense", -1600000, "KHR", "cat-food", "2026-07-26T12:10:00.000Z", "Lunch", "telegram"),
   transaction("t-20", "acc-aba-khr", "expense", -9500000, "KHR", "cat-utilities", "2026-07-27T04:30:00.000Z", "Water + internet"),
-  transaction("t-21", "acc-cash-usd", "expense", -450, "USD", "cat-coffee", "2026-07-29T02:00:00.000Z", "Coffee", "telegram"),
+  transaction("t-21", "acc-cash-usd", "expense", -450, "USD", "cat-drinks", "2026-07-29T02:00:00.000Z", "Coffee", "telegram"),
   transaction("t-22", "acc-wing", "expense", -5500000, "KHR", "cat-groceries", "2026-07-30T10:45:00.000Z", "Chip Mong"),
-  transaction("t-23", "acc-cash-khr", "expense", -600000, "KHR", "cat-coffee", "2026-07-31T01:20:00.000Z", "Coffee", "telegram"),
-  transaction("t-24", "acc-cash-usd", "expense", -300, "USD", "cat-grab", "2026-07-31T08:30:00.000Z", "Tuk tuk"),
+  transaction("t-23", "acc-cash-khr", "expense", -600000, "KHR", "cat-drinks", "2026-07-31T01:20:00.000Z", "Coffee", "telegram"),
+  transaction("t-24", "acc-cash-usd", "expense", -300, "USD", "cat-transportation", "2026-07-31T08:30:00.000Z", "Tuk tuk"),
 
   // A cross-currency transfer: $100 out of the USD bank account, 410,000៛ into
   // the riel e-wallet. Neither leg is an expense, so both are excluded from the
@@ -342,7 +299,7 @@ export const DEMO_BUDGETS: Budget[] = [
   {
     id: "bud-food",
     userId: "demo",
-    categoryId: "cat-restaurant",
+    categoryId: "cat-food",
     name: null,
     amount: 15_000, // $150 budget, actual is ~$110, comfortably under
     currency: "USD",
@@ -356,7 +313,7 @@ export const DEMO_BUDGETS: Budget[] = [
   {
     id: "bud-coffee",
     userId: "demo",
-    categoryId: "cat-coffee",
+    categoryId: "cat-drinks",
     name: null,
     amount: 2_000, // $20 budget, actual is ~$18, past the 80% warning
     currency: "USD",

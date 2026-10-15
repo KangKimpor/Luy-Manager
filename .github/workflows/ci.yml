@@ -114,6 +114,11 @@ jobs:
             if [[ "$file" == *0014_fractional_riel.sql ]]; then
               psql -h localhost -U postgres -d luy --single-transaction -v ON_ERROR_STOP=1 -q -f supabase/tests/fractional_riel_before.sql
             fi
+            if [[ "$file" == *0015_flat_categories.sql ]]; then
+              psql -h localhost -U postgres -d luy --single-transaction -v ON_ERROR_STOP=1 -q \
+                -f supabase/tests/flat_categories_before.sql -f "$file" -f supabase/tests/flat_categories_after.sql
+              continue
+            fi
             psql -h localhost -U postgres -d luy --single-transaction -v ON_ERROR_STOP=1 -q -f "$file"
             if [[ "$file" == *0014_fractional_riel.sql ]]; then
               psql -h localhost -U postgres -d luy --single-transaction -v ON_ERROR_STOP=1 -q -f supabase/tests/fractional_riel_after.sql

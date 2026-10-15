@@ -38,6 +38,9 @@ it("the donut combines only the tail and preserves all category shares", () => {
   expect(slices).toHaveLength(7);
   expect(slices.slice(0, 6).map(slice => slice.categoryId)).toEqual(totals.slice(0, 6).map(entry => entry.categoryId));
   expect(slices[6].other).toBe(true);
+  expect(slices[6].total).toEqual(money(10, "USD"));
+  expect(slices[6].transactionCount).toBe(4);
+  expect(slices.reduce((sum, slice) => sum + slice.total.minor, 0)).toBe(55);
   expect(slices.reduce((sum, slice) => sum + slice.share, 0)).toBeCloseTo(1, 12);
   expect(categoryChartShares([])).toEqual([]);
 });

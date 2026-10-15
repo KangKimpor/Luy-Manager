@@ -15,6 +15,5 @@ export function CategoryPicker({ categories, selectedId, onSelect, label = "Cate
     quickIds={compact ? [] : quickCategories(categories, selectedId).map((category) => category.id)}
     options={groupedCategories(categories).flatMap((group) => group.categories.map((category) => ({
       id: category.id, label: categoryLabel(category), group: group.name, icon: categoryIconKey(category), keywords: categoryKeywords(category),
-      detail: categories.some((parent) => parent.id === category.parentId) ? categoryLabel(categories.find((parent) => parent.id === category.parentId)) : group.name,
     })))} />;
 }
