@@ -95,9 +95,16 @@ const LEGACY_ICONS: Record<string, string> = {
   droplets: "water", shirt: "tie", smartphone: "mobile", hotel: "bed", store: "shop",
 };
 
+// Custom or imported names the catalog does not list. Without an entry here they
+// fall back to the generic grid icon and are indistinguishable in a picker.
+const NAME_ICONS: Record<string, string> = {
+  game: "gamepad", internet: "wifi", selfcare: "sparkle",
+  "social life": "chat-smile", subscription: "refresh", trading: "candlestick",
+};
+
 export function categoryIconKey(category?: Category | null): string {
   if (!category) return "widget";
-  return categoryDefinition(category)?.[1] ?? LEGACY_ICONS[category.icon ?? ""] ?? category.icon ?? "widget";
+  return categoryDefinition(category)?.[1] ?? NAME_ICONS[normalize(categoryLabel(category))] ?? LEGACY_ICONS[category.icon ?? ""] ?? category.icon ?? "widget";
 }
 
 export function categoryKeywords(category: Category): string {

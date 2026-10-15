@@ -8,8 +8,7 @@ import { BottomNav } from "@/components/bottom-nav";
 import { ServiceWorkerRegistration } from "@/components/service-worker";
 import { SiteHeader } from "@/components/site-header";
 import { Sidebar } from "@/components/sidebar";
-import { readTheme } from "@/lib/theme-cookie";
-import { themeColors } from "@/lib/theme-preference";
+import { APP_COLORS } from "@/lib/theme";
 
 import "./globals.css";
 
@@ -55,27 +54,23 @@ export const metadata: Metadata = {
   },
 };
 
-export async function generateViewport(): Promise<Viewport> {
-  return {
-  themeColor: themeColors(await readTheme()),
+export const viewport: Viewport = {
+  themeColor: APP_COLORS.background,
   width: "device-width",
   initialScale: 1,
   maximumScale: 1,
   userScalable: false,
   viewportFit: "cover",
-  };
-}
+};
 
-export default async function RootLayout({
+export default function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const theme = await readTheme();
   return (
     <html
       lang="en"
-      data-theme={theme}
       className={`${inter.variable} ${khmer.variable} h-full antialiased`}
     >
       <body className="font-sans min-h-full">

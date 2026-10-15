@@ -16,6 +16,7 @@ import { CurrencyToggle } from "@/components/currency-toggle";
 import { CurrencyBadge, MoneyAmount } from "@/components/money-amount";
 import { buttonVariants } from "@/components/ui/button";
 import { Card, CardBody } from "@/components/ui/card";
+import { activityHref } from "@/lib/activity-url";
 import { isDemoMode } from "@/lib/auth";
 import { listAccountBalances } from "@/lib/data/accounts";
 import { otherCurrency, readDisplayCurrency } from "@/lib/display-currency";
@@ -74,6 +75,9 @@ export default async function AccountsPage() {
     loadUsdKhrRate(),
     listAccountBalances(),
   ]);
+
+  // Sample data cannot be edited, so only a signed-in user gets the row controls.
+  const editable = !isDemoMode();
 
   const summary = summarizeNetWorth(accounts, displayCurrency, rate);
   // Aggregated in the other currency, not converted from the total above, so the
@@ -170,52 +174,66 @@ export default async function AccountsPage() {
             <Card className="overflow-hidden">
               <ul className="stagger-children divide-y divide-surface-variant">
                 {group.accounts.map((account) => (
-                  <li key={account.accountId} className="grid grid-cols-[2.5rem_minmax(0,1fr)_auto] items-center gap-x-3 gap-y-2 px-4 py-5 sm:px-5">
-                    <span
+                  <li key={account.accountId}>
+                    {/*
+                      The whole summary links to that account's Activity, which already
+                      filters by `account`. The edit and close controls stay outside the
+                      link, because a button inside a link is invalid and unreliable.
+                    */}
+                    <Link
+                      href={activityHref({ account: account.accountId })}
                       className={cn(
-                        "flex size-10 shrink-0 items-center justify-center rounded-2xl",
-                        tintFor(account.type),
+                        "grid grid-cols-[2.5rem_minmax(0,1fr)_auto] items-center gap-x-3 px-4 pt-5 transition-colors hover:bg-surface-container-low sm:px-5",
+                        editable ? "pb-2" : "pb-5",
                       )}
                     >
-                      <Icon size={20} aria-hidden="true" />
-                    </span>
-
-                    <div className="min-w-0">
-                      <p
+                      <span
                         className={cn(
-                          "truncate text-sm font-semibold",
-                          account.isActive ? "text-ink" : "text-ink-faint line-through",
+                          "flex size-10 shrink-0 items-center justify-center rounded-2xl",
+                          tintFor(account.type),
                         )}
                       >
-                        {account.name}
-                      </p>
-                      <p className="mt-1 truncate text-[11px] text-ink-faint">
-                        {account.institution ?? ACCOUNT_TYPE_LABELS[account.type]}
-                        {!account.isActive ? " · closed" : null}
-                        {account.isActive && !account.includeInNetWorth
-                          ? " · not counted"
-                          : null}
-                      </p>
-                    </div>
+                        <Icon size={20} aria-hidden="true" />
+                      </span>
 
-                    <div className="flex flex-col items-end gap-1">
+                      <div className="min-w-0">
+                        <p
+                          className={cn(
+                            "truncate text-sm font-semibold",
+                            account.isActive ? "text-ink" : "text-ink-faint line-through",
+                          )}
+                        >
+                          {account.name}
+                        </p>
+                        <p className="mt-1 truncate text-[11px] text-ink-faint">
+                          {account.institution ?? ACCOUNT_TYPE_LABELS[account.type]}
+                          {!account.isActive ? " · closed" : null}
+                          {account.isActive && !account.includeInNetWorth
+                            ? " · not counted"
+                            : null}
+                        </p>
+                      </div>
+
+                      <div className="flex flex-col items-end gap-1">
                         <MoneyAmount
                           amount={balanceOf(account)}
                           colorBySign={account.type === "credit_card"}
                           className="whitespace-nowrap text-sm font-semibold tracking-tight"
                         />
                         <CurrencyBadge currency={account.currency} />
-                    </div>
-                      {isDemoMode() ? null : (
-                        <div className="col-span-2 col-start-2 flex justify-end">
+                      </div>
+                    </Link>
+
+                    {editable ? (
+                      <div className="flex justify-end px-4 pb-5 sm:px-5">
                         <AccountRowActions
                           accountId={account.accountId}
                           name={account.name}
                           isActive={account.isActive}
                           transactionCount={account.transactionCount}
                         />
-                        </div>
-                      )}
+                      </div>
+                    ) : null}
                   </li>
                 ))}
               </ul>

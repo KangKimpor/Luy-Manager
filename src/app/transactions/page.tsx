@@ -13,6 +13,7 @@ import { listAccountBalances } from "@/lib/data/accounts";
 import { getSettings, listCategories, merchantLookup } from "@/lib/data/reference";
 import { listDeletedTransactions, listTransactionsInRange } from "@/lib/data/transactions";
 import { readDisplayCurrency } from "@/lib/display-currency";
+import { balanceOf } from "@/lib/domain/accounts";
 import { activityDays, filterActivity, weekStart } from "@/lib/domain/activity";
 import { summarizeCashFlow } from "@/lib/domain/transactions";
 import { TRANSACTION_TYPES } from "@/lib/domain/types";
@@ -39,6 +40,8 @@ export default async function TransactionsPage({ searchParams }: {
     readDisplayCurrency(), loadUsdKhrRate(), params.deleted ? listDeletedTransactions(50, { from: period.from, to: period.to }) : Promise.resolve([]),
   ]);
   const lookup = Object.fromEntries(accounts.map(account => [account.accountId, account]));
+  // Arriving from the Accounts list: say which account this is, with a way back out.
+  const selectedAccount = params.account ? lookup[params.account] : undefined;
   const categoryMap = Object.fromEntries(categories.map(category => [category.id, category]));
   const merchants = await merchantLookup([...transactions, ...deleted].flatMap(transaction => transaction.merchantId ? [transaction.merchantId] : []));
   const filtered = filterActivity(transactions, params);
@@ -56,6 +59,13 @@ export default async function TransactionsPage({ searchParams }: {
       <p className="text-xs text-ink-faint">{filtered.length} {filtered.length === 1 ? "entry" : "entries"} this month</p>
       <div className="flex items-center gap-2"><CurrencyToggle current={currency} /><Link href="/add" aria-label="Add a transaction" className="flex size-11 shrink-0 items-center justify-center rounded-2xl bg-brand text-on-action"><Plus size={20} aria-hidden="true" /></Link></div>
     </div>
+    {selectedAccount ? <Card><CardBody className="flex items-center justify-between gap-3 py-3">
+      <div className="min-w-0">
+        <p className="truncate text-sm font-semibold text-ink">{selectedAccount.name}</p>
+        <p className="text-xs text-ink-faint">Balance <MoneyAmount amount={balanceOf(selectedAccount)} /></p>
+      </div>
+      <Link href={activityHref(params, { account: undefined })} className="inline-flex min-h-11 shrink-0 items-center text-sm font-semibold text-brand">All accounts</Link>
+    </CardBody></Card> : null}
     <MonthStepper label={period.label} prevHref={activityHref(params, { month: monthParam(shiftMonth(period, -1)) })} nextHref={activityHref(params, { month: monthParam(shiftMonth(period, 1)) })} />
     <div className="flex items-center gap-2">
       <nav aria-label="Activity view" className="grid flex-1 grid-cols-2 gap-1 rounded-2xl bg-surface-container-low p-1">

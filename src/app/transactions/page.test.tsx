@@ -42,3 +42,12 @@ test("deleted rows are fetched only when requested and can be restored", async (
   expect(mocks.deleted).toHaveBeenCalledWith(50, expect.objectContaining({ from: expect.any(Date), to: expect.any(Date) }));
   expect(screen.getByRole("button", { name: "Restore entry" })).toBeInTheDocument();
 });
+
+test("an account filter names the account and links back to all accounts", async () => {
+  mocks.transactions.mockResolvedValue(rows);
+  const account = DEMO_ACCOUNTS.find(candidate => candidate.accountId !== rows[0].accountId)!;
+  render(await TransactionsPage({ searchParams: Promise.resolve({ month: "2026-10", account: account.accountId }) }));
+  expect(screen.getByText(account.name)).toBeInTheDocument();
+  expect(screen.getByRole("link", { name: "All accounts" })).toHaveAttribute("href", "/transactions?view=daily&month=2026-10");
+  expect(screen.queryByRole("link", { name: "Edit Fuel" })).toBeNull();
+});

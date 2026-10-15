@@ -2,8 +2,6 @@ import { ArrowRightLeft, Check, LogOut, Send, User } from "@/components/app-icon
 
 import { signOut } from "@/app/actions/auth";
 import { CurrencyToggle } from "@/components/currency-toggle";
-import { ThemeToggle } from "@/components/theme-toggle";
-import { readTheme } from "@/lib/theme-cookie";
 import { ManualRateForm } from "@/components/manual-rate-form";
 import { TelegramStatusCheck } from "@/components/telegram-status";
 import { buttonVariants } from "@/components/ui/button";
@@ -62,12 +60,11 @@ async function telegramConnectState(): Promise<TelegramState> {
  * gets written.
  */
 export default async function SettingsPage() {
-  const [displayCurrency, snapshot, user, telegram, theme] = await Promise.all([
+  const [displayCurrency, snapshot, user, telegram] = await Promise.all([
     readDisplayCurrency(),
     loadUsdKhrRate(),
     getUser(),
     telegramConnectState(),
-    readTheme(),
   ]);
 
   const demo = isDemoMode();
@@ -90,14 +87,6 @@ export default async function SettingsPage() {
           </p>
         </div>
       </div>
-
-      <Card>
-        <CardHeader><CardTitle>Appearance</CardTitle></CardHeader>
-        <CardBody className="space-y-3">
-          <ThemeToggle current={theme} />
-          <p className="text-xs text-ink-faint">System follows your device. Your choice stays on this browser.</p>
-        </CardBody>
-      </Card>
 
       <Card>
         <CardHeader>

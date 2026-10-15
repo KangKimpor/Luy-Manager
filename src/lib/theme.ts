@@ -33,5 +33,4 @@ export const CHART_COLORS = {
 export const APP_COLORS = {
   brand: "#087f78",
   background: "#f4f7f5",
-  darkBackground: "#0f1b20",
 } as const;

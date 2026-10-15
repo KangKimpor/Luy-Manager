@@ -37,6 +37,16 @@ describe("category catalog", () => {
     expect(categoryLabel(category("\u{0031}\uFE0F\u20E3 Water"))).toBe("Water");
   });
 
+  it("gives custom names the catalog does not list a bundled icon instead of the generic grid", () => {
+    for (const name of ["Game", "Internet", "Selfcare", "Social Life", "Subscription", "Trading"]) {
+      const key = categoryIconKey(category(name));
+      expect(key).not.toBe("widget");
+      expect(existsSync(`public/icons/lets-icons/${key}.svg`)).toBe(true);
+    }
+    expect(categoryIconKey(category("Game", { icon: "\u{1F3AE}" }))).toBe("gamepad");
+    expect(categoryIconKey(category("Something unlisted"))).toBe("widget");
+  });
+
   it("uses parent groups safely, preserves custom names, and separates income", () => {
     const home = category("Housing");
     const custom = category("My apartment", { parentId: home.id });

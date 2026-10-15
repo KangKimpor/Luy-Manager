@@ -12,9 +12,6 @@ const OFFLINE_PAGE = `<!doctype html>
   <title>Offline | Luy Manager</title>
   <style>
     :root { color-scheme: light; --surface: #f4f7f5; --ink: #142c32; --brand: #087f78; --on-brand: #fff; }
-    @media (prefers-color-scheme: dark) {
-      :root { color-scheme: dark; --surface: #0f1b20; --ink: #e3efea; --brand: #78d5c5; --on-brand: #082a27; }
-    }
     * { box-sizing: border-box; }
     body {
       margin: 0; min-height: 100vh; min-height: 100dvh; display: grid;
