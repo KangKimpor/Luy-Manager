@@ -43,6 +43,9 @@ export const CreditCard = icon("credit-card");
 export const Delete = icon("back");
 export const Download = icon("download");
 export const Ellipsis = icon("meatballs-menu");
+export function ExpenseList(props: AppIconProps) {
+  return <AppIcon name="paper" {...props} style={{ maskImage: "url(/icons/expense-list.svg)", ...props.style }} />;
+}
 export const FileSpreadsheet = icon("table");
 export const Fuel = icon("oil");
 export const House = icon("home");

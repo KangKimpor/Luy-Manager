@@ -1,8 +1,8 @@
-import { ChartNoAxesColumn, Ellipsis, House, List, PieChart, Settings, Wallet } from "@/components/app-icon";
+import { ChartNoAxesColumn, Ellipsis, ExpenseList, House, PieChart, Settings, Wallet } from "@/components/app-icon";
 
 export const MAIN_NAV = [
   { href: "/", label: "Home", icon: House },
-  { href: "/transactions", label: "Activity", icon: List },
+  { href: "/transactions", label: "Activity", icon: ExpenseList },
   { href: "/accounts", label: "Accounts", icon: Wallet },
   { href: "/more", label: "More", icon: Ellipsis },
 ] as const;
