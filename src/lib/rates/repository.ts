@@ -11,6 +11,8 @@
  * daily is undermined if a stalled job is invisible.
  */
 
+import { cache } from "react";
+
 import { calendarDate } from "@/lib/calendar";
 
 import {
@@ -122,6 +124,17 @@ export function fallbackSnapshot(): RateSnapshot {
 export async function loadUsdKhrRate(
   { asOf = new Date(), timezone = "Asia/Phnom_Penh" }: { asOf?: Date; timezone?: string } = {},
 ): Promise<RateSnapshot> {
+  return loadUsdKhrRateCached(asOf, timezone);
+}
+
+/**
+ * Request-scoped cache wrapper. `cache()` deduplicates by argument identity, so
+ * the Date and string are passed as separate primitives rather than an object
+ * that would be a new reference on every call. Without this, a page that calls
+ * `loadUsdKhrRate` twice in the same render (directly plus through an action)
+ * would query the database twice for the same row.
+ */
+const loadUsdKhrRateCached = cache(async (asOf: Date, timezone: string): Promise<RateSnapshot> => {
   if (!isSupabaseConfigured()) return fallbackSnapshot();
 
   const supabase = await createClient();
@@ -155,7 +168,7 @@ export async function loadUsdKhrRate(
     // about being a fallback.
     return fallbackSnapshot();
   }
-}
+});
 
 /**
  * Every rate from `since` onward, as a `RateTable`.
