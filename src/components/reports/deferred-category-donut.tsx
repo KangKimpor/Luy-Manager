@@ -21,7 +21,7 @@ export function DeferredCategoryDonut(props: React.ComponentProps<ChartComponent
     observer.observe(element);
     return () => observer.disconnect();
   }, [Chart]);
-  return <div ref={host} className="h-60 min-w-0" aria-busy={!Chart && !failed}>
+  return <div ref={host} className="h-72 min-w-0" aria-busy={!Chart && !failed}>
     {Chart ? <Chart {...props} /> : failed ? <p role="status" className="flex h-full items-center justify-center text-sm text-ink-muted">The chart could not load. The ranked list is still available.</p> : <div className="skeleton h-full rounded-2xl"><span className="sr-only">Loading category chart...</span></div>}
   </div>;
 }

@@ -181,6 +181,7 @@ export function QuickAddForm({
       <fieldset disabled={pending} className="space-y-5 disabled:opacity-70">
       <AmountDisplay
         amount={amount}
+        onAmountChange={tenders || pending ? undefined : (next) => { setRaw(next); setSaved(null); setError(null); }}
         tone={type === "expense" ? "outflow" : "inflow"}
         trailing={
           <div className="flex gap-1" role="group" aria-label="Currency">
@@ -217,6 +218,8 @@ export function QuickAddForm({
       {ratePending ? <p role="status" className="text-ink-faint text-xs">Updating the rate for this date...</p> : null}
       {dateError ? <p role="alert" className="text-outflow text-sm">{dateError}</p> : null}
 
+      <AccountPicker compact accounts={accounts} selectedId={accountId} onSelect={selectAccount} />
+
       <div>
         <label htmlFor="note" className="text-ink-muted mb-2 block text-sm font-medium">Note</label>
         <input id="note" type="text" maxLength={500} value={note} onChange={(event) => { setSaved(null); setNote(event.target.value); }} placeholder="What was it for?" className="border-border-subtle bg-surface rounded-xl text-ink placeholder:text-ink-faint min-h-11 w-full border px-3" />
@@ -240,8 +243,6 @@ export function QuickAddForm({
       ) : (
         <AmountKeypad currency={currency} onPress={press} />
       )}
-
-      <AccountPicker accounts={accounts} selectedId={accountId} onSelect={selectAccount} />
 
       {/* A split has its own category for each part. */}
       {!splits ? <CategoryPicker categories={relevantCategories} selectedId={resolvedCategoryId}

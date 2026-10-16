@@ -1,7 +1,7 @@
 "use client";
 
 import { Delete } from "@/components/app-icon";
-import type { ReactNode } from "react";
+import { useRef, useState, type ReactNode } from "react";
 
 import { Card, CardBody } from "@/components/ui/card";
 import { type CurrencyCode, formatMoney, parseAmount, zero, type Money } from "@/lib/money";
@@ -91,6 +91,19 @@ export function parseKeypadAmount(raw: string, currency: CurrencyCode): Money {
   }
 }
 
+/** Clipboard text must fit the keypad exactly, without rounding or currency conversion. */
+export function pastedAmount(input: string, currency: CurrencyCode): string {
+  const otherCurrency = currency === "USD" ? /KHR|៛/i : /USD|\$/i;
+  if (otherCurrency.test(input)) throw new Error(`Choose a ${currency === "USD" ? "KHR" : "USD"} account first.`);
+  const raw = input.trim().replace(currency === "USD" ? /^(?:USD\s*|\$\s*)|\s*USD$/gi : /^(?:KHR\s*)|\s*(?:KHR|៛)$/gi, "").trim();
+  if (!/^(?:\d+|\d{1,3}(?:,\d{3})+)(?:\.\d{1,2})?$/.test(raw)) {
+    throw new Error("Paste a positive amount with up to two decimal places.");
+  }
+  const normalized = raw.replaceAll(",", "").replace(/^0+(?=\d)/, "");
+  parseAmount(normalized, currency);
+  return normalized;
+}
+
 const TONE_CLASS = {
   outflow: "text-outflow",
   inflow: "text-inflow",
@@ -102,26 +115,55 @@ export function AmountDisplay({
   tone = "neutral",
   label = "Amount entered",
   trailing,
+  onAmountChange,
 }: {
   amount: Money;
   tone?: keyof typeof TONE_CLASS;
   label?: string;
   trailing?: ReactNode;
+  onAmountChange?: (raw: string) => void;
 }) {
+  const [pasteError, setPasteError] = useState<string | null>(null);
+  const pasteButton = useRef<HTMLButtonElement>(null);
+
+  function paste(text: string) {
+    try {
+      const raw = pastedAmount(text, amount.currency);
+      onAmountChange?.(raw);
+      setPasteError(null);
+    } catch (error) {
+      setPasteError(error instanceof Error ? error.message : "Could not read that amount.");
+    }
+  }
+
   return (
     <Card className="border-0 bg-surface-container-low">
-      <CardBody className="py-6">
-        <p className="text-ink-faint mb-3 text-xs font-semibold uppercase tracking-wider">{label}</p>
+      <CardBody className="py-5">
+        <div className="mb-3 flex items-center justify-between gap-3">
+          <p className="text-ink-faint text-xs font-semibold uppercase tracking-wider">{label}</p>
+          {onAmountChange ? <button ref={pasteButton} data-currency={amount.currency} type="button" className="text-brand min-h-11 rounded-lg px-3 text-xs font-semibold"
+            onClick={async () => {
+              try {
+                const text = await navigator.clipboard.readText();
+                if (pasteButton.current?.dataset.currency === amount.currency && !pasteButton.current.matches(":disabled")) paste(text);
+              } catch {
+                setPasteError("Clipboard access is unavailable. Focus the amount and use your device's Paste command.");
+              }
+            }}>Paste amount</button> : null}
+        </div>
         <div className="flex flex-wrap items-center justify-between gap-3">
           <output
             aria-live="polite"
             aria-label={label}
+            tabIndex={onAmountChange ? 0 : undefined}
+            onPaste={onAmountChange ? (event) => { event.preventDefault(); paste(event.clipboardData.getData("text")); } : undefined}
             className={cn("tabular break-all text-4xl font-semibold tracking-tight", TONE_CLASS[tone])}
           >
             <span key={`${amount.currency}:${amount.minor}`} className="amount-tick inline-block max-w-full">{formatMoney(amount)}</span>
           </output>
           {trailing}
         </div>
+        {onAmountChange && pasteError ? <p role="alert" className="text-outflow mt-2 text-xs">{pasteError}</p> : null}
       </CardBody>
     </Card>
   );

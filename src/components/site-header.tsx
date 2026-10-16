@@ -1,6 +1,7 @@
 "use client";
 
-import { ArrowLeft, Settings, Wallet } from "@/components/app-icon";
+import { ArrowLeft, Settings } from "@/components/app-icon";
+import Image from "next/image";
 import { AppLink as Link } from "@/components/app-link";
 import { usePathname, useRouter } from "next/navigation";
 
@@ -71,7 +72,7 @@ export function SiteHeader() {
       <div className="safe-gutters mx-auto flex h-appbar max-w-xl items-center justify-between gap-3 px-5 lg:max-w-none lg:px-10 xl:px-14">
         <div className="flex min-w-0 items-center gap-3">
           {isRoot ? (
-            <span className="bg-brand text-on-action flex size-10 shrink-0 items-center justify-center rounded-2xl shadow-fab lg:hidden"><Wallet size={21} aria-hidden="true" /></span>
+            <Image src="/icon.svg" alt="Luy Manager" width={40} height={40} className="shrink-0 rounded-xl lg:hidden" />
           ) : (
             <button
               type="button"

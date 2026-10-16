@@ -1,6 +1,7 @@
 "use client";
 
-import { Plus, Wallet } from "@/components/app-icon";
+import { Plus } from "@/components/app-icon";
+import Image from "next/image";
 import { AppLink as Link } from "@/components/app-link";
 import { usePathname } from "next/navigation";
 
@@ -13,7 +14,7 @@ export function Sidebar() {
   return (
     <aside className="bg-surface border-surface-variant fixed inset-y-0 left-0 z-50 hidden w-60 flex-col border-r px-5 py-8 lg:flex">
       <Link href="/" className="text-ink mb-10 flex items-center gap-3 px-2 text-lg font-bold tracking-tight">
-        <span className="bg-brand text-on-action shadow-fab flex size-10 items-center justify-center rounded-2xl"><Wallet size={20} aria-hidden="true" /></span>Luy Manager
+        <Image src="/icon.svg" alt="" width={40} height={40} className="shrink-0 rounded-xl" />Luy Manager
       </Link>
       <Link href="/add" className="bg-brand text-on-action hover:bg-brand-strong hover:shadow-fab mb-8 flex min-h-12 items-center justify-center gap-2 rounded-2xl text-sm font-semibold transition-all active:scale-95"><Plus size={18} aria-hidden="true" />Add transaction</Link>
       <nav aria-label="Main" className="space-y-1">

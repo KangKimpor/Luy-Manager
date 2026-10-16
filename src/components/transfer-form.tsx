@@ -237,6 +237,7 @@ export function TransferForm({
         amount={amount}
         tone="neutral"
         label="Amount to transfer"
+        onAmountChange={pending ? undefined : (next) => { setRaw(next); setSaved(null); setSaveError(null); }}
         trailing={
           from ? (
             <div className="flex items-center gap-1.5">

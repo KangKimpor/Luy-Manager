@@ -19,6 +19,41 @@ function renderForm() {
 }
 
 describe("transaction save feedback", () => {
+  it("places a compact account selector between the date and note", () => {
+    renderForm();
+    const picker = screen.getByRole("group", { name: "Account" });
+    expect(screen.getByLabelText("Date").compareDocumentPosition(picker) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(picker.compareDocumentPosition(screen.getByLabelText("Note")) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(within(picker).getAllByRole("button")).toHaveLength(1);
+  });
+
+  it("pastes and saves an exact bank amount, preserving the draft on invalid paste", async () => {
+    const user = userEvent.setup(); renderForm();
+    createTransaction.mockResolvedValue({ ok: false, error: "Keep the draft" });
+    const clipboard = vi.spyOn(navigator.clipboard, "readText").mockResolvedValue("$1,234.56");
+    await user.click(screen.getByRole("button", { name: "Paste amount" }));
+    expect(screen.getByLabelText("Amount entered")).toHaveTextContent("$1,234.56");
+    clipboard.mockResolvedValue("1.234");
+    await user.click(screen.getByRole("button", { name: "Paste amount" }));
+    expect(screen.getByRole("alert")).toHaveTextContent("up to two decimal places");
+    await user.click(screen.getByRole("button", { name: "Save expense" }));
+    expect(createTransaction.mock.lastCall?.[0]).toMatchObject({ amount: "1234.56", currency: "USD" });
+    clipboard.mockRestore();
+  });
+
+  it("supports native paste and keeps the draft when clipboard permission is denied", async () => {
+    const user = userEvent.setup(); renderForm();
+    const clipboard = vi.spyOn(navigator.clipboard, "readText").mockRejectedValue(new Error("Denied"));
+    await user.click(screen.getByRole("button", { name: "5" }));
+    await user.click(screen.getByRole("button", { name: "Paste amount" }));
+    expect(screen.getByRole("alert")).toHaveTextContent("Clipboard access is unavailable");
+    expect(screen.getByLabelText("Amount entered")).toHaveTextContent("$5.00");
+    fireEvent.paste(screen.getByLabelText("Amount entered"), { clipboardData: { getData: () => "25.50" } });
+    expect(screen.getByLabelText("Amount entered")).toHaveTextContent("$25.50");
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    clipboard.mockRestore();
+  });
+
   it("suggests from the note and preserves an explicit clear when the note changes", async () => {
     createTransaction.mockResolvedValue({ ok: false, error: "Keep the draft" });
     const user = userEvent.setup(); renderForm();

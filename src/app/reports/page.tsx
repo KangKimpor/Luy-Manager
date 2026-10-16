@@ -49,15 +49,25 @@ export default async function ReportsPage({ searchParams }: { searchParams: Prom
       <Card><CardBody className="pt-5">
         <h2 className="mb-1 text-base font-semibold text-ink">{type === "expense" ? "Where your money went" : "Where your money came from"}</h2>
         <p className="mb-3 text-xs text-ink-muted">{period.label} · {totals.length} categories</p>
+        <div className="grid items-center gap-5 sm:grid-cols-2">
         <DeferredCategoryDonut slices={slices} total={flow[type]} label={type === "expense" ? "Total spent" : "Total received"} />
-        <ul aria-label="Chart labels" className="mt-4 space-y-3">
-          {slices.map((slice, index) => <li key={index} className="flex min-w-0 items-center gap-2 text-xs">
-            <span style={{ color: slice.color }}><CategoryIcon category={slice.other ? null : categories[slice.categoryId ?? ""]} size={15} /></span>
-            <span className="min-w-0 flex-1 truncate text-ink-muted">{slice.name}</span>
-            <MoneyAmount amount={slice.total} className="shrink-0 font-semibold text-ink" />
-            <span className="tabular w-14 shrink-0 text-right text-ink-muted">{(slice.share * 100).toFixed(1)}%</span>
+        <ul aria-label="Chart labels" className="space-y-4">
+          {slices.map((slice) => <li key={slice.name} className="min-w-0 text-xs">
+            <div className="flex items-center gap-2">
+              <span className="size-2.5 shrink-0 rounded-full" style={{ backgroundColor: slice.color }} />
+              <span className="min-w-0 flex-1 break-words font-medium text-ink">{slice.name}</span>
+              <span className="tabular shrink-0 font-semibold text-ink">{(slice.share * 100).toFixed(1)}%</span>
+            </div>
+            <div className="mt-1 flex flex-wrap justify-between gap-1 pl-4.5 text-ink-muted">
+              <span>{slice.transactionCount} {slice.transactionCount === 1 ? "transaction" : "transactions"}</span>
+              <MoneyAmount amount={slice.total} className="font-semibold text-ink" />
+            </div>
+            <div aria-hidden="true" className="bg-surface-container mt-2 ml-4.5 h-1 overflow-hidden rounded-full">
+              <div className="h-full rounded-full" style={{ width: `${slice.share * 100}%`, backgroundColor: slice.color }} />
+            </div>
           </li>)}
         </ul>
+        </div>
       </CardBody></Card>
       <Card><CardBody><ul aria-label="Categories ranked by amount" className="divide-y divide-surface-variant">
         {totals.map((entry, index) => {

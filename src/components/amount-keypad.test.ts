@@ -2,9 +2,27 @@ import { describe, expect, it } from "vitest";
 
 import {
   parseKeypadAmount,
+  pastedAmount,
   pressAmountKey,
   truncateForCurrency,
 } from "./amount-keypad";
+
+describe("pastedAmount", () => {
+  it("preserves formatted USD and bank KHR amounts as decimal text", () => {
+    expect(pastedAmount(" $1,234.56 ", "USD")).toBe("1234.56");
+    expect(pastedAmount("9,993.55៛", "KHR")).toBe("9993.55");
+    expect(pastedAmount("0005.20 USD", "USD")).toBe("5.20");
+  });
+
+  it.each(["", "coffee 5", "1,23", "-5", "1.234", "1e3", "1 2", "9007199254740999"])("rejects invalid or unsafe input %s", (text) => {
+    expect(() => pastedAmount(text, "USD")).toThrow();
+  });
+
+  it("refuses a pasted currency that differs from the selected account", () => {
+    expect(() => pastedAmount("5 USD", "KHR")).toThrow("USD account");
+    expect(() => pastedAmount("500៛", "USD")).toThrow("KHR account");
+  });
+});
 
 describe("pressAmountKey", () => {
   it("refuses a digit that would make minor units unsafe instead of crashing the form", () => {
