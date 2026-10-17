@@ -15,6 +15,8 @@ test("all advertised buttons lead to supported actions and the home menu stays c
   }
   expect(keyboard.flat()).toContain("Use Cash (KHR)");
   expect(keyboard.flat()).not.toContain("Use ABA (USD)");
+  expect(keyboard.flat()).not.toContain("Undo");
+  expect(keyboard.flat()).toContain("Cancel");
   expect(messagePayload(100, "Ready", keyboard).reply_markup.keyboard).toEqual(keyboard.map((row) => row.map((text) => ({ text }))));
 });
 
@@ -27,6 +29,8 @@ test("large wallet lists expose two shortcuts and the complete selector without 
   expect(keyboard.flat()).toContain("Date yesterday");
   expect(keyboard.flat().filter((label) => label.startsWith("Use "))).toHaveLength(2);
   expect(keyboard.flat()).toContain("Choose account");
+  expect(keyboard.flat()).not.toContain("Undo");
+  expect(keyboard.flat()).toContain("Cancel");
   expect(keyboard.flat()).not.toContain("Use Wallet 1 (USD)");
 });
 

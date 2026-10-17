@@ -60,8 +60,8 @@ export function entryKeyboard(mode: EntryMode, wallets: readonly { accountId: st
     [mode.type === "expense" ? "Income" : "Expense", `${mode.type === "expense" ? "Expense" : "Income"} ${mode.currency === "USD" ? "KHR" : "USD"}`],
     ...(shortcuts.length ? [shortcuts] : []),
     ["Choose category", mode.date ? "Date today" : "Date yesterday"],
-    ["Choose date", others.length > 2 ? "Choose account" : "Undo"],
-    [...(others.length > 2 ? ["Undo"] : []), "More", "Cancel"],
+    ["Choose date", ...(others.length > 2 ? ["Choose account"] : [])],
+    ["More", "Cancel"],
   ];
 }
 
