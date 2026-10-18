@@ -46,13 +46,14 @@ async function refreshOnce(admin: Admin, profile: Profile): Promise<void> {
   for (const row of groups.flat()) {
     const state = readReportState(row.parsed);
     if (!state) continue;
-    const key = reportKey(state.request);
+    // Legacy overviews and explicit Recent replies display the same list.
+    const key = state.request.kind === "ledger" ? "recent" : reportKey(state.request);
     const previous = latest.get(key);
     // A background audit entry can be newer than a fresh user request.
     // Compare the request time rather than letting that entry revive an older card.
     if (!previous || state.at > previous.state.at) latest.set(key, { state, text: row.message_text });
   }
-  if (!latest.has("ledger") && ["summary:today", "summary:month", "recent"].some(key => !latest.has(key))) {
+  if (!latest.has("recent")) {
     const text = await renderTelegramReport(admin, profile, { kind: "ledger" });
     if (!await stillLinked(admin, profile)) return;
     const sent = await sendMessage(profile.telegram_chat_id, text);

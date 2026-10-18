@@ -778,20 +778,62 @@ describe("web and Telegram ledger consistency", () => {
     expect(db.unsafeQueries).toEqual([]);
   });
 
-  test("a legacy webhook reply is replaced by one current overview that subsequent changes edit", async () => {
+  test("web changes send one compact recent list without unsolicited summaries, then edit it", async () => {
     ledger();
     db.tables.telegram_logs.push({ id: "legacy", user_id: USER, chat_id: CHAT, direction: "outbound", message_text: "Out: $12.00", parsed: null, error_message: null, created_at: "2026-10-10T03:00:00Z" });
     expect((await deleteTransaction(DELETED)).ok).toBe(true);
     await finishBackground();
     expect(mocks.sent).toHaveBeenCalledTimes(1);
-    expect(mocks.sent.mock.calls[0][1]).toContain("Updated from the web");
-    expect(mocks.sent.mock.calls[0][1]).toContain("Out: $7.00");
+    expect(mocks.sent.mock.calls[0][1]).toBe("<b>Recent transactions</b>\n• 10 Oct · -$7.00 expense · ABA USD · keep-me-web");
+    expect(mocks.sent.mock.calls[0][1]).not.toMatch(/This month|Today|Out:/);
     expect(mocks.sent.mock.calls[0][1]).not.toContain("delete-me-web");
     expect((await restoreTransaction(DELETED)).ok).toBe(true);
     await finishBackground();
     expect(mocks.sent).toHaveBeenCalledTimes(1);
-    expect(mocks.edited.mock.calls[0][2]).toContain("Out: $12.00");
+    expect(mocks.edited.mock.calls[0][2].split("\n")).toHaveLength(3);
     expect(mocks.edited.mock.calls[0][2]).toContain("delete-me-web");
+  });
+
+  test("an existing Recent reply prevents a second list after repeated web changes", async () => {
+    ledger(); await handleUpdate(update(1, "Recent"));
+    mocks.sent.mockClear();
+    expect((await deleteTransaction(DELETED)).ok).toBe(true);
+    await finishBackground();
+    expect((await restoreTransaction(DELETED)).ok).toBe(true);
+    await finishBackground();
+    expect(mocks.sent).not.toHaveBeenCalled();
+    expect(mocks.edited).toHaveBeenCalledTimes(2);
+    expect(mocks.edited.mock.calls.every(call => call[1] === 1001)).toBe(true);
+  });
+
+  test("new web entries reuse one compact list and escape multiline descriptions", async () => {
+    ledger();
+    await refreshTelegramReports(USER);
+    db.tables.transactions.push({ ...db.tables.transactions[0], id: "new-entry", account_id: "cash", currency: "KHR",
+      amount: -999355, notes: "Tea & <coffee>\nwith lunch", occurred_at: "2026-10-10T04:00:00Z" });
+    await refreshTelegramReports(USER);
+    await refreshTelegramReports(USER);
+    expect(mocks.sent).toHaveBeenCalledTimes(1);
+    expect(mocks.edited).toHaveBeenCalledTimes(1);
+    expect(mocks.edited.mock.calls[0][2]).toContain("-9,993.55៛ expense · Cash KHR · Tea &amp; &lt;coffee&gt; with lunch");
+    expect(mocks.edited.mock.calls[0][2].split("\n")).toHaveLength(4);
+    expect(mocks.edited.mock.calls[0][2]).not.toMatch(/This month|Today|Out:|private-other-user/);
+    expect(db.unsafeQueries).toEqual([]);
+  });
+
+  test("an old overview and a Recent reply refresh only the latest list", async () => {
+    ledger();
+    db.tables.telegram_logs.push({ user_id: USER, chat_id: CHAT, direction: "outbound", error_message: null,
+      message_text: "Old overview", created_at: "2026-10-10T03:00:00Z",
+      parsed: { kind: "report", messageId: 99, request: { kind: "ledger" }, at: "2026-10-10T03:00:00Z", timezone: "Asia/Phnom_Penh" },
+    });
+    await handleUpdate(update(1, "Recent"));
+    mocks.sent.mockClear();
+    expect((await deleteTransaction(DELETED)).ok).toBe(true);
+    await finishBackground();
+    expect(mocks.sent).not.toHaveBeenCalled();
+    expect(mocks.edited).toHaveBeenCalledTimes(1);
+    expect(mocks.edited.mock.calls[0][1]).toBe(1001);
   });
 
   test("both transfer legs disappear from Telegram and a foreign group member stays untouched", async () => {
@@ -849,13 +891,13 @@ describe("web and Telegram ledger consistency", () => {
   });
 
   test.each([null, CHAT + 1])("a chat unlinked during report reads (%s) receives no background data", async chatId => {
-    ledger(); await handleUpdate(update(1, "Summary today"));
+    ledger(); await handleUpdate(update(1, "Recent"));
     mocks.sent.mockClear(); db.reads = [];
     let release!: () => void;
-    db.rateReadGate = new Promise<void>(resolve => { release = resolve; });
+    db.walletReadGate = new Promise<void>(resolve => { release = resolve; });
     expect((await deleteTransaction(DELETED)).ok).toBe(true);
     const refreshing = finishBackground();
-    await vi.waitFor(() => expect(db.reads).toContain("exchange_rates"));
+    await vi.waitFor(() => expect(db.reads).toContain("accounts"));
     db.tables.profiles[0].telegram_chat_id = chatId;
     release();
     await refreshing;
@@ -879,11 +921,11 @@ describe("web and Telegram ledger consistency", () => {
     mocks.edited.mockResolvedValueOnce({ ok: false, missing: true });
     expect((await deleteTransaction(DELETED)).ok).toBe(true);
     await finishBackground();
-    expect(mocks.sent).toHaveBeenCalledTimes(3);
-    expect(mocks.sent.mock.calls[2][1]).not.toContain("delete-me-web");
+    expect(mocks.sent).toHaveBeenCalledTimes(2);
+    expect(mocks.sent.mock.calls[1][1]).not.toContain("delete-me-web");
     expect((await restoreTransaction(DELETED)).ok).toBe(true);
     await finishBackground();
-    expect(mocks.edited.mock.calls.some(call => call[1] === 1003)).toBe(true);
+    expect(mocks.edited.mock.calls.some(call => call[1] === 1002)).toBe(true);
   });
 
   test("a concurrent web deletion during delivery cannot leave the final report behind", async () => {
@@ -933,7 +975,7 @@ describe("web and Telegram ledger consistency", () => {
     expect((await deleteTransaction(DELETED)).ok).toBe(true);
     await finishBackground();
     expect(mocks.edited).not.toHaveBeenCalled();
-    expect(mocks.sent.mock.calls[0][1]).toContain("Out: $7.00");
+    expect(mocks.sent.mock.calls[0][1]).toContain("-$7.00");
   });
 });
 

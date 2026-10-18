@@ -582,7 +582,7 @@ function recentTransactions(context: UserContext): string {
   return ["<b>Recent transactions</b>", ...transactions.map((transaction) => {
     const account = context.accounts.find((entry) => entry.accountId === transaction.accountId);
     const date = new Intl.DateTimeFormat("en-GB", { timeZone: context.timezone, day: "numeric", month: "short" }).format(new Date(transaction.occurredAt));
-    return `• ${escapeHtml(date)}: ${describeAmount(money(transaction.amount, transaction.currency))} ${transaction.type}\n  ${escapeHtml(account?.name ?? "Account")}${transaction.notes ? `, ${escapeHtml(transaction.notes.slice(0, 100))}` : ""}`;
+    return `• ${escapeHtml(date)} · ${describeAmount(money(transaction.amount, transaction.currency))} ${transaction.type} · ${escapeHtml(account?.name ?? "Account")}${transaction.notes ? ` · ${escapeHtml(transaction.notes.slice(0, 60)).replace(/\s+/g, " ")}` : ""}`;
   })].join("\n");
 }
 
@@ -599,19 +599,7 @@ export async function renderTelegramReport(admin: Admin, profile: LinkedProfile,
     const intent: TelegramIntent = { ...request, confidence: 1 };
     return reportText(await loadContext(admin, profile, intent, false, at), request);
   }
-  // Older webhook replies have no message id. Replace their stale snapshot with
-  // one current overview, then keep editing that overview instead of flooding chat.
-  const now = new Date();
-  const [month, recent] = await Promise.all([
-    loadContext(admin, profile, { kind: "summary", window: "month", confidence: 1 }, false, now),
-    loadContext(admin, profile, { kind: "recent", confidence: 1 }, false, now),
-  ]);
-  const { from, to } = reportingWindow(now, "today", month.timezone);
-  const today = { ...month, report: { ...month.report, transactions: month.report.transactions.filter(transaction => {
-    const time = new Date(transaction.occurredAt).getTime();
-    return time >= from.getTime() && time < to.getTime();
-  }) } };
-  return ["<b>Updated from the web</b>", summarise(today, "today"), summarise(month, "month"), recentTransactions(recent)].join("\n\n");
+  return recentTransactions(await loadContext(admin, profile, { kind: "recent", confidence: 1 }, false));
 }
 
 function operationGuide(operation: "expense" | "income" | "refund" | "transfer"): string {
