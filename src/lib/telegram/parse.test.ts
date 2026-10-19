@@ -16,6 +16,19 @@ function record(text: string) {
   return intent;
 }
 
+test.each([
+  ["Expense $5 income tax", "expense", "income tax"],
+  ["Income $5 refund bonus", "income", "refund bonus"],
+  ["Refund $5 expense adjustment", "refund", "expense adjustment"],
+])("explicit command parsing keeps descriptor words in %s", (text, type, descriptor) => {
+  expect(parseMessage(text)).toMatchObject({ kind: "record", type, descriptor });
+});
+
+test.each(["Expense.* $5 coffee", "Income(a+)+ $5 salary"])("regex syntax in %s cannot become a command pattern", text => {
+  expect(() => parseMessage(text)).not.toThrow();
+  expect(parseMessage(text)).toMatchObject({ kind: "record", amount: { minor: 500, currency: "USD" } });
+});
+
 describe("Telegram exact bank-riel precision", () => {
   test.each([
     ["9,993.55", 999355], ["9993.55", 999355], ["12,000", 1200000],

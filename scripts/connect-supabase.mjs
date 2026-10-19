@@ -353,7 +353,7 @@ try {
   if (reach.status >= 500) {
     fail(`REST API returned ${reach.status}. Is the project awake?`);
   } else {
-    console.log(styles.ok(`REST API reachable at ${projectUrl}`));
+    console.log(styles.ok("REST API reachable"));
   }
 
   // Anonymous reads of user data must come back empty. Not 200-with-rows, and not
@@ -402,8 +402,8 @@ try {
   } else if (audit.status === 200) {
     fail("audit_logs RETURNED DATA to an anonymous caller.");
   }
-} catch (error) {
-  fail(`Could not reach the project: ${error.message}`);
+} catch {
+  fail("Could not reach the project. Check the project URL and network connection.");
 }
 
 // ---------------------------------------------------------------------------

@@ -424,7 +424,7 @@ export function parseMessage(input: string, mode?: EntryMode | null): TelegramIn
 
   if (selectedMode || explicitType) {
     type = selectedMode?.type ?? explicitType!;
-    verb = selectedMode ? /$^/ : new RegExp(`^${type}\\b`);
+    verb = selectedMode ? /$^/ : /^(expense|income|refund)\b/;
   } else if (REFUND_VERBS.test(recordLower)) {
     type = "refund";
     verb = REFUND_VERBS;

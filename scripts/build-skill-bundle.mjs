@@ -309,7 +309,7 @@ for (const file of bundled) {
 // generated comment names this script. Neither is an instruction to follow a link, so
 // both are excluded from the link checks below.
 const prose = skillDoc
-  .replace(/<!--[\s\S]*?-->/g, "")
+  .replace(/<!--[\s\S]*?-->/g, "\n")
   .split("\n")
   .filter((line) => !line.startsWith("|"))
   .join("\n");
