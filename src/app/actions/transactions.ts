@@ -11,6 +11,7 @@ import { buildTransaction, buildTransfer } from "@/lib/domain/transactions";
 import type { Account } from "@/lib/domain/types";
 import {
   absolute,
+  formatMoney,
   type CurrencyCode,
   isZero,
   mixedTotal,
@@ -21,7 +22,7 @@ import {
   sum,
 } from "@/lib/money";
 import { loadUsdKhrRate } from "@/lib/rates/repository";
-import { queueTelegramReportRefresh } from "@/lib/telegram/report-refresh";
+import { queueTelegramReportRefresh, queueTelegramTransactionNotification } from "@/lib/telegram/report-refresh";
 import {
   firstIssue,
   parseMoney,
@@ -218,6 +219,8 @@ export async function createTransaction(
     }
 
     revalidateLedger(context.userId);
+    queueTelegramTransactionNotification(userId,
+      `Saved ${row.type}: ${formatMoney(money(row.amount, row.currency))} · ${account.name}${row.notes ? ` · ${row.notes}` : ""}`);
     return { ok: true, data: { id: transactionId } };
   } catch (error) {
     return failed(error);
@@ -501,6 +504,8 @@ export async function createTransfer(
     if (error) return { ok: false, error: error.message };
 
     revalidateLedger(context.userId);
+    queueTelegramTransactionNotification(userId,
+      `Saved transfer: ${formatMoney(money(out.amount, out.currency))} · ${from.name} to ${formatMoney(money(incoming.amount, incoming.currency))} · ${to.name}${out.notes ? ` · ${out.notes}` : ""}`);
     return { ok: true, data: { transferGroupId } };
   } catch (error) {
     return failed(error);

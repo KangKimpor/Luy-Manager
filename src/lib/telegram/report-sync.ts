@@ -2,16 +2,33 @@ import { asRows } from "@/lib/data/client";
 import type { CurrencyCode } from "@/lib/money";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { isServiceRoleConfigured } from "@/lib/supabase/env";
-import { editMessage, sendMessage } from "./client";
+import { editMessage, escapeHtml, sendMessage } from "./client";
 import { isTelegramConfigured } from "./env";
 import { renderTelegramReport } from "./handle";
 import { readLedgerRevision } from "./ledger-revision";
 import { readReportState, reportKey, type ReportRequest, type ReportState } from "./report-state";
-import { validTimezone } from "./reporting";
 
 type Admin = ReturnType<typeof createAdminClient>;
 type Profile = { id: string; telegram_chat_id: number; base_currency: CurrencyCode; timezone: string };
 const jobs = new Map<string, { rerun: boolean; running: Promise<void> }>();
+
+export async function notifyTelegramTransaction(userId: string, text: string): Promise<void> {
+  if (!isTelegramConfigured() || !isServiceRoleConfigured()) return;
+  try {
+    const admin = createAdminClient();
+    const { data, error } = await admin.from("profiles").select("id, telegram_chat_id, base_currency, timezone")
+      .eq("id", userId).maybeSingle();
+    if (error) throw new Error("Could not find the linked chat.");
+    const profile = data as Profile | null;
+    if (!profile || !Number.isSafeInteger(profile.telegram_chat_id) || profile.telegram_chat_id <= 0) return;
+    if (!await stillLinked(admin, profile)) return;
+    const message = escapeHtml(text.replace(/\s+/g, " ").trim().slice(0, 500));
+    const sent = await sendMessage(profile.telegram_chat_id, message);
+    await record(admin, profile, message, null, sent.ok ? null : sent.error ?? "Could not deliver the transaction notification.");
+  } catch {
+    console.error("[telegram] Transaction notification failed. The web change remains saved.");
+  }
+}
 
 async function stillLinked(admin: Admin, profile: Profile): Promise<boolean> {
   const { data, error } = await admin.from("profiles").select("id")
@@ -53,14 +70,6 @@ async function refreshOnce(admin: Admin, profile: Profile): Promise<void> {
     // Compare the request time rather than letting that entry revive an older card.
     if (!previous || state.at > previous.state.at) latest.set(key, { state, text: row.message_text });
   }
-  if (!latest.has("recent")) {
-    const text = await renderTelegramReport(admin, profile, { kind: "ledger" });
-    if (!await stillLinked(admin, profile)) return;
-    const sent = await sendMessage(profile.telegram_chat_id, text);
-    await record(admin, profile, text, sent.ok && sent.messageId
-      ? { kind: "report", request: { kind: "ledger" }, at: new Date().toISOString(), timezone: validTimezone(profile.timezone), messageId: sent.messageId } : null,
-    sent.ok ? null : sent.error ?? "Could not deliver the refreshed report.");
-  }
   if (latest.size === 0) return;
   await Promise.all([...latest.values()].map(async ({ state, text: previousText }) => {
     try {
@@ -70,10 +79,8 @@ async function refreshOnce(admin: Admin, profile: Profile): Promise<void> {
       if (!await stillLinked(admin, profile)) return;
       const edited = await editMessage(profile.telegram_chat_id, state.messageId, text);
       if (edited.missing) {
-        if (!await stillLinked(admin, profile)) return;
-        const sent = await sendMessage(profile.telegram_chat_id, text);
-        await record(admin, profile, text, sent.ok && sent.messageId ? { ...state, messageId: sent.messageId } : null,
-          sent.ok ? null : sent.error ?? "Could not deliver the refreshed report.");
+        // Deleted reports stay deleted; only explicit commands create reports.
+        await record(admin, profile, text, null, "Report message no longer exists.");
       } else {
         await record(admin, profile, text, edited.ok ? state : null,
           edited.ok ? null : edited.error ?? "Could not update the report.");

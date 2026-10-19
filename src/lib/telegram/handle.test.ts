@@ -11,7 +11,7 @@ vi.mock("./client", async (original) => ({ ...await original<typeof import("./cl
 import { deleteTransaction, restoreTransaction } from "@/app/actions/transactions";
 import { handleUpdate, namedAccount } from "./handle";
 import { clearMenuMetadata } from "./menu-cache";
-import { refreshTelegramReports } from "./report-sync";
+import { notifyTelegramTransaction, refreshTelegramReports } from "./report-sync";
 
 const USER = "11111111-2222-3333-4444-555555555555";
 const OTHER = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee";
@@ -778,20 +778,16 @@ describe("web and Telegram ledger consistency", () => {
     expect(db.unsafeQueries).toEqual([]);
   });
 
-  test("web changes send one compact recent list without unsolicited summaries, then edit it", async () => {
+  test("web changes do not create unsolicited reports", async () => {
     ledger();
     db.tables.telegram_logs.push({ id: "legacy", user_id: USER, chat_id: CHAT, direction: "outbound", message_text: "Out: $12.00", parsed: null, error_message: null, created_at: "2026-10-10T03:00:00Z" });
     expect((await deleteTransaction(DELETED)).ok).toBe(true);
     await finishBackground();
-    expect(mocks.sent).toHaveBeenCalledTimes(1);
-    expect(mocks.sent.mock.calls[0][1]).toBe("<b>Recent transactions</b>\n• 10 Oct · -$7.00 expense · ABA USD · keep-me-web");
-    expect(mocks.sent.mock.calls[0][1]).not.toMatch(/This month|Today|Out:/);
-    expect(mocks.sent.mock.calls[0][1]).not.toContain("delete-me-web");
+    expect(mocks.sent).not.toHaveBeenCalled();
     expect((await restoreTransaction(DELETED)).ok).toBe(true);
     await finishBackground();
-    expect(mocks.sent).toHaveBeenCalledTimes(1);
-    expect(mocks.edited.mock.calls[0][2].split("\n")).toHaveLength(3);
-    expect(mocks.edited.mock.calls[0][2]).toContain("delete-me-web");
+    expect(mocks.sent).not.toHaveBeenCalled();
+    expect(mocks.edited).not.toHaveBeenCalled();
   });
 
   test("an existing Recent reply prevents a second list after repeated web changes", async () => {
@@ -808,7 +804,7 @@ describe("web and Telegram ledger consistency", () => {
 
   test("new web entries reuse one compact list and escape multiline descriptions", async () => {
     ledger();
-    await refreshTelegramReports(USER);
+    await handleUpdate(update(1, "Recent"));
     db.tables.transactions.push({ ...db.tables.transactions[0], id: "new-entry", account_id: "cash", currency: "KHR",
       amount: -999355, notes: "Tea & <coffee>\nwith lunch", occurred_at: "2026-10-10T04:00:00Z" });
     await refreshTelegramReports(USER);
@@ -885,8 +881,7 @@ describe("web and Telegram ledger consistency", () => {
       parsed: { kind: "report", messageId: 98, request: { kind: "recent" }, at: "2026-10-10T03:00:00Z" } });
     await refreshTelegramReports(USER);
     expect(mocks.edited).not.toHaveBeenCalled();
-    expect(mocks.sent.mock.calls[0][0]).toBe(CHAT + 1);
-    expect(mocks.sent.mock.calls[0][1]).not.toContain("private-other-user");
+    expect(mocks.sent).not.toHaveBeenCalled();
     expect(db.unsafeQueries).toEqual([]);
   });
 
@@ -916,16 +911,16 @@ describe("web and Telegram ledger consistency", () => {
     expect(db.tables.telegram_logs.some(row => row.error_message === "Delivery failed")).toBe(true);
   });
 
-  test("a deleted Telegram message gets a new report rather than leaving stale data", async () => {
+  test("a deleted Telegram report is not resent after a web change", async () => {
     ledger(); await handleUpdate(update(1, "Recent"));
     mocks.edited.mockResolvedValueOnce({ ok: false, missing: true });
     expect((await deleteTransaction(DELETED)).ok).toBe(true);
     await finishBackground();
-    expect(mocks.sent).toHaveBeenCalledTimes(2);
-    expect(mocks.sent.mock.calls[1][1]).not.toContain("delete-me-web");
+    expect(mocks.sent).toHaveBeenCalledTimes(1);
     expect((await restoreTransaction(DELETED)).ok).toBe(true);
     await finishBackground();
-    expect(mocks.edited.mock.calls.some(call => call[1] === 1002)).toBe(true);
+    expect(mocks.sent).toHaveBeenCalledTimes(1);
+    expect(mocks.edited.mock.calls.some(call => call[1] === 1002)).toBe(false);
   });
 
   test("a concurrent web deletion during delivery cannot leave the final report behind", async () => {
@@ -937,7 +932,7 @@ describe("web and Telegram ledger consistency", () => {
     });
     expect((await deleteTransaction(DELETED)).ok).toBe(true);
     await finishBackground();
-    expect(mocks.edited).toHaveBeenCalledTimes(3);
+    expect(mocks.edited).toHaveBeenCalledTimes(2);
     expect(mocks.edited.mock.calls.at(-1)?.[2]).toContain("Out: $0.00");
     expect(mocks.edited.mock.calls.at(-1)?.[2]).toContain("0 transactions");
   });
@@ -975,8 +970,30 @@ describe("web and Telegram ledger consistency", () => {
     expect((await deleteTransaction(DELETED)).ok).toBe(true);
     await finishBackground();
     expect(mocks.edited).not.toHaveBeenCalled();
-    expect(mocks.sent.mock.calls[0][1]).toContain("-$7.00");
+    expect(mocks.sent).not.toHaveBeenCalled();
   });
+});
+
+test("web notifications send only a short escaped transaction confirmation to the linked owner", async () => {
+  await notifyTelegramTransaction(USER, "Saved expense: -9,993.55៛ · Cash KHR · Tea & <coffee>\nwith lunch");
+  expect(mocks.sent).toHaveBeenCalledExactlyOnceWith(CHAT,
+    "Saved expense: -9,993.55៛ · Cash KHR · Tea &amp; &lt;coffee&gt; with lunch");
+  expect(db.tables.telegram_logs.at(-1)).toMatchObject({ user_id: USER, direction: "outbound", parsed: null, error_message: null });
+  expect(db.reads).not.toContain("transactions");
+  expect(db.unsafeQueries).toEqual([]);
+});
+
+test("unlinked users receive no transaction notifications", async () => {
+  db.tables.profiles[0].telegram_chat_id = null;
+  await notifyTelegramTransaction(USER, "Saved expense: -$5.00 · ABA");
+  await notifyTelegramTransaction(OTHER, "Saved expense: -$5.00 · ABA");
+  expect(mocks.sent).not.toHaveBeenCalled();
+});
+
+test("notification delivery errors are logged without failing the saved web transaction", async () => {
+  mocks.sent.mockResolvedValueOnce({ ok: false, error: "Delivery failed" });
+  await expect(notifyTelegramTransaction(USER, "Saved income: $5.00 · ABA")).resolves.toBeUndefined();
+  expect(db.tables.telegram_logs.at(-1)).toMatchObject({ user_id: USER, error_message: "Delivery failed" });
 });
 
 test("an ambiguous institution requires the full account name", () => {
