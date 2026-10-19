@@ -29,6 +29,7 @@ import { Button } from "@/components/ui/button";
 import { AccountPicker } from "@/components/account-picker";
 import { CategoryPicker } from "@/components/category-picker";
 import { resolveCategory } from "@/lib/domain/categories";
+import type { EntryHabit } from "@/lib/domain/entry-habits";
 import { TransactionDateField } from "@/components/transaction-date-field";
 import { useEntryDate } from "@/components/use-entry-date";
 import { calendarDate, isCalendarDate, transactionDate } from "@/lib/calendar";
@@ -66,6 +67,7 @@ import { cn } from "@/lib/utils";
 interface QuickAddFormProps {
   accounts: readonly AccountBalance[];
   categories: readonly Category[];
+  habits?: readonly EntryHabit[];
   /**
    * Owned by the parent, which also offers Transfer as a third mode. Keeping the
    * choice in one segmented control avoids two nested toggles competing to say
@@ -83,6 +85,7 @@ interface QuickAddFormProps {
 export function QuickAddForm({
   accounts,
   categories,
+  habits = [],
   type,
   rate: initialRate = DEFAULT_RATE,
   readOnly = false,
@@ -94,7 +97,7 @@ export function QuickAddForm({
   const [accountId, setAccountId] = useState(accounts[0]?.accountId ?? "");
   const [currency, setCurrency] = useState<CurrencyCode>(accounts[0]?.currency ?? "USD");
   const [categoryId, setCategoryId] = useState<string | null | undefined>(undefined);
-  const [note, setNote] = useState("");
+  const [note, setNote] = useState<string | null>(null);
   const [saved, setSaved] = useState<Money | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
@@ -106,16 +109,18 @@ export function QuickAddForm({
     () => categories.filter((category) => category.appliesTo.includes(type)),
     [categories, type],
   );
-  const resolvedCategoryId = categoryId === undefined
-    ? resolveCategory(relevantCategories, note)?.id ?? null
-    : relevantCategories.some((category) => category.id === categoryId) ? categoryId : null;
-
   const keypadAmount = useMemo(() => parseKeypadAmount(raw, currency), [raw, currency]);
 
   // With tenders open the total is derived from them, so the keypad steps aside
   // rather than offering a second figure that could disagree.
   const mixedAmount = tenders ? tenderTotal(tenders, currency, rate) : null;
   const amount = mixedAmount ?? keypadAmount;
+  const habit = !tenders && !splits ? habits.find(habit => habit.type === type && habit.amount.currency === currency && habit.amount.minor === amount.minor) : undefined;
+  const resolvedNote = note ?? habit?.note ?? "";
+  const suggestedCategoryId = note === null && habit ? habit.categoryId : resolveCategory(relevantCategories, resolvedNote)?.id;
+  const resolvedCategoryId = categoryId === undefined
+    ? relevantCategories.find(category => category.id === suggestedCategoryId)?.id ?? null
+    : relevantCategories.some(category => category.id === categoryId) ? categoryId : null;
 
   const canSave = !readOnly && amount.minor > 0 && accountId !== "" && isCalendarDate(date) && !ratePending && !dateError;
 
@@ -152,7 +157,7 @@ export function QuickAddForm({
         currency,
         categoryId: resolvedCategoryId,
         occurredAt: transactionDate(date, timezone).toISOString(),
-        notes: note.trim() === "" ? null : note.trim(),
+        notes: resolvedNote.trim() === "" ? null : resolvedNote.trim(),
         tenders: tenders ? parseTenders(tenders) : undefined,
         splits: splits ? parseSplits(splits) : undefined,
       });
@@ -164,7 +169,7 @@ export function QuickAddForm({
 
       setSaved(amount);
       setRaw("");
-      setNote("");
+      setNote(null);
       void selectDate(calendarDate(new Date(), timezone));
       setCategoryId(undefined);
       setTenders(null);
@@ -222,7 +227,7 @@ export function QuickAddForm({
 
       <div>
         <label htmlFor="note" className="text-ink-muted mb-2 block text-sm font-medium">Note</label>
-        <input id="note" type="text" maxLength={500} value={note} onChange={(event) => { setSaved(null); setNote(event.target.value); }} placeholder="What was it for?" className="border-border-subtle bg-surface rounded-xl text-ink placeholder:text-ink-faint min-h-11 w-full border px-3" />
+        <input id="note" type="text" maxLength={500} value={resolvedNote} onChange={(event) => { setSaved(null); setNote(event.target.value); }} placeholder="What was it for?" className="border-border-subtle bg-surface rounded-xl text-ink placeholder:text-ink-faint min-h-11 w-full border px-3" />
       </div>
 
       {/* The keypad is hidden while tenders are open: with two currencies being
@@ -247,7 +252,7 @@ export function QuickAddForm({
       {/* A split has its own category for each part. */}
       {!splits ? <CategoryPicker categories={relevantCategories} selectedId={resolvedCategoryId}
         onSelect={(id) => { setSaved(null); setCategoryId(id); }} /> : null}
-      {!splits && categoryId === undefined && resolvedCategoryId ? <p role="status" className="text-ink-faint text-xs">Suggested from your note. Choose another category or clear it.</p> : null}
+      {!splits && categoryId === undefined && resolvedCategoryId ? <p role="status" className="text-ink-faint text-xs">{note === null && habit ? "Suggested from your usual entries. You can change the note or category." : "Suggested from your note. Choose another category or clear it."}</p> : null}
 
       <details className="border-surface-variant rounded-2xl border bg-surface p-4">
       <summary className="text-ink-muted flex min-h-11 items-center justify-between text-sm font-medium">More options<ChevronDown className="disclosure-icon" size={17} aria-hidden="true" /></summary>

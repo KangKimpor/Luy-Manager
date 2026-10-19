@@ -62,6 +62,7 @@ function revalidateLedger(userId: string): void {
   revalidatePath("/");
   revalidatePath("/accounts");
   revalidatePath("/transactions");
+  revalidatePath("/add");
   revalidatePath("/budgets");
   revalidatePath("/reports");
   revalidatePath("/reports/overall");

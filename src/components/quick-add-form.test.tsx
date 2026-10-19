@@ -6,6 +6,8 @@ import { QuickAddForm } from "./quick-add-form";
 import { DEMO_ACCOUNTS, DEMO_CATEGORIES } from "@/lib/demo-data";
 import { DEFAULT_RATE } from "@/lib/money";
 import { calendarDate } from "@/lib/calendar";
+import { learnEntryHabits } from "@/lib/domain/entry-habits";
+import { DEMO_TRANSACTIONS } from "@/lib/demo-data";
 
 const createTransaction = vi.hoisted(() => vi.fn());
 const readEntryRate = vi.hoisted(() => vi.fn());
@@ -24,7 +26,46 @@ describe("transaction save feedback", () => {
     const picker = screen.getByRole("group", { name: "Account" });
     expect(screen.getByLabelText("Date").compareDocumentPosition(picker) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(picker.compareDocumentPosition(screen.getByLabelText("Note")) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(within(picker).getAllByRole("button")).toHaveLength(1);
+    expect(within(picker).getAllByRole("button")).toHaveLength(3);
+    expect(within(picker).getByRole("button", { name: "ABA USD" })).toBeVisible();
+    expect(within(picker).getByRole("button", { name: "ABA KHR" })).toBeVisible();
+  });
+
+  it("fills Drinks and Coffee for the learned KHR amount and keeps user edits", async () => {
+    const user = userEvent.setup();
+    createTransaction.mockResolvedValue({ ok: false, error: "Keep the draft" });
+    const coffee = { ...DEMO_TRANSACTIONS[0], type: "expense" as const, currency: "KHR" as const,
+      amount: -600000, categoryId: "cat-drinks", notes: "Coffee" };
+    render(<QuickAddForm accounts={DEMO_ACCOUNTS} categories={DEMO_CATEGORIES} type="expense"
+      habits={learnEntryHabits([coffee, coffee, coffee], DEMO_CATEGORIES)} />);
+    await user.click(screen.getByRole("button", { name: "ABA KHR" }));
+    for (const digit of "6000") await user.click(screen.getByRole("button", { name: digit }));
+    expect(screen.getByLabelText("Note")).toHaveValue("Coffee");
+    expect(screen.getByText("Suggested from your usual entries. You can change the note or category.")).toBeVisible();
+    await user.click(screen.getByRole("button", { name: "Save expense" }));
+    expect(createTransaction.mock.lastCall?.[0]).toMatchObject({ accountId: "acc-aba-khr", amount: "6000", currency: "KHR", categoryId: "cat-drinks", notes: "Coffee" });
+    await user.clear(screen.getByLabelText("Note"));
+    await user.type(screen.getByLabelText("Note"), "Lunch");
+    await user.click(screen.getByRole("button", { name: "Clear category" }));
+    await user.click(screen.getByRole("button", { name: "ABA USD" }));
+    expect(screen.getByLabelText("Note")).toHaveValue("Lunch");
+    await user.click(screen.getByRole("button", { name: "Save expense" }));
+    expect(createTransaction.mock.lastCall?.[0]).toMatchObject({ currency: "USD", notes: "Lunch", categoryId: null });
+  });
+
+  it("removes an untouched habit suggestion when the amount or currency changes", async () => {
+    const user = userEvent.setup();
+    render(<QuickAddForm accounts={DEMO_ACCOUNTS} categories={DEMO_CATEGORIES} type="expense"
+      habits={[{ type: "expense", amount: { minor: 600000, currency: "KHR" }, categoryId: "cat-drinks", note: "Coffee" }]} />);
+    await user.click(screen.getByRole("button", { name: "ABA KHR" }));
+    for (const digit of "6000") await user.click(screen.getByRole("button", { name: digit }));
+    expect(screen.getByLabelText("Note")).toHaveValue("Coffee");
+    await user.click(screen.getByRole("button", { name: "ABA USD" }));
+    expect(screen.getByLabelText("Note")).toHaveValue("");
+    await user.click(screen.getByRole("button", { name: "ABA KHR" }));
+    expect(screen.getByLabelText("Note")).toHaveValue("Coffee");
+    await user.click(screen.getByRole("button", { name: "1" }));
+    expect(screen.getByLabelText("Note")).toHaveValue("");
   });
 
   it("pastes and saves an exact bank amount, preserving the draft on invalid paste", async () => {

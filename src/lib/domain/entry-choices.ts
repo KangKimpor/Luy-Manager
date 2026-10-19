@@ -1,5 +1,6 @@
 import type { AccountBalance, Category } from "./types";
 import { categoryDefinition } from "./categories";
+import { CURRENCIES } from "@/lib/money";
 
 export { categoryGroup } from "./categories";
 
@@ -9,6 +10,16 @@ export function quickAccounts(accounts: readonly AccountBalance[], selectedId: s
     (b.lastActivityAt ?? "").localeCompare(a.lastActivityAt ?? "") ||
     b.transactionCount - a.transactionCount || a.sortOrder - b.sortOrder,
   ).slice(0, 4);
+}
+
+export function quickEntryAccounts(accounts: readonly AccountBalance[], selectedId: string): AccountBalance[] {
+  return CURRENCIES.flatMap(currency => {
+    const candidates = accounts.filter(account => account.isActive && account.currency === currency);
+    const aba = candidates.filter(account => /\baba\b/i.test(`${account.institution ?? ""} ${account.name}`));
+    const checking = aba.filter(account => /checking/i.test(account.name));
+    const account = quickAccounts(checking.length ? checking : aba.length ? aba : candidates, selectedId)[0];
+    return account ? [account] : [];
+  });
 }
 
 export function quickCategories(categories: readonly Category[], selectedId: string | null): Category[] {

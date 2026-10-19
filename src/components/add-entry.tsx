@@ -5,6 +5,7 @@ import { useState } from "react";
 import { QuickAddForm } from "@/components/quick-add-form";
 import { TransferForm } from "@/components/transfer-form";
 import type { AccountBalance, Category } from "@/lib/domain/types";
+import type { EntryHabit } from "@/lib/domain/entry-habits";
 import { DEFAULT_RATE, type ExchangeRate } from "@/lib/money";
 import { cn } from "@/lib/utils";
 
@@ -29,6 +30,7 @@ export type EntryMode = (typeof MODES)[number]["value"];
 export function AddEntry({
   accounts,
   categories,
+  habits,
   rate = DEFAULT_RATE,
   readOnly = false,
   initialMode = "expense",
@@ -36,6 +38,7 @@ export function AddEntry({
   initialDate,
 }: {
   accounts: readonly AccountBalance[];
+  habits?: readonly EntryHabit[];
   categories: readonly Category[];
   rate?: ExchangeRate;
   /** Demo mode: the forms render but cannot persist. */
@@ -83,6 +86,7 @@ export function AddEntry({
           type={mode}
           accounts={accounts}
           categories={categories}
+          habits={habits}
           rate={rate}
           readOnly={readOnly}
         />

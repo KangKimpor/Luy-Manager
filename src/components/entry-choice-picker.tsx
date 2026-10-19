@@ -16,10 +16,10 @@ export interface EntryChoice {
 }
 
 /** Quick choices stay one tap away; search reaches every item without scrolling. */
-export function EntryChoicePicker({ label, collection, options, quickIds, selectedId, onSelect, allowClear = false, emptyLabel, clearLabel = "Clear category", compact = false }: {
+export function EntryChoicePicker({ label, collection, options, quickIds, selectedId, onSelect, allowClear = false, emptyLabel, clearLabel = "Clear category", compact = false, showQuickChoices = false }: {
   label: string; collection: "categories" | "accounts"; options: readonly EntryChoice[]; quickIds: readonly string[];
   selectedId: string | null; onSelect: (id: string | null) => void; allowClear?: boolean;
-  emptyLabel?: string; clearLabel?: string; compact?: boolean;
+  emptyLabel?: string; clearLabel?: string; compact?: boolean; showQuickChoices?: boolean;
 }) {
   const id = useId();
   const trigger = useRef<HTMLButtonElement>(null);
@@ -81,7 +81,7 @@ export function EntryChoicePicker({ label, collection, options, quickIds, select
           </div>
           {shown.length === 0 ? <p role="status" className="text-ink-muted py-3 text-center text-sm">No matches. Try a name or another group.</p> : null}
         </div>
-      ) : !compact ? <div className="grid grid-cols-2 gap-2">{shown.map((option) => choice(option))}</div> : null}
+      ) : !compact || showQuickChoices ? <div className="grid grid-cols-2 gap-2">{shown.map((option) => choice(option))}</div> : null}
       {allowClear && selectedId ? <button type="button" onClick={() => choose(null)} className="text-ink-muted min-h-11 rounded-lg px-2 text-xs">{clearLabel}</button> : null}
     </fieldset>
   );
