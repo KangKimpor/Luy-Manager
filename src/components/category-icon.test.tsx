@@ -1,9 +1,19 @@
+import { readFileSync } from "node:fs";
 import { render, screen } from "@testing-library/react";
 import { expect, it } from "vitest";
-import { AppIcon } from "./app-icon";
+import { APP_ICON_KEYS, AppIcon } from "./app-icon";
 import { CategoryIcon } from "./category-icon";
 import type { Category } from "@/lib/domain/types";
 import { DEMO_CATEGORIES } from "@/lib/demo-data";
+
+it("bundles valid SVG artwork for every registered icon", () => {
+  for (const name of APP_ICON_KEYS) {
+    const svg = new DOMParser().parseFromString(readFileSync(`public/icons/lets-icons/${name}.svg`, "utf8"), "image/svg+xml");
+    expect(svg.querySelector("parsererror"), name).toBeNull();
+    expect(svg.documentElement.localName, name).toBe("svg");
+    expect(svg.querySelector("path, rect, circle, ellipse, line, polyline, polygon, use"), name).not.toBeNull();
+  }
+});
 
 it("renders the supplied category icons instead of their stand-ins", () => {
   const expected = { Pets: "pets", Charity: "charity", Betting: "betting", "Petty Cash": "petty-cash", "Tournament Prize": "tournament-prize" };
