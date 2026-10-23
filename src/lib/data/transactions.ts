@@ -174,6 +174,26 @@ export async function listTransactions(
   };
 }
 
+/** Recent rows for previews and entry habits, where no total count is displayed. */
+export async function listRecentTransactions(
+  filter: TransactionFilter = {},
+  limit = 5,
+): Promise<Transaction[]> {
+  const size = Math.min(200, Math.max(1, Math.trunc(limit)));
+  const context = await dataContext();
+  if (!context) return filterDemo(filter).slice(0, size);
+
+  const { data, error } = await applyFilter(
+    context.supabase.from("transactions").select(TRANSACTION_COLUMNS),
+    filter,
+  ).order("occurred_at", { ascending: false })
+    .order("id", { ascending: false })
+    .limit(size);
+
+  if (error) throw new DataError("load your recent transactions", error);
+  return mapRows(asRows(data), toTransaction, "transactions");
+}
+
 /**
  * Every transaction in a date range, for the dashboard aggregates.
  *

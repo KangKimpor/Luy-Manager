@@ -166,8 +166,7 @@
     color: var(--color-ink);
     min-height: 100svh;
     overflow-x: clip;
-    /* One-finger scrolling stays native; app gestures do not initiate zoom. */
-    touch-action: pan-x pan-y;
+    touch-action: manipulation;
   }
 
   /*
@@ -446,6 +445,18 @@ details[open] summary .disclosure-icon { rotate: 180deg; }
   /* Unlayered so text-sm utilities cannot bring Safari's focus zoom back. */
   input:not([type="checkbox"]):not([type="radio"]), select, textarea { font-size: 16px; }
   .app-main { padding-bottom: calc(var(--spacing-navbar) + env(safe-area-inset-bottom, 0px) + 1.75rem); }
+}
+
+/* Touch navigation should settle immediately, with feedback reserved for taps. */
+@media (hover: none) and (pointer: coarse) {
+  .page-enter, .form-enter, .panel-enter, .row-enter,
+  .stagger-children > :not(.stagger-children):not(:has(.stagger-children)),
+  [aria-current="page"] .nav-icon, .progress-fill,
+  .hero-orbit::before, .hero-orbit::after {
+    animation: none;
+  }
+  details::details-content { transition: none; }
+  .progress-fill { transition-property: background-color; }
 }
 
 @media (max-width: 1023px) {

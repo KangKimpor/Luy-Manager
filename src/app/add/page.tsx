@@ -5,7 +5,7 @@ import { isDemoMode } from "@/lib/auth";
 import { listActiveAccountBalances } from "@/lib/data/accounts";
 import { calendarDate, validTimezone } from "@/lib/calendar";
 import { getProfile, listCategories } from "@/lib/data/reference";
-import { listTransactions } from "@/lib/data/transactions";
+import { listRecentTransactions } from "@/lib/data/transactions";
 import { learnEntryHabits } from "@/lib/domain/entry-habits";
 import { loadUsdKhrRate } from "@/lib/rates/repository";
 import { AppLink as Link } from "@/components/app-link";
@@ -29,7 +29,7 @@ export default async function AddTransactionPage({ searchParams }: { searchParam
     loadUsdKhrRate(),
     getProfile(),
     // shortcut: learn from the latest 200 entries, expand the history query if older habits are needed.
-    listTransactions({}, { number: 1, size: 200 }),
+    listRecentTransactions({}, 200),
   ]);
 
   if (accounts.length === 0) {
@@ -58,7 +58,7 @@ export default async function AddTransactionPage({ searchParams }: { searchParam
         initialMode={initialMode}
         accounts={accounts}
         categories={categories}
-        habits={learnEntryHabits(history.transactions, categories)}
+        habits={learnEntryHabits(history, categories)}
         rate={rate}
         readOnly={isDemoMode()}
         timezone={validTimezone(profile?.timezone)}

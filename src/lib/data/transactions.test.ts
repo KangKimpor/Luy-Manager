@@ -4,7 +4,7 @@ import type { Row } from "./mappers";
 const { dataContext } = vi.hoisted(() => ({ dataContext: vi.fn() }));
 vi.mock("./client", async (original) => ({ ...await original<typeof import("./client")>(), dataContext }));
 
-import { listDeletedTransactions, listLedgerLinesInRange, listTransactionsInRange } from "./transactions";
+import { listDeletedTransactions, listLedgerLinesInRange, listRecentTransactions, listTransactionsInRange } from "./transactions";
 import { LEDGER_LINE_COLUMNS } from "./client";
 import { toLedgerLine, toTransaction } from "./mappers";
 import { spendingByCategory, summarizeCashFlow } from "@/lib/domain/transactions";
@@ -46,6 +46,30 @@ function database(size: number, cap = 1000) {
 }
 
 beforeEach(() => dataContext.mockReset());
+
+it("loads bounded recent rows without counting the ledger and preserves query errors", async () => {
+  const query = {
+    select: vi.fn().mockReturnThis(), is: vi.fn().mockReturnThis(),
+    gte: vi.fn().mockReturnThis(), lte: vi.fn().mockReturnThis(),
+    order: vi.fn().mockReturnThis(),
+    limit: vi.fn().mockResolvedValue({ data: [row(1)], error: null }),
+  };
+  dataContext.mockResolvedValue({ userId: "u1", supabase: { from: () => query } });
+  expect(await listRecentTransactions({ from, to }, 200)).toEqual([toTransaction(row(1))]);
+  expect(query.select.mock.calls[0]).toHaveLength(1);
+  expect(query.is).toHaveBeenCalledWith("deleted_at", null);
+  expect(query.gte).toHaveBeenCalledWith("occurred_at", from.toISOString());
+  expect(query.lte).toHaveBeenCalledWith("occurred_at", to.toISOString());
+  expect(query.order.mock.calls).toEqual([["occurred_at", { ascending: false }], ["id", { ascending: false }]]);
+  expect(query.limit).toHaveBeenCalledWith(200);
+  query.limit.mockResolvedValue({ data: null, error: new Error("offline") });
+  await expect(listRecentTransactions()).rejects.toThrow("offline");
+});
+
+it("keeps recent rows bounded in demo mode", async () => {
+  dataContext.mockResolvedValue(null);
+  expect(await listRecentTransactions({}, 1)).toHaveLength(1);
+});
 
 it("bounds the restore list to the caller and shown month, and propagates errors", async () => {
   const query = { select: vi.fn().mockReturnThis(), eq: vi.fn().mockReturnThis(), not: vi.fn().mockReturnThis(), gte: vi.fn().mockReturnThis(), lte: vi.fn().mockReturnThis(), order: vi.fn().mockReturnThis(), limit: vi.fn().mockResolvedValue({ data: [], error: null }) };
