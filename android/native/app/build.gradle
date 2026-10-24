@@ -1,0 +1,35 @@
+plugins { id 'com.android.application' }
+def backend = new Properties()
+def config = rootProject.file('backend.properties')
+if (config.exists()) config.withInputStream { backend.load(it) }
+def publishableKey = backend.getProperty('publishableKey', '')
+if (publishableKey && !(publishableKey ==~ /sb_publishable_[A-Za-z0-9_-]+/)) {
+    throw new GradleException('Use a public Supabase publishable key, never a secret or service role key.')
+}
+android {
+    namespace 'com.luymanager.nativeapp'
+    compileSdk 36
+    defaultConfig {
+        applicationId 'com.luymanager.nativeapp'
+        minSdk 28
+        targetSdk 36
+        versionCode 1
+        versionName '0.1.0'
+        buildConfigField 'String', 'SUPABASE_URL', '"https://yqacpdhjddmwsvejywpn.supabase.co"'
+        buildConfigField 'String', 'SUPABASE_KEY', '"' + publishableKey + '"'
+    }
+    buildFeatures { buildConfig true }
+    compileOptions { sourceCompatibility JavaVersion.VERSION_17; targetCompatibility JavaVersion.VERSION_17 }
+    testOptions { unitTests.includeAndroidResources = true }
+}
+
+tasks.register('checkReleaseBackend') {
+    doLast {
+        if (!publishableKey) throw new GradleException('Set publishableKey in backend.properties before building an APK.')
+    }
+}
+tasks.matching { it.name == 'preReleaseBuild' }.configureEach { dependsOn 'checkReleaseBackend' }
+dependencies {
+    testImplementation 'junit:junit:4.13.2'
+    testImplementation 'org.robolectric:robolectric:4.17'
+}

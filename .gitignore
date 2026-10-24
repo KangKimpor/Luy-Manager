@@ -18,9 +18,15 @@
 # android (TWA wrapper): keystore is a secret, build output is regeneratable
 android/*.keystore
 android/*.apk
+android/*.apk.idsig
 android/*.aab
 android/.bubblewrap/
 android/app/
+android/native/.gradle/
+android/native/build/
+android/native/app/build/
+android/native/local.properties
+android/native/backend.properties
 
 # next.js
 /.next/
