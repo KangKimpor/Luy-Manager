@@ -28,6 +28,8 @@ import { isSupabaseConfigured } from "@/lib/supabase/env";
 
 /** Paths reachable without a session. */
 const PUBLIC_PREFIXES = [
+  // Native sync validates its own bearer session in the route.
+  "/api/native/sync",
   "/login",
   // The OAuth and magic-link handshake, which by definition runs unauthenticated.
   "/auth",
