@@ -666,7 +666,7 @@ public final class MainActivity extends Activity {
       if (!a.optBoolean("include_in_net_worth", true)
           || !currency.equals(a.getString("currency"))) continue;
       for (String type : types)
-        if (type.equals(a.optString("type"))) sum = Money.add(sum, balance(a));
+        if (type.equals(a.optString("type", "bank"))) sum = Money.add(sum, balance(a));
     }
     return sum;
   }

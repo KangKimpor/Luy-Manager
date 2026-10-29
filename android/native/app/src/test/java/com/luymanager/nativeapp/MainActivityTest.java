@@ -133,6 +133,12 @@ public class MainActivityTest {
   }
 
   @Test
+  public void accountsWithoutATypeCountAsBankInCashAvailable() throws Exception {
+    assertEquals(100000L, activity.totalOf("USD", "bank", "ewallet", "cash"));
+    assertEquals(100000L, activity.totalOf("KHR", "bank"));
+  }
+
+  @Test
   public void keypadEntersAmountsWithAtMostTwoDecimals() throws Exception {
     click("Add transaction");
     for (String key : new String[] {"1", "2", ".", "5", "0", "9"}) click("Key " + key);
