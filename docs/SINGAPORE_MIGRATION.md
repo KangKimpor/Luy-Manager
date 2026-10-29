@@ -1,6 +1,9 @@
 # Singapore migration status
 
-Production now uses Singapore project `yqacpdhjddmwsvejywpn` in `ap-southeast-1`.
+Production now uses rebuilt Singapore project `lesfzlirqkwvmevhrgug` in `ap-southeast-1`.
+The previous project `yqacpdhjddmwsvejywpn` was accidentally deleted on 2026-10-29.
+See [rebuild status](SUPABASE_REBUILD.md) for the recovery limits and current checks.
+The remaining sections are historical records of the 2026-10-14 migration.
 Sydney project `nrxqisihktxborgrpaje` was permanently deleted on 2026-10-14
 after the user's explicit confirmation. The verified private backups are retained.
 Kimpor workspace project `nlcpjdokfvawlpzyfytx` is restored and ACTIVE_HEALTHY

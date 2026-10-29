@@ -93,7 +93,9 @@ Earlier dependency verification: production npm audit had zero findings; one unp
 
 ## Backend and connection state
 
-Correct live Supabase project: `yqacpdhjddmwsvejywpn`, LuyManager, Singapore. It was previously verified ACTIVE_HEALTHY and its schema read through the plugin. Native configuration points there.
+Current live Supabase project: `lesfzlirqkwvmevhrgug`, LuyManager, Singapore.
+The previous project `yqacpdhjddmwsvejywpn` was deleted on 2026-10-29.
+See `docs/SUPABASE_REBUILD.md` for the recovery limits and current checks.
 
 `.env.local` points to the old `nrxqisihktxborgrpaje` project and was intentionally left untouched. Do not copy that stale address into native configuration or assume local environment equals production.
 

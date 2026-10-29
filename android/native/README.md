@@ -1,4 +1,8 @@
-# Native Android app, version 0.2.0
+# Native Android app, version 0.2.1
+
+This build uses rebuilt Supabase project `lesfzlirqkwvmevhrgug`. Version code 4
+updates the temporary recovery build (version code 3) while preserving app storage.
+See [rebuild status](../../docs/SUPABASE_REBUILD.md) before updating the phone.
 
 This is the first native core build for testing on the Samsung S25 Ultra. It uses Android views, private SQLite storage, Android Keystore encryption for session tokens, HTTPS to the existing Supabase project, and Android JobScheduler for retries. There is no WebView or JavaScript runtime in the APK.
 

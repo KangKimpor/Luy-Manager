@@ -14,12 +14,15 @@
 /coverage
 /.tmp/
 /.cache/
+/supabase/.temp/
 
 # android (TWA wrapper): keystore is a secret, build output is regeneratable
 android/*.keystore
 android/*.apk
 android/*.apk.idsig
 android/*.aab
+/android.zip
+/android/extract-luy-ledger.bat
 android/.bubblewrap/
 android/app/
 android/native/.gradle/
