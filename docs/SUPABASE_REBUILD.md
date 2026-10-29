@@ -28,18 +28,29 @@ Backups and credentials are ignored by Git.
 - Supabase's Site URL had changed to the Vercel-protected address
   `https://luy-manager-sb-6cac.vercel.app/`. It was restored to
   `https://luy-manager.vercel.app`. The owner confirmed sign-in now returns to
-  Luy Manager. The web callback, localhost callback and native callback are
-  allowlisted.
+  Luy Manager. The Vercel integration resets this fallback on deployment, so
+  changing Site URL alone is insufficient. The missing allowlist patterns were
+  `https://luy-manager.vercel.app/auth/callback?next=**` and
+  `http://localhost:3000/auth/callback?next=**`. The app includes this return-path
+  query for both Google and email login. Generated links reproduced the bad
+  fallback before the fix and preserved the requested callback afterward, even
+  with the integration's fallback active. Root and accounts return paths,
+  localhost and the unchanged native callback passed. No test email was sent.
 - The Supabase Preview check failed because migration history was empty while
   the schema was already installed. Verified all 16 application function bodies,
   66 expected tables, views and indexes, RLS on all 19 public tables, enabled
   triggers, flat categories and precision version 2 before marking migrations
   0001 through 0016 applied with `supabase migration repair`. The data migrations
   were not rerun. The subsequent dry run listed only migration 0017.
+  After applying 0017, the remote database is up to date and the Supabase Preview
+  check, migration replay, app verification, CodeQL and Vercel deployment all pass
+  for commit `c1cbce5`.
 - Migration 0017 revokes client execution of the Supabase-created automatic RLS
   event-trigger helper. Both anonymous and authenticated execution are now denied.
   The helper remains available for database DDL. It is conditional because local
   databases do not necessarily have this platform helper.
+  Rerunning the dashboard advisor cleared both helper warnings. The remaining
+  dashboard warning is leaked-password protection disabled.
 - Anonymous reads return no private profile, account, transaction, category or
   audit rows. Authenticated ownership checks passed for all three users across
   15 owner-scoped tables and views.
