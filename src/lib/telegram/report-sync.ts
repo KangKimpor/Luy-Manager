@@ -71,12 +71,34 @@ async function refreshOnce(admin: Admin, profile: Profile): Promise<void> {
     if (!previous || state.at > previous.state.at) latest.set(key, { state, text: row.message_text });
   }
   if (latest.size === 0) return;
-  await Promise.all([...latest.values()].map(async ({ state, text: previousText }) => {
+
+  const rendered = await Promise.all([...latest.values()].map(async ({ state, text: previousText }) => {
     try {
       const reportProfile = state.request.kind === "ledger" ? profile : { ...profile, timezone: state.timezone };
       const text = await renderTelegramReport(admin, reportProfile, state.request, new Date(state.at));
-      if (text === previousText) return;
-      if (!await stillLinked(admin, profile)) return;
+      return text === previousText ? null : { state, text };
+    } catch {
+      console.error("[telegram] A report could not be refreshed.");
+      return null;
+    }
+  }));
+
+  const updates = rendered.filter((entry): entry is { state: ReportState; text: string } => entry !== null);
+  if (updates.length === 0) return;
+
+  // Verify the chat link once after all report reads settle, rather than
+  // repeating the same profile query per report message.
+  let linked = false;
+  try {
+    linked = await stillLinked(admin, profile);
+  } catch {
+    console.error("[telegram] A report could not be refreshed.");
+    return;
+  }
+  if (!linked) return;
+
+  await Promise.all(updates.map(async ({ state, text }) => {
+    try {
       const edited = await editMessage(profile.telegram_chat_id, state.messageId, text);
       if (edited.missing) {
         // Deleted reports stay deleted; only explicit commands create reports.

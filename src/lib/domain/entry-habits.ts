@@ -1,6 +1,6 @@
 import { absolute, money, type Money } from "@/lib/money";
 import { resolveCategory } from "./categories";
-import type { Category, Transaction, TransactionType } from "./types";
+import { TRANSACTION_TYPES, type Category, type EntryHabitLine, type TransactionType } from "./types";
 
 export interface EntryHabit {
   amount: Money;
@@ -10,7 +10,13 @@ export interface EntryHabit {
 }
 
 /** Only repeat a clear majority from this user's recent, non-deleted entries. */
-export function learnEntryHabits(transactions: readonly Transaction[], categories: readonly Category[]): EntryHabit[] {
+export function learnEntryHabits(transactions: readonly EntryHabitLine[], categories: readonly Category[]): EntryHabit[] {
+  const byType = new Map<TransactionType, { list: Category[]; byId: Map<string, Category> }>();
+  for (const type of TRANSACTION_TYPES) {
+    const list = categories.filter((category) => category.appliesTo.includes(type));
+    byType.set(type, { list, byId: new Map(list.map((category) => [category.id, category])) });
+  }
+
   const amounts = new Map<string, { total: number; choices: Map<string, { habit: EntryHabit; count: number }> }>();
   for (const transaction of transactions) {
     if (transaction.type === "transfer") continue;
@@ -22,8 +28,10 @@ export function learnEntryHabits(transactions: readonly Transaction[], categorie
     group.total++;
     const note = transaction.notes?.trim().replace(/\s+/g, " ");
     if (!note) continue;
-    const relevant = categories.filter(category => category.appliesTo.includes(transaction.type));
-    const category = relevant.find(category => category.id === transaction.categoryId) ?? resolveCategory(relevant, note);
+    const relevant = byType.get(transaction.type);
+    if (!relevant || relevant.list.length === 0) continue;
+    const category = (transaction.categoryId ? relevant.byId.get(transaction.categoryId) : undefined)
+      ?? resolveCategory(relevant.list, note);
     if (!category) continue;
     const choiceKey = JSON.stringify([category.id, note.toLocaleLowerCase()]);
     const choice = group.choices.get(choiceKey);

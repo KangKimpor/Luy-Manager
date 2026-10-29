@@ -26,6 +26,7 @@ import {
   type Budget,
   type BudgetPeriod,
   type Category,
+  type EntryHabitLine,
   type Merchant,
   NOTIFICATION_KINDS,
   type Notification,
@@ -298,6 +299,16 @@ export function toLedgerLine(row: Row): LedgerLine {
     baseCurrency: nullableCurrency(row, "base_currency"),
     categoryId: nullableStr(row, "category_id"),
     occurredAt: str(row, "occurred_at"),
+  };
+}
+
+export function toEntryHabitLine(row: Row): EntryHabitLine {
+  return {
+    type: enumValue<TransactionType>(row, "type", TRANSACTION_TYPES),
+    amount: minorUnits(row, "amount"),
+    currency: currency(row, "currency"),
+    categoryId: nullableStr(row, "category_id"),
+    notes: nullableStr(row, "notes"),
   };
 }
 

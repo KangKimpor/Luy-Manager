@@ -16,7 +16,7 @@ import { readDisplayCurrency } from "@/lib/display-currency";
 import { balanceOf } from "@/lib/domain/accounts";
 import { activityDays, filterActivity, weekStart } from "@/lib/domain/activity";
 import { summarizeCashFlow } from "@/lib/domain/transactions";
-import { TRANSACTION_TYPES } from "@/lib/domain/types";
+import { TRANSACTION_TYPES, type Merchant } from "@/lib/domain/types";
 import { monthFromParam, monthParam, shiftMonth } from "@/lib/period";
 import { loadUsdKhrRate } from "@/lib/rates/repository";
 import { cn } from "@/lib/utils";
@@ -35,15 +35,20 @@ export default async function TransactionsPage({ searchParams }: {
     account: single("account"), category: single("category"), q: single("q"),
     type: TRANSACTION_TYPES.find(type => type === single("type")), deleted: single("deleted") === "1" ? "1" : undefined,
   };
-  const [transactions, accounts, categories, settings, currency, { rate }, deleted] = await Promise.all([
-    listTransactionsInRange(period.from, period.to), listAccountBalances(), listCategories(), getSettings(),
-    readDisplayCurrency(), loadUsdKhrRate(), params.deleted ? listDeletedTransactions(50, { from: period.from, to: period.to }) : Promise.resolve([]),
+  const transactionsPromise = listTransactionsInRange(period.from, period.to);
+  const deletedPromise = params.deleted ? listDeletedTransactions(50, { from: period.from, to: period.to }) : Promise.resolve([]);
+  const merchantsPromise = Promise.all([transactionsPromise, deletedPromise]).then(([txs, del]) => {
+    const ids = [...txs, ...del].flatMap(transaction => transaction.merchantId ? [transaction.merchantId] : []);
+    return ids.length > 0 ? merchantLookup(ids) : Promise.resolve({} as Record<string, Merchant>);
+  });
+  const [transactions, accounts, categories, settings, currency, { rate }, deleted, merchants] = await Promise.all([
+    transactionsPromise, listAccountBalances(), listCategories(), getSettings(),
+    readDisplayCurrency(), loadUsdKhrRate(), deletedPromise, merchantsPromise,
   ]);
   const lookup = Object.fromEntries(accounts.map(account => [account.accountId, account]));
   // Arriving from the Accounts list: say which account this is, with a way back out.
   const selectedAccount = params.account ? lookup[params.account] : undefined;
   const categoryMap = Object.fromEntries(categories.map(category => [category.id, category]));
-  const merchants = await merchantLookup([...transactions, ...deleted].flatMap(transaction => transaction.merchantId ? [transaction.merchantId] : []));
   const filtered = filterActivity(transactions, params);
   const filteredDeleted = filterActivity(deleted, params);
   const days = activityDays(filtered, currency, rate);

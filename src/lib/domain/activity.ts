@@ -5,6 +5,18 @@ import { EMPTY_CASH_FLOW, summarizeCashFlow } from "./transactions";
 
 export interface ActivityFilter { account?: string; category?: string; type?: string; q?: string }
 
+const CAMBODIA_WEEKDAY_FORMAT = new Intl.DateTimeFormat("en-GB", {
+  weekday: "short",
+  timeZone: "Asia/Phnom_Penh",
+});
+
+const CAMBODIA_DAY_LABEL_FORMAT = new Intl.DateTimeFormat("en-GB", {
+  day: "numeric",
+  month: "long",
+  year: "numeric",
+  timeZone: "Asia/Phnom_Penh",
+});
+
 export function filterActivity(transactions: readonly Transaction[], filter: ActivityFilter): Transaction[] {
   const search = filter.q?.trim().toLowerCase();
   return transactions.filter(transaction => {
@@ -30,8 +42,8 @@ export function activityDays(transactions: readonly Transaction[], base: Currenc
     const at = new Date(rows[0].occurredAt);
     return {
       date, transactions: rows, flow: summarizeCashFlow(rows, base, rate), day: cambodiaDateParts(at).day,
-      weekday: new Intl.DateTimeFormat("en-GB", { weekday: "short", timeZone: "Asia/Phnom_Penh" }).format(at),
-      label: new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "long", year: "numeric", timeZone: "Asia/Phnom_Penh" }).format(at),
+      weekday: CAMBODIA_WEEKDAY_FORMAT.format(at),
+      label: CAMBODIA_DAY_LABEL_FORMAT.format(at),
     };
   });
 }

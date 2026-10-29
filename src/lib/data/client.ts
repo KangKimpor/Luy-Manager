@@ -76,10 +76,9 @@ export type { Row };
 export const dataContext = cache(async (): Promise<DataContext | null> => {
   if (isDemoMode()) return null;
 
-  const user = await getUser();
+  const [user, supabase] = await Promise.all([getUser(), createClient()]);
   if (!user) return null;
 
-  const supabase = await createClient();
   await assertLedgerPrecision(supabase);
   return { supabase, userId: user.id };
 });
@@ -102,6 +101,10 @@ export const TRANSACTION_COLUMNS =
 // id is retained solely to detect offset drift; aggregation receives seven fields.
 export const LEDGER_LINE_COLUMNS =
   "id, type, amount, currency, base_amount, base_currency, category_id, occurred_at";
+
+// Slim projection for quick-add habit learning on /add.
+export const ENTRY_HABIT_COLUMNS =
+  "type, amount, currency, category_id, notes";
 
 export const CATEGORY_COLUMNS =
   "id, user_id, parent_id, name, icon, color, applies_to, is_system, sort_order";

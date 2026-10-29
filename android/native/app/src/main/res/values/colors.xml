@@ -1,0 +1,14 @@
+<resources>
+    <color name="brand">#087f78</color>
+    <color name="surface">#f4f7f5</color>
+    <color name="surface_raised">#ffffff</color>
+    <color name="ink">#142c32</color>
+    <color name="muted">#53686c</color>
+    <color name="outflow">#bb493c</color>
+    <color name="inflow">#187448</color>
+    <color name="hero">#142c32</color>
+    <color name="on_hero">#ffffff</color>
+    <color name="brand_soft">#e3f3ee</color>
+    <color name="border">#dfe8e4</color>
+    <color name="on_action">#ffffff</color>
+</resources>

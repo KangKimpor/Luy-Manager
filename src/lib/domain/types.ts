@@ -129,6 +129,9 @@ export interface Transaction {
 /** Only the fields needed for ledger totals, without row presentation metadata. */
 export type LedgerLine = Pick<Transaction, "type" | "amount" | "currency" | "baseAmount" | "baseCurrency" | "categoryId" | "occurredAt">;
 
+/** Only the fields needed for entry habit learning on /add. */
+export type EntryHabitLine = Pick<Transaction, "type" | "amount" | "currency" | "categoryId" | "notes">;
+
 /** One currency's worth of a mixed-currency payment. */
 export interface TransactionTender {
   id: string;

@@ -69,9 +69,6 @@ function revalidateLedger(userId: string): void {
   queueTelegramReportRefresh(userId);
 }
 
-/** The currency the user's own reports are denominated in. */
-
-
 /**
  * Look an account up as the signed-in user.
  *
@@ -125,14 +122,16 @@ export async function createTransaction(
     const context = await dataContext();
     if (!context) return { ok: false, error: "Connect Supabase to save transactions." };
 
-    const profilePromise = getProfile();
-    const [account, profile, { rate }] = await Promise.all([
-      loadAccount(parsed.data.accountId), profilePromise,
-      profilePromise.then(profile => loadUsdKhrRate({
-      asOf: parsed.data.occurredAt ? new Date(parsed.data.occurredAt) : new Date(),
-      timezone: validTimezone(profile?.timezone),
-      })),
+    const asOf = parsed.data.occurredAt ? new Date(parsed.data.occurredAt) : new Date();
+    const [account, profile, defaultSnapshot] = await Promise.all([
+      loadAccount(parsed.data.accountId),
+      getProfile(),
+      loadUsdKhrRate({ asOf, timezone: "Asia/Phnom_Penh" }),
     ]);
+    const timezone = validTimezone(profile?.timezone);
+    const { rate } = timezone === "Asia/Phnom_Penh"
+      ? defaultSnapshot
+      : await loadUsdKhrRate({ asOf, timezone });
     const baseCurrency = profile?.baseCurrency ?? "USD";
 
     // Derived from the tenders when present, so the stored total is exactly the
@@ -304,14 +303,16 @@ export async function updateTransaction(
     const context = await dataContext();
     if (!context) return { ok: false, error: "Connect Supabase to edit transactions." };
 
-    const profilePromise = getProfile();
-    const [account, profile, { rate }] = await Promise.all([
-      loadAccount(parsed.data.accountId), profilePromise,
-      profilePromise.then(profile => loadUsdKhrRate({
-      asOf: parsed.data.occurredAt ? new Date(parsed.data.occurredAt) : new Date(),
-      timezone: validTimezone(profile?.timezone),
-      })),
+    const asOf = parsed.data.occurredAt ? new Date(parsed.data.occurredAt) : new Date();
+    const [account, profile, defaultSnapshot] = await Promise.all([
+      loadAccount(parsed.data.accountId),
+      getProfile(),
+      loadUsdKhrRate({ asOf, timezone: "Asia/Phnom_Penh" }),
     ]);
+    const timezone = validTimezone(profile?.timezone);
+    const { rate } = timezone === "Asia/Phnom_Penh"
+      ? defaultSnapshot
+      : await loadUsdKhrRate({ asOf, timezone });
     const baseCurrency = profile?.baseCurrency ?? "USD";
 
     const amount = parseMoney(parsed.data.amount, account.currency);
@@ -466,16 +467,17 @@ export async function createTransfer(
     const context = await dataContext();
     if (!context) return { ok: false, error: "Connect Supabase to save transfers." };
 
-    const profilePromise = getProfile();
-    const [from, to, profile, { rate }] = await Promise.all([
+    const asOf = parsed.data.occurredAt ? new Date(parsed.data.occurredAt) : new Date();
+    const [from, to, profile, defaultSnapshot] = await Promise.all([
       loadAccount(parsed.data.fromAccountId),
       loadAccount(parsed.data.toAccountId),
-      profilePromise,
-      profilePromise.then(profile => loadUsdKhrRate({
-      asOf: parsed.data.occurredAt ? new Date(parsed.data.occurredAt) : new Date(),
-      timezone: validTimezone(profile?.timezone),
-      })),
+      getProfile(),
+      loadUsdKhrRate({ asOf, timezone: "Asia/Phnom_Penh" }),
     ]);
+    const timezone = validTimezone(profile?.timezone);
+    const { rate } = timezone === "Asia/Phnom_Penh"
+      ? defaultSnapshot
+      : await loadUsdKhrRate({ asOf, timezone });
     const baseCurrency = profile?.baseCurrency ?? "USD";
 
     const amount = parseMoney(parsed.data.amount, from.currency);

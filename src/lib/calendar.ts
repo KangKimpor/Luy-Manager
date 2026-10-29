@@ -1,22 +1,52 @@
+const DEFAULT_TIMEZONE = "Asia/Phnom_Penh";
+const PARTS_FORMATTERS = new Map<string, Intl.DateTimeFormat>();
+
+function getPartsFormatter(timezone: string): Intl.DateTimeFormat {
+  const existing = PARTS_FORMATTERS.get(timezone);
+  if (existing) return existing;
+  const formatter = new Intl.DateTimeFormat("en-US", {
+    timeZone: timezone,
+    year: "numeric",
+    month: "numeric",
+    day: "numeric",
+    hour: "numeric",
+    minute: "numeric",
+    second: "numeric",
+    hourCycle: "h23",
+  });
+  PARTS_FORMATTERS.set(timezone, formatter);
+  return formatter;
+}
+
 /** Calendar input stays in the profile's zone, independently of the device. */
 export function validTimezone(value: string | null | undefined): string {
+  const candidate = value || DEFAULT_TIMEZONE;
+  if (PARTS_FORMATTERS.has(candidate)) return candidate;
   try {
-    const timezone = value || "Asia/Phnom_Penh";
-    new Intl.DateTimeFormat("en-US", { timeZone: timezone }).format();
-    return timezone;
+    getPartsFormatter(candidate);
+    return candidate;
   } catch {
-    return "Asia/Phnom_Penh";
+    return DEFAULT_TIMEZONE;
   }
 }
 
 function parts(date: Date, timezone: string) {
-  const values = new Intl.DateTimeFormat("en-US", {
-    timeZone: validTimezone(timezone), year: "numeric", month: "numeric", day: "numeric",
-    hour: "numeric", minute: "numeric", second: "numeric", hourCycle: "h23",
-  }).formatToParts(date);
-  const number = (type: string) => Number(values.find((part) => part.type === type)?.value);
-  return { year: number("year"), month: number("month"), day: number("day"),
-    hour: number("hour"), minute: number("minute"), second: number("second") };
+  const values = getPartsFormatter(validTimezone(timezone)).formatToParts(date);
+  let year = 0;
+  let month = 0;
+  let day = 0;
+  let hour = 0;
+  let minute = 0;
+  let second = 0;
+  for (const part of values) {
+    if (part.type === "year") year = Number(part.value);
+    else if (part.type === "month") month = Number(part.value);
+    else if (part.type === "day") day = Number(part.value);
+    else if (part.type === "hour") hour = Number(part.value);
+    else if (part.type === "minute") minute = Number(part.value);
+    else if (part.type === "second") second = Number(part.value);
+  }
+  return { year, month, day, hour, minute, second };
 }
 
 export function wallClock(date: Date, timezone: string): Date {
@@ -51,14 +81,14 @@ function wallTimeToInstant(target: Date, timezone: string): Date {
 
 const pad = (value: number) => String(value).padStart(2, "0");
 
-export function calendarDate(date: Date = new Date(), timezone = "Asia/Phnom_Penh"): string {
+export function calendarDate(date: Date = new Date(), timezone = DEFAULT_TIMEZONE): string {
   const p = parts(date, timezone);
   return `${String(p.year).padStart(4, "0")}-${pad(p.month)}-${pad(p.day)}`;
 }
 
-export function calendarDateTime(date: Date, timezone = "Asia/Phnom_Penh"): string {
+export function calendarDateTime(date: Date, timezone = DEFAULT_TIMEZONE): string {
   const p = parts(date, timezone);
-  return `${calendarDate(date, timezone)}T${pad(p.hour)}:${pad(p.minute)}`;
+  return `${String(p.year).padStart(4, "0")}-${pad(p.month)}-${pad(p.day)}T${pad(p.hour)}:${pad(p.minute)}`;
 }
 
 export function isCalendarDate(value: string): boolean {

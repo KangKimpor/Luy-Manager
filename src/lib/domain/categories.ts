@@ -60,19 +60,49 @@ export const CATEGORY_ALIASES: Readonly<Record<string, string>> = {
   Selfcare: "Personal Care", "Modified Bal.": "Balance Adjustment",
 };
 
+const EMOJI_STRIP = /[0-9#*]\uFE0F?\u20E3|\p{Extended_Pictographic}|\p{Regional_Indicator}|[\u200D\uFE0F\uFE0E\u{1F3FB}-\u{1F3FF}]/gu;
+
 export function categoryLabel(category?: Pick<Category, "name"> | null): string {
   if (!category) return "Uncategorised";
-  return category.name.replace(/[0-9#*]\uFE0F?\u20E3|\p{Extended_Pictographic}|\p{Regional_Indicator}|[\u200D\uFE0F\uFE0E\u{1F3FB}-\u{1F3FF}]/gu, "").replace(/\s+/g, " ").trim() || "Custom category";
+  return category.name.replace(EMOJI_STRIP, "").replace(/\s+/g, " ").trim() || "Custom category";
 }
 
 function normalize(text: string): string {
   return text.normalize("NFKC").toLowerCase().replace(/[^\p{L}\p{N}]+/gu, " ").trim();
 }
 
+interface CompiledPhrase {
+  readonly phrase: string;
+  readonly words: number;
+}
+
+const NORMALIZED_ALIASES = new Map<string, string>(
+  Object.entries(CATEGORY_ALIASES).map(([alias, target]) => [normalize(alias), normalize(target)]),
+);
+
+const CATALOG_BY_NORM_NAME = new Map<string, (typeof CATEGORY_CATALOG)[number]>(
+  CATEGORY_CATALOG.map((entry) => [normalize(entry[0]), entry]),
+);
+
+const CATALOG_PHRASES_BY_NORM_NAME = new Map<string, readonly CompiledPhrase[]>(
+  CATEGORY_CATALOG.map((entry) => {
+    const seen = new Set<string>();
+    const phrases: CompiledPhrase[] = [];
+    for (const raw of [entry[0], ...entry[3].split(";")]) {
+      const phrase = normalize(raw);
+      if (phrase && !seen.has(phrase)) {
+        seen.add(phrase);
+        phrases.push({ phrase, words: phrase.split(" ").length });
+      }
+    }
+    return [normalize(entry[0]), phrases];
+  }),
+);
+
 export function categoryDefinition(category: Pick<Category, "name">) {
-  const label = categoryLabel(category);
-  const alias = Object.entries(CATEGORY_ALIASES).find(([name]) => normalize(name) === normalize(label))?.[1] ?? label;
-  return CATEGORY_CATALOG.find(([name]) => normalize(name) === normalize(alias));
+  const normLabel = normalize(categoryLabel(category));
+  const canonical = NORMALIZED_ALIASES.get(normLabel) ?? normLabel;
+  return CATALOG_BY_NORM_NAME.get(canonical);
 }
 
 export function categoryGroup(category: Category): string {
@@ -119,17 +149,45 @@ export function resolveCategory(categories: readonly Category[], descriptor: str
   if (!needle) return null;
   const exact = categories.filter((category) => normalize(categoryLabel(category)) === needle);
   if (exact.length) return exact.length === 1 ? exact[0] : null;
-  const contains = (phrase: string) => phrase !== "" && ` ${needle} `.includes(` ${phrase} `);
+  const paddedNeedle = ` ${needle} `;
+  const contains = (phrase: string) => phrase !== "" && paddedNeedle.includes(` ${phrase} `);
   const merchantMatches = merchants.filter((merchant) => contains(normalize(merchant.normalizedName || merchant.name)));
   if (merchantMatches.length) {
     const defaults = [...new Set(merchantMatches.map((merchant) => merchant.defaultCategoryId))];
     return defaults.length === 1 ? categories.find((category) => category.id === defaults[0]) ?? null : null;
   }
-  const matches = categories.flatMap((category) => {
-    const phrases = [categoryLabel(category), ...(categoryDefinition(category)?.[3].split(";") ?? [])].map(normalize).filter(contains);
-    return phrases.length ? [{ category, score: Math.max(...phrases.map((phrase) => phrase.split(" ").length)) }] : [];
-  });
-  const score = Math.max(...matches.map((match) => match.score));
-  const best = matches.filter((match) => match.score === score);
-  return best.length === 1 ? best[0].category : null;
+
+  let bestScore = 0;
+  let bestCount = 0;
+  let bestCategory: Category | null = null;
+
+  for (const category of categories) {
+    const labelPhrase = normalize(categoryLabel(category));
+    const canonical = NORMALIZED_ALIASES.get(labelPhrase) ?? labelPhrase;
+    const catalogPhrases = CATALOG_PHRASES_BY_NORM_NAME.get(canonical);
+    let categoryScore = 0;
+
+    if (contains(labelPhrase)) {
+      categoryScore = labelPhrase.split(" ").length;
+    }
+    if (catalogPhrases) {
+      for (const { phrase, words } of catalogPhrases) {
+        if (words > categoryScore && contains(phrase)) {
+          categoryScore = words;
+        }
+      }
+    }
+
+    if (categoryScore > 0) {
+      if (categoryScore > bestScore) {
+        bestScore = categoryScore;
+        bestCount = 1;
+        bestCategory = category;
+      } else if (categoryScore === bestScore) {
+        bestCount += 1;
+      }
+    }
+  }
+
+  return bestCount === 1 ? bestCategory : null;
 }

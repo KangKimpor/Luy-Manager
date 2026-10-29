@@ -22,8 +22,31 @@ import { cn } from "@/lib/utils";
  * impossible to match against a receipt.
  */
 
+const CAMBODIA_SHORT_DATE_FORMAT = new Intl.DateTimeFormat("en-GB", {
+  day: "numeric",
+  month: "short",
+  timeZone: "Asia/Phnom_Penh",
+});
+
 function formatDate(iso: string): string {
-  return new Date(iso).toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: "Asia/Phnom_Penh" });
+  return CAMBODIA_SHORT_DATE_FORMAT.format(new Date(iso));
+}
+
+const transferGroupsByList = new WeakMap<readonly Transaction[], Map<string, Transaction[]>>();
+
+function transferGroupsFor(transactions: readonly Transaction[]): Map<string, Transaction[]> {
+  const cached = transferGroupsByList.get(transactions);
+  if (cached) return cached;
+  const groups = new Map<string, Transaction[]>();
+  for (const tx of transactions) {
+    if (tx.transferGroupId) {
+      const list = groups.get(tx.transferGroupId);
+      if (list) list.push(tx);
+      else groups.set(tx.transferGroupId, [tx]);
+    }
+  }
+  transferGroupsByList.set(transactions, groups);
+  return groups;
 }
 
 /** "ABA USD to Wing" for either leg of a transfer. */
@@ -34,10 +57,8 @@ function transferRoute(
 ): string | null {
   if (transaction.type !== "transfer" || transaction.transferGroupId === null) return null;
 
-  const counterpart = transactions.find(
-    (other) =>
-      other.transferGroupId === transaction.transferGroupId && other.id !== transaction.id,
-  );
+  const group = transferGroupsFor(transactions).get(transaction.transferGroupId);
+  const counterpart = group?.find((other) => other.id !== transaction.id);
 
   const own = accounts[transaction.accountId]?.name ?? "Account";
   if (!counterpart) return own;

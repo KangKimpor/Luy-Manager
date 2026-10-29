@@ -4,12 +4,13 @@
  * The dashboard's `slice(0, 8)` was fine against demo data. Against a real ledger
  * it would fetch every row a user has ever recorded in order to show eight of
  * them, so filtering and paging happen in the database, on the
- * `(user_id, occurred_at desc) where deleted_at is null` index from migration 0001.
+ * `(user_id, occurred_at desc, id desc) where deleted_at is null` index.
  */
 
 import { cache } from "react";
 
 import type {
+  EntryHabitLine,
   Transaction,
   TransactionSplit,
   TransactionTender,
@@ -23,13 +24,14 @@ import {
   asRows,
   DataError,
   dataContext,
+  ENTRY_HABIT_COLUMNS,
   SPLIT_COLUMNS,
   TENDER_COLUMNS,
   TRANSACTION_COLUMNS,
   LEDGER_LINE_COLUMNS,
   type DataContext,
 } from "./client";
-import { mapRows, toLedgerLine, toTransaction, toTransactionSplit, toTransactionTender, type Row } from "./mappers";
+import { mapRows, toEntryHabitLine, toLedgerLine, toTransaction, toTransactionSplit, toTransactionTender, type Row } from "./mappers";
 
 export interface TransactionFilter {
   /** Inclusive lower bound on `occurred_at`. */
@@ -173,6 +175,49 @@ export async function listTransactions(
     hasMore: offset + transactions.length < total,
   };
 }
+
+/** Recent rows for previews and entry habits, where no total count is displayed. */
+export async function listRecentTransactions(
+  filter: TransactionFilter = {},
+  limit = 5,
+): Promise<Transaction[]> {
+  const size = Math.min(200, Math.max(1, Math.trunc(limit)));
+  const context = await dataContext();
+  if (!context) return filterDemo(filter).slice(0, size);
+
+  const { data, error } = await applyFilter(
+    context.supabase.from("transactions").select(TRANSACTION_COLUMNS),
+    filter,
+  ).order("occurred_at", { ascending: false })
+    .order("id", { ascending: false })
+    .limit(size);
+
+  if (error) throw new DataError("load your recent transactions", error);
+  return mapRows(asRows(data), toTransaction, "transactions");
+}
+
+/**
+ * Slim recent rows for entry habit learning on /add.
+ *
+ * Fetches only the five columns `learnEntryHabits` inspects instead of all
+ * seventeen transaction columns, trimming the prefetched `/add` payload.
+ */
+export const listEntryHabitLines = cache(async (limit = 200): Promise<EntryHabitLine[]> => {
+  const size = Math.min(200, Math.max(1, Math.trunc(limit)));
+  const context = await dataContext();
+  if (!context) return filterDemo({}).slice(0, size);
+
+  const { data, error } = await context.supabase
+    .from("transactions")
+    .select(ENTRY_HABIT_COLUMNS)
+    .is("deleted_at", null)
+    .order("occurred_at", { ascending: false })
+    .order("id", { ascending: false })
+    .limit(size);
+
+  if (error) throw new DataError("load your recent transactions", error);
+  return mapRows(asRows(data), toEntryHabitLine, "transactions");
+});
 
 /**
  * Every transaction in a date range, for the dashboard aggregates.

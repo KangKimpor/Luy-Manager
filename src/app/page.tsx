@@ -46,7 +46,7 @@ export default async function DashboardPage(props: {
       listAccountBalances(),
       categoryLookup(),
       accountLookup(),
-      ratePromise.then(snapshot => loadDashboardLedger(period, snapshot.rate)),
+      loadDashboardLedger(period, ratePromise.then(snapshot => snapshot.rate)),
     ]);
 
   const { rate } = snapshot;

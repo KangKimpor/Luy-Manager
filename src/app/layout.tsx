@@ -58,8 +58,7 @@ export const viewport: Viewport = {
   themeColor: APP_COLORS.background,
   width: "device-width",
   initialScale: 1,
-  maximumScale: 1,
-  userScalable: false,
+  interactiveWidget: "resizes-content",
   viewportFit: "cover",
 };
 
