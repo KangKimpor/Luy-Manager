@@ -25,6 +25,14 @@ public class MoneyTest {
   }
 
   @Test
+  public void displayMatchesTheWebFormat() {
+    assertEquals("$1,234.50", Money.display(123450, "USD"));
+    assertEquals("-$0.05", Money.display(-5, "USD"));
+    assertEquals("12,500៛", Money.display(1250000, "KHR"));
+    assertEquals("-9,993.55៛", Money.display(-999355, "KHR"));
+  }
+
+  @Test
   public void invalidOrOversizedAmountsAreRejected() {
     assertThrows(IllegalArgumentException.class, () -> Money.parse("2.005"));
     assertThrows(IllegalArgumentException.class, () -> Money.parse("-1"));

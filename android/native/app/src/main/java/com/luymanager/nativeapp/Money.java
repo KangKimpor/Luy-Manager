@@ -56,4 +56,16 @@ final class Money {
     String n = f.format(BigDecimal.valueOf(Math.abs(checked(minor)), 2));
     return (minor < 0 ? "-" : "") + (currency.equals("USD") ? "$" + n : n + " KHR");
   }
+
+  /** The web app's formatMoney: "$1,234.50", "12,500៛", "9,993.55៛". */
+  static String display(long minor, String currency) {
+    currency(currency);
+    long magnitude = Math.abs(checked(minor));
+    NumberFormat f = NumberFormat.getNumberInstance(Locale.US);
+    boolean whole = currency.equals("KHR") && magnitude % 100 == 0;
+    f.setMinimumFractionDigits(whole ? 0 : 2);
+    f.setMaximumFractionDigits(whole ? 0 : 2);
+    String n = f.format(BigDecimal.valueOf(magnitude, 2));
+    return (minor < 0 ? "-" : "") + (currency.equals("USD") ? "$" + n : n + "៛");
+  }
 }
