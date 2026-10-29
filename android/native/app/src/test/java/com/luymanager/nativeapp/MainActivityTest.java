@@ -5,7 +5,6 @@ import static org.junit.Assert.*;
 import android.os.Looper;
 import android.view.View;
 import android.view.ViewGroup;
-import android.widget.Button;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import org.json.*;
@@ -76,13 +75,18 @@ public class MainActivityTest {
     if (app.store != null) app.store.close();
   }
 
-  Button button(View node, String label) {
-    if (node instanceof Button && ((Button) node).getText().toString().equals(label))
-      return (Button) node;
+  /** A tappable view whose label or accessible name is `label`. */
+  View button(View node, String label) {
+    CharSequence name = node.getContentDescription();
+    boolean named =
+        (name != null && name.toString().equals(label))
+            || (node instanceof android.widget.TextView
+                && ((android.widget.TextView) node).getText().toString().equals(label));
+    if (named && node.isClickable() && node.getVisibility() == View.VISIBLE) return node;
     if (node instanceof ViewGroup) {
       ViewGroup parent = (ViewGroup) node;
       for (int i = 0; i < parent.getChildCount(); i++) {
-        Button found = button(parent.getChildAt(i), label);
+        View found = button(parent.getChildAt(i), label);
         if (found != null) return found;
       }
     }
@@ -90,7 +94,7 @@ public class MainActivityTest {
   }
 
   void click(String label) throws Exception {
-    Button b = button(activity.root, label);
+    View b = button(activity.root, label);
     assertNotNull(label, b);
     b.performClick();
     drain();
@@ -100,7 +104,7 @@ public class MainActivityTest {
   public void startupAndNavigationUseNativeViewsWithoutNetwork() throws Exception {
     assertEquals(2, activity.accounts.length());
     assertEquals(0, activity.transactions.length());
-    for (String label : new String[] {"Activity", "Add", "Accounts", "More", "Home"}) click(label);
+    for (String label : new String[] {"Activity", "Add transaction", "Accounts", "More", "Budgets", "Home"}) click(label);
     assertFalse(containsWebView(activity.root));
   }
 
@@ -115,11 +119,11 @@ public class MainActivityTest {
 
   @Test
   public void offlineExpenseIsDurableAndVisibleLocally() throws Exception {
-    click("Add");
+    click("Add transaction");
     activity.amount.setText("9993.55");
     activity.account.setSelection(1);
     activity.note.setText("Offline purchase");
-    click("Save on this phone");
+    click("Save expense");
     assertEquals(1, app.store.pendingCount());
     JSONObject row = app.store.rows("transactions").getJSONObject(0);
     assertEquals(-999355L, row.getLong("amount"));
@@ -129,14 +133,23 @@ public class MainActivityTest {
   }
 
   @Test
+  public void keypadEntersAmountsWithAtMostTwoDecimals() throws Exception {
+    click("Add transaction");
+    for (String key : new String[] {"1", "2", ".", "5", "0", "9"}) click("Key " + key);
+    assertEquals("12.50", activity.amount.getText().toString());
+    click("Delete last digit");
+    assertEquals("12.5", activity.amount.getText().toString());
+  }
+
+  @Test
   public void transfersQueueBothLegsAsOneOperation() throws Exception {
-    click("Add");
-    activity.type.setSelection(3);
+    click("Add transaction");
+    click("Transfer");
     activity.account.setSelection(0);
     activity.destination.setSelection(1);
     activity.amount.setText("10.00");
     activity.received.setText("41000.00");
-    click("Save on this phone");
+    click("Save transfer");
     assertEquals(1, app.store.pendingCount());
     JSONArray rows = app.store.pending().get(0).getJSONObject("operation").getJSONArray("rows");
     assertEquals(2, rows.length());
@@ -149,14 +162,14 @@ public class MainActivityTest {
 
   @Test
   public void draftKeepsExplicitAccountWhenSnapshotOrderChanges() throws Exception {
-    click("Add");
+    click("Add transaction");
     activity.account.setSelection(1);
     activity.amount.setText("12.34");
     String selected = activity.selectedId(activity.account);
     click("Home");
     JSONArray old = activity.accounts;
     activity.accounts = new JSONArray().put(old.getJSONObject(1)).put(old.getJSONObject(0));
-    click("Add");
+    click("Add transaction");
     assertEquals(selected, activity.selectedId(activity.account));
     assertEquals("12.34", activity.amount.getText().toString());
   }
@@ -213,7 +226,7 @@ public class MainActivityTest {
     assertTrue(started.await(1, TimeUnit.SECONDS));
     try {
       app.worker.submit(() -> {}).get(1, TimeUnit.SECONDS);
-      click("Add");
+      click("Add transaction");
       assertNotNull(activity.amount);
     } finally {
       release.countDown();
@@ -222,12 +235,12 @@ public class MainActivityTest {
 
   @Test
   public void backReturnsHomeAndKeepsTheEntryDraft() throws Exception {
-    click("Add");
+    click("Add transaction");
     activity.amount.setText("12.34");
     activity.goBack();
     assertEquals(0, activity.tab);
     assertFalse(activity.isFinishing());
-    click("Add");
+    click("Add transaction");
     assertEquals("12.34", activity.amount.getText().toString());
     activity.goBack();
     activity.goBack();
