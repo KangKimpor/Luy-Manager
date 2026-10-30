@@ -4,7 +4,7 @@ const verified = new WeakMap<SupabaseClient, Promise<void>>();
 const verifiedUrls = new Map<string, Promise<void>>();
 
 function clientUrl(client: SupabaseClient): string | null {
-  const url = (client as { supabaseUrl?: unknown }).supabaseUrl;
+  const url = (client as unknown as { supabaseUrl?: unknown }).supabaseUrl;
   return typeof url === "string" && url.length > 0 ? url : null;
 }
 
