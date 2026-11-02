@@ -84,3 +84,23 @@ not been verified in this continuation. No financial entries were added for
 testing. Supabase's dashboard also reports leaked-password protection disabled;
 no paid plan was enabled. The Supabase connector needs reauthentication, so
 verification used the dashboard and the existing local database/API credentials.
+
+## Android 0.2.2 sync fix
+
+ndroid/Luy-Manager-Native-0.2.2.apk (package com.luymanager.nativeapp, version code 5)
+fixes the "Connection unavailable" banner that kept entries from ever syncing.
+
+- Cause 1: the APK held a publishable key that the live project
+  lesfzlirqkwvmevhrgug rejects with HTTP 401. The build now uses the project's public
+  publishable key, and checkReleaseBackend fails the build if the server answers 401 for the key.
+  The key is now the project's current sb_publishable_ key, read from Supabase.
+- Cause 2: Android throws an IOException for a 401 without WWW-Authenticate, which the app
+  showed as "Connection unavailable". A rejected key, an expired session and a real network
+  failure now show different messages, and the More tab offers "Sign in again" when needed.
+- Waiting entries upload as soon as a network appears and are never marked failed or dropped
+  for network or sign-in problems.
+- Verified: 31 Android unit tests pass, lint reports 0 errors, release build succeeds, APK
+  signature and alignment verified. SHA256: 7734a119ab4f2f65140fff4c1a8d008c30087f65b78590e300b9eb653c6e8175.
+- Not verified: installation and sync on a phone. Signed with the preview key
+  (certificate SHA-256 2c05dfa3...21d923); Android only accepts it as an update if the
+  installed app used the same key. Do not uninstall or clear app data.

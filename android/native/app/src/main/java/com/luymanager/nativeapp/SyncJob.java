@@ -8,7 +8,7 @@ public final class SyncJob extends JobService {
   public boolean onStartJob(JobParameters parameters) {
     LuyApplication app = (LuyApplication) getApplication();
     if (app.store == null || app.cloud == null || !app.cloud.signedIn()) return false;
-    app.sync(() -> jobFinished(parameters, !app.status.equals("Up to date")));
+    app.sync(() -> jobFinished(parameters, !app.status.equals("Up to date") && !app.blocked));
     return true;
   }
 

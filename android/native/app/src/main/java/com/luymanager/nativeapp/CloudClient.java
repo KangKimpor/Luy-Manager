@@ -11,9 +11,25 @@ import org.json.JSONObject;
 
 class CloudClient {
   static final String CALLBACK = "com.luymanager.nativeapp://auth/callback";
+  static final String KEY_REJECTED =
+      "The server rejected this app's key. Install the latest app update. Your entries stay on"
+          + " this phone.";
+  static final String SESSION_EXPIRED =
+      "Sign-in expired. Sign in again to sync. Your entries stay on this phone.";
   final SessionVault vault;
   JSONObject session;
   private String verifiedPrecisionOwner;
+  private boolean refreshing;
+
+  /** The server refused our credentials. This is different from the network being unreachable. */
+  static final class AuthException extends Exception {
+    final boolean signInAgain;
+
+    AuthException(String message, boolean signInAgain) {
+      super(message);
+      this.signInAgain = signInAgain;
+    }
+  }
 
   CloudClient(SessionVault vault) throws Exception {
     this.vault = vault;
@@ -39,6 +55,18 @@ class CloudClient {
 
   Response request(String method, String path, Object body, boolean auth, int offset)
       throws Exception {
+    Response r = transport(method, path, body, auth, offset);
+    if (r.status == 401 && auth && !refreshing && session != null && session.has("refresh_token")) {
+      // The access token may simply have expired or the clock may be off. Refresh once and retry.
+      forceRefresh();
+      r = transport(method, path, body, auth, offset);
+    }
+    if (r.status == 401) throw new AuthException(auth ? SESSION_EXPIRED : KEY_REJECTED, auth);
+    return r;
+  }
+
+  Response transport(String method, String path, Object body, boolean auth, int offset)
+      throws Exception {
     HttpURLConnection c =
         (HttpURLConnection) new URL(BuildConfig.SUPABASE_URL + path).openConnection();
     c.setConnectTimeout(15000);
@@ -58,7 +86,17 @@ class CloudClient {
     }
     Response result = new Response();
     try {
-      result.status = c.getResponseCode();
+      try {
+        result.status = c.getResponseCode();
+      } catch (java.io.IOException e) {
+        // Android throws this for any 401 that has no WWW-Authenticate header, which Supabase
+        // sends for a bad key or token. It is a rejection, not a network failure.
+        String message = String.valueOf(e.getMessage());
+        if (!message.contains("authentication challenge")) throw e;
+        result.status = 401;
+        result.body = "";
+        return result;
+      }
       result.range = c.getHeaderField("Content-Range");
       InputStream stream = result.ok() ? c.getInputStream() : c.getErrorStream();
       java.io.ByteArrayOutputStream bytes = new java.io.ByteArrayOutputStream();
@@ -86,6 +124,12 @@ class CloudClient {
   }
 
   void authenticate(String code, String verifier) throws Exception {
+    authenticate(code, verifier, null);
+  }
+
+  /** When expectedOwner is set, a different account is refused before anything is stored. */
+  void authenticate(String code, String verifier, String expectedOwner) throws Exception {
+    JSONObject previous = session;
     JSONObject token =
         object(
             request(
@@ -95,14 +139,21 @@ class CloudClient {
                 false,
                 -1));
     session = token;
+    refreshing = true;
     try {
       JSONObject user = object(request("GET", "/auth/v1/user", null, true, -1));
       token.put("user", user);
       java.util.UUID.fromString(user.getString("id"));
+      if (expectedOwner != null && !expectedOwner.equals(user.getString("id")))
+        throw new Exception(
+            "That Google account is different from the one on this phone. Sign in with the"
+                + " original account.");
       vault.save(token);
     } catch (Exception e) {
-      session = null;
+      session = previous;
       throw e;
+    } finally {
+      refreshing = false;
     }
   }
 
@@ -111,25 +162,36 @@ class CloudClient {
       long expiresAt = session.optLong("expires_at", 0L);
       if (expiresAt * 1000L > System.currentTimeMillis() + 60_000L) return;
     }
+    forceRefresh();
+  }
+
+  void forceRefresh() throws Exception {
     JSONObject previous = session;
-    JSONObject next =
-        object(
-            request(
-                "POST",
-                "/auth/v1/token?grant_type=refresh_token",
-                new JSONObject().put("refresh_token", session.getString("refresh_token")),
-                false,
-                -1));
-    session = next;
+    refreshing = true;
     try {
-      JSONObject user = object(request("GET", "/auth/v1/user", null, true, -1));
-      if (!user.getString("id").equals(previous.getJSONObject("user").getString("id")))
-        throw new Exception("Account changed during refresh");
-      next.put("user", user);
-      vault.save(next);
-    } catch (Exception e) {
-      session = previous;
-      throw e;
+      Response response =
+          request(
+              "POST",
+              "/auth/v1/token?grant_type=refresh_token",
+              new JSONObject().put("refresh_token", session.getString("refresh_token")),
+              false,
+              -1);
+      if (response.status == 400 || response.status == 403)
+        throw new AuthException(SESSION_EXPIRED, true);
+      JSONObject next = object(response);
+      session = next;
+      try {
+        JSONObject user = object(request("GET", "/auth/v1/user", null, true, -1));
+        if (!user.getString("id").equals(previous.getJSONObject("user").getString("id")))
+          throw new Exception("Account changed during refresh");
+        next.put("user", user);
+        vault.save(next);
+      } catch (Exception e) {
+        session = previous;
+        throw e;
+      }
+    } finally {
+      refreshing = false;
     }
   }
 
@@ -273,7 +335,8 @@ class CloudClient {
         send(queued.getJSONObject("operation"));
         acknowledged.add(queued.getString("id"));
       } catch (Exception e) {
-        store.failed(queued.getString("id"), e.getMessage());
+        if (!(e instanceof java.io.IOException) && !(e instanceof AuthException))
+          store.failed(queued.getString("id"), e.getMessage());
         throw e;
       }
     }

@@ -160,12 +160,19 @@ public final class MainActivity extends Activity {
   @Override
   protected void onPause() {
     saveDraft();
+    app.synced = null;
     super.onPause();
   }
 
   @Override
   protected void onResume() {
     super.onResume();
+    app.synced =
+        () ->
+            runOnUiThread(
+                () -> {
+                  if (!isFinishing() && app.store != null) load();
+                });
     if (app.store != null) {
       app.schedule();
       app.sync(
@@ -227,7 +234,7 @@ public final class MainActivity extends Activity {
 
   void handle(Intent intent) {
     Uri uri = intent.getData();
-    if (app.store != null
+    if ((app.store != null && !app.reauth)
         || uri == null
         || !CloudClient.CALLBACK.equals(
             uri.buildUpon().clearQuery().fragment(null).build().toString())) return;
@@ -245,9 +252,15 @@ public final class MainActivity extends Activity {
         () -> {
           try {
             CloudClient authenticated = new CloudClient(new SessionVault(this));
-            authenticated.authenticate(code, verifier);
+            String expected =
+                app.store != null && app.cloud != null && app.cloud.signedIn()
+                    ? app.cloud.owner()
+                    : null;
+            authenticated.authenticate(code, verifier, expected);
             app.cloud = authenticated;
-            app.store = new LedgerStore(this, authenticated.owner());
+            if (app.store == null) app.store = new LedgerStore(this, authenticated.owner());
+            app.blocked = false;
+            app.reauth = false;
             app.status = "Signed in";
             runOnUiThread(
                 () -> {
@@ -258,7 +271,10 @@ public final class MainActivity extends Activity {
           } catch (Exception e) {
             runOnUiThread(
                 () -> {
-                  app.status = "Could not complete sign-in. Try again.";
+                  app.status =
+                      e instanceof CloudClient.AuthException || e.getMessage() == null
+                          ? "Could not complete sign-in. Try again."
+                          : e.getMessage();
                   draw();
                 });
           }
@@ -2000,6 +2016,17 @@ public final class MainActivity extends Activity {
     add(ui.text("Make room for the bigger picture.", 14, color(R.color.muted), 400));
     int pending = app.store.pendingCount();
     LinearLayout list = ui.card();
+    if (app.reauth) {
+      list.addView(
+          moreRow(
+              "key",
+              "Sign in again",
+              "Your sign-in expired. Entries stay on this phone until you do.",
+              false,
+              this::login),
+          ui.fill());
+      list.addView(ui.divider());
+    }
     list.addView(moreRow("pie-chart", "Budgets", "Stay on top of your spending", false, () -> go(5)), ui.fill());
     list.addView(ui.divider());
     list.addView(
@@ -2050,7 +2077,19 @@ public final class MainActivity extends Activity {
         words.addView(
             ui.text(table.equals("accounts") ? "New account" : "New entry", 14, color(R.color.ink), 600));
         words.addView(
-            ui.text(failed ? item.getString("error") : "Waiting for a connection", 12, color(R.color.faint), 400),
+            ui.text(
+                failed
+                    ? item.getString("error")
+                    : app.reauth
+                        ? "Waiting for you to sign in again"
+                        : app.blocked
+                            ? "Waiting for an app update"
+                            : app.status.equals(LuyApplication.OFFLINE)
+                                ? "Waiting for a connection"
+                                : "Waiting to sync",
+                12,
+                color(R.color.faint),
+                400),
             ui.top(ui.wrap(), 4));
         line.addView(words, ui.start(ui.weight(1), 12));
         queued.addView(line, ui.fill());

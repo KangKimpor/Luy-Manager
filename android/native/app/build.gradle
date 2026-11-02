@@ -1,10 +1,23 @@
 plugins { id 'com.android.application' }
+def projectRef = 'lesfzlirqkwvmevhrgug'
+def supabaseUrl = "https://${projectRef}.supabase.co"
 def backend = new Properties()
 def config = rootProject.file('backend.properties')
 if (config.exists()) config.withInputStream { backend.load(it) }
 def publishableKey = backend.getProperty('publishableKey', '')
+// Accept the modern sb_publishable_ key, or the legacy public anon JWT for this exact project.
+// Never accept a secret key or a service_role token.
 if (publishableKey && !(publishableKey ==~ /sb_publishable_[A-Za-z0-9_-]+/)) {
-    throw new GradleException('Use a public Supabase publishable key, never a secret or service role key.')
+    def parts = publishableKey.split('\\.')
+    def claims = null
+    if (parts.length == 3) {
+        try {
+            claims = new groovy.json.JsonSlurper().parseText(new String(Base64.urlDecoder.decode(parts[1]), 'UTF-8'))
+        } catch (Exception ignored) { }
+    }
+    if (claims == null || claims.role != 'anon' || claims.ref != projectRef) {
+        throw new GradleException('Use this project public publishable or anon key, never a secret or service role key.')
+    }
 }
 android {
     namespace 'com.luymanager.nativeapp'
@@ -13,9 +26,9 @@ android {
         applicationId 'com.luymanager.nativeapp'
         minSdk 28
         targetSdk 36
-        versionCode 4
-        versionName '0.2.1'
-        buildConfigField 'String', 'SUPABASE_URL', '"https://lesfzlirqkwvmevhrgug.supabase.co"'
+        versionCode 5
+        versionName '0.2.2'
+        buildConfigField 'String', 'SUPABASE_URL', '"' + supabaseUrl + '"'
         buildConfigField 'String', 'SUPABASE_KEY', '"' + publishableKey + '"'
     }
     buildFeatures { buildConfig true }
@@ -26,6 +39,24 @@ android {
 tasks.register('checkReleaseBackend') {
     doLast {
         if (!publishableKey) throw new GradleException('Set publishableKey in backend.properties before building an APK.')
+        if (project.hasProperty('skipBackendCheck')) return
+        // Ask the live server whether it accepts this key, so a stale key can never ship again.
+        int status = -1
+        try {
+            def c = new URL(supabaseUrl + '/auth/v1/settings').openConnection()
+            c.connectTimeout = 15000
+            c.readTimeout = 15000
+            c.setRequestProperty('apikey', publishableKey)
+            try {
+                status = c.responseCode
+            } catch (IOException e) {
+                status = (e.message ?: '').contains('authentication challenge') ? 401 : -1
+            }
+        } catch (Exception e) {
+            logger.warn('Backend key check skipped, server unreachable: ' + e.message)
+        }
+        if (status == 401) throw new GradleException('The server rejected the key in backend.properties (HTTP 401). Copy the current key from the Supabase dashboard.')
+        if (status != 200 && status != -1) logger.warn('Could not confirm the backend key (HTTP ' + status + ').')
     }
 }
 tasks.matching { it.name == 'preReleaseBuild' }.configureEach { dependsOn 'checkReleaseBackend' }
