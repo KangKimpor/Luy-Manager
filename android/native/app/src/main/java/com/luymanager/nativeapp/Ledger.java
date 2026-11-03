@@ -45,8 +45,17 @@ final class Ledger {
     }
   }
 
-  static YearMonth month(JSONObject row) throws Exception {
-    return YearMonth.from(
+  /**
+   * The web app's amountInBase: the amount stored when the entry was made, if it was stored in
+   * this currency, otherwise today's rate.
+   */
+  static long inCurrency(JSONObject row, String to, java.math.BigDecimal usdKhr) throws Exception {
+    if (!row.isNull("base_amount") && to.equals(row.optString("base_currency", "")))
+      return Money.checked(row.getLong("base_amount"));
+    return Money.convert(row.getLong("amount"), row.getString("currency"), to, usdKhr);
+  }
+
+  static YearMonth month(JSONObject row) throws Exception {    return YearMonth.from(
         OffsetDateTime.parse(row.getString("occurred_at"))
             .atZoneSameInstant(ZoneId.of("Asia/Phnom_Penh")));
   }

@@ -24,6 +24,18 @@ public final class LuyApplication extends Application {
   volatile boolean reauth;
   /** Set by the visible screen so a background sync can refresh it. */
   volatile Runnable synced;
+  /** True while the web view holds the session, so the phone does not refresh it underneath. */
+  volatile boolean webOpen;
+
+  /** The USD to KHR rate from the last sync, or the web app's built-in 4100 before the first. */
+  java.math.BigDecimal usdKhr() {
+    try {
+      return new java.math.BigDecimal(
+          getSharedPreferences("rates", 0).getString("usd_khr", "4100"));
+    } catch (RuntimeException e) {
+      return new java.math.BigDecimal(4100);
+    }
+  }
 
   @Override
   public void onCreate() {
@@ -67,7 +79,10 @@ public final class LuyApplication extends Application {
   }
 
   void sync(Runnable finished) {
-    if (!syncing.compareAndSet(false, true)) {
+    if (webOpen) {
+      if (finished != null) finished.run();
+      return;
+    }    if (!syncing.compareAndSet(false, true)) {
       if (finished != null) finished.run();
       return;
     }
@@ -77,7 +92,16 @@ public final class LuyApplication extends Application {
             if (store == null || cloud == null || !cloud.signedIn()) return;
             status = "Syncing";
             cloud.sync(store);
-            status = "Up to date";
+            try {
+              java.math.BigDecimal rate = cloud.fetchUsdKhr();
+              if (rate != null)
+                getSharedPreferences("rates", 0)
+                    .edit()
+                    .putString("usd_khr", rate.toPlainString())
+                    .apply();
+            } catch (Exception ignored) {
+              // The last known rate keeps working; the ledger itself synced.
+            }            status = "Up to date";
             blocked = false;
             reauth = false;
           } catch (CloudClient.AuthException e) {

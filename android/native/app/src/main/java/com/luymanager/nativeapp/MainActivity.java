@@ -903,7 +903,7 @@ public final class MainActivity extends Activity {
             color(R.color.faint),
             400));
     add(flowHead);
-    long[] flow = ledger.flow(month, shown);
+    long[] flow = convertedFlow();
     LinearLayout pair = ui.row();
     pair.setGravity(Gravity.TOP);
     pair.addView(
@@ -915,7 +915,12 @@ public final class MainActivity extends Activity {
     LinearLayout.LayoutParams pairSpace = ui.fill();
     pairSpace.topMargin = dp(12);
     body.addView(pair, pairSpace);
-    TextView foot = ui.text("In " + shown + ". Transfers excluded.", 11, color(R.color.faint), 400);
+    TextView foot =
+        ui.text(
+            (flowConverted ? "Converted to " : "In ") + shown + ". Transfers excluded.",
+            11,
+            color(R.color.faint),
+            400);
     foot.setPadding(dp(4), 0, dp(4), 0);
     LinearLayout.LayoutParams footSpace = ui.fill();
     footSpace.topMargin = dp(12);
@@ -971,8 +976,34 @@ public final class MainActivity extends Activity {
     add(breakdown());
   }
 
-  void openAdd(int nextMode) {
-    if (nextMode < 0) {
+  boolean flowConverted;
+
+  /** Month income and spending in the shown currency, converted like the web. Spending is negative. */
+  long[] convertedFlow() throws Exception {
+    long[] flow = new long[2];
+    flowConverted = false;
+    for (int i = 0; i < transactions.length(); i++) {
+      JSONObject row = transactions.getJSONObject(i);
+      if (isTransfer(row) || !inMonth(row)) continue;
+      if (!shown.equals(row.getString("currency"))) flowConverted = true;
+      long minor = Ledger.inCurrency(row, shown, app.usdKhr());
+      if (minor >= 0) flow[0] = Money.add(flow[0], minor);
+      else flow[1] = Money.add(flow[1], minor);
+    }
+    return flow;
+  }
+
+  /** Editing, deleting and restoring happen in the web app, which is the one source of truth. */
+  void openEntry(JSONObject row) {
+    if (row.optBoolean("_pending")) {
+      error("This entry is still waiting to sync. You can edit it as soon as it has synced.");
+      return;
+    }
+    String id = row.optString("id", "");
+    if (!id.isEmpty()) openWeb("/transactions/" + id + "/edit");
+  }
+
+  void openAdd(int nextMode) {    if (nextMode < 0) {
       go(3);
       return;
     }
@@ -1039,7 +1070,7 @@ public final class MainActivity extends Activity {
     right.addView(amountText(minor, currency, transfer, 14), ui.wrap());
     right.addView(ui.badge(currency), ui.top(ui.wrap(), 4));
     line.addView(right, ui.start(ui.wrap(), 12));
-    return line;
+    return ui.press(line, 0.99f, () -> openEntry(row));
   }
 
   /** MoneyAmount with colorBySign and showPlus, which a transfer leg does not get. */
@@ -1059,8 +1090,8 @@ public final class MainActivity extends Activity {
     long all = 0;
     for (int i = 0; i < transactions.length(); i++) {
       JSONObject t = transactions.getJSONObject(i);
-      if (isTransfer(t) || !inMonth(t) || !shown.equals(t.getString("currency"))) continue;
-      long minor = t.getLong("amount");
+      if (isTransfer(t) || !inMonth(t)) continue;
+      long minor = Ledger.inCurrency(t, shown, app.usdKhr());
       if (minor >= 0) continue;
       String key = t.isNull("category_id") ? "" : t.getString("category_id");
       totals.put(key, Money.add(totals.getOrDefault(key, 0L), -minor));
@@ -1220,9 +1251,8 @@ public final class MainActivity extends Activity {
     long[] flow = new long[2];
     for (int i = 0; i < transactions.length(); i++) {
       JSONObject row = transactions.getJSONObject(i);
-      if (isTransfer(row) || !matches(row, term) || !shown.equals(row.getString("currency")))
-        continue;
-      long minor = row.getLong("amount");
+      if (isTransfer(row) || !matches(row, term)) continue;
+      long minor = Ledger.inCurrency(row, shown, app.usdKhr());
       if (minor >= 0) flow[0] = Money.add(flow[0], minor);
       else flow[1] = Money.add(flow[1], -minor);
     }
@@ -1255,8 +1285,8 @@ public final class MainActivity extends Activity {
           LocalDate when = day(row);
           matched.add(row);
           matchedDays.add(when);
-          if (!isTransfer(row) && shown.equals(row.getString("currency"))) {
-            long minor = row.getLong("amount");
+          if (!isTransfer(row)) {
+            long minor = Ledger.inCurrency(row, shown, app.usdKhr());
             long[] flow = dayFlows.computeIfAbsent(when, ignored -> new long[2]);
             if (minor > 0) flow[0] = Money.add(flow[0], minor);
             else flow[1] = Money.add(flow[1], minor);
@@ -1374,7 +1404,7 @@ public final class MainActivity extends Activity {
     line.addView(
         amountText(row.getLong("amount"), row.getString("currency"), transfer, 12),
         ui.start(ui.wrap(), 8));
-    return line;
+    return ui.press(line, 0.99f, () -> openEntry(row));
   }
 
   void accounts() throws Exception {
@@ -1385,6 +1415,7 @@ public final class MainActivity extends Activity {
     add(top);
     add(heroCard(false));
     add(ui.button("Add an account", "add", accounts.length() == 0 ? "primary" : "secondary", this::newAccount));
+    add(ui.button("Manage accounts", "setting-line", "outline", () -> openWeb("/accounts")));
     for (int g = 0; g < ACCOUNT_TYPES.length; g++) {
       ArrayList<JSONObject> members = new ArrayList<>();
       for (int i = 0; i < accounts.length(); i++) {
@@ -2042,14 +2073,18 @@ public final class MainActivity extends Activity {
             }),
         ui.fill());
     list.addView(ui.divider());
-    list.addView(
-        moreRow(
-            "colum-up",
-            "Reports and settings",
-            "Open the full web app",
-            false,
-            () -> openWeb("/reports")),
-        ui.fill());
+    String[][] webAreas = {
+      {"colum-up", "Reports", "Spending, trends and the overall report", "/reports"},
+      {"calendar", "Calendar and filters", "Calendar view, filters and recently deleted", "/transactions"},
+      {"pie-chart", "Manage budgets", "Create and change budgets", "/budgets"},
+      {"wallet", "Manage accounts", "Add, edit and archive accounts", "/accounts"},
+      {"setting-line", "Settings", "Currency, exchange rate and Telegram", "/settings"},
+      {"layers", "Full web app", "Open every screen of the website", "/"}
+    };
+    for (String[] area : webAreas) {
+      list.addView(ui.divider());
+      list.addView(moreRow(area[0], area[1], area[2], false, () -> openWeb(area[3])), ui.fill());
+    }
     add(list);
 
     if (pending > 0) {
@@ -2130,19 +2165,24 @@ public final class MainActivity extends Activity {
   }
 
   void openWeb(String path) {
+    if (app.cloud == null || !app.cloud.signedIn()) {
+      error("Sign in first.");
+      return;
+    }
     try {
-      startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(WEB + path)));
+      startActivity(new Intent(this, WebActivity.class).putExtra(WebActivity.PATH, path));
     } catch (Exception e) {
       error("Could not open the web app");
     }
   }
 
   void budgetList() throws Exception {
-    add(ui.text("Budgets you set in the web app.", 14, color(R.color.muted), 400));
+    add(ui.text("Your budgets.", 14, color(R.color.muted), 400));
+    add(ui.button("Manage budgets", "pie-chart", "outline", () -> openWeb("/budgets")));
     if (budgets.length() == 0) {
       LinearLayout empty = ui.card();
       empty.addView(
-          emptyState("pie-chart", "No budgets yet", "Create one in the web app and it appears here."),
+          emptyState("pie-chart", "No budgets yet", "Tap Manage budgets to create one."),
           ui.fill());
       add(empty);
       return;
@@ -2222,6 +2262,7 @@ public final class MainActivity extends Activity {
                                   transactions = new JSONArray();
                                   budgets = new JSONArray();
                                   ledger = new Ledger();
+                                  WebActivity.clearWebData(getApplicationContext());
                                   loaded = false;
                                   tab = 0;
                                   progress.dismiss();

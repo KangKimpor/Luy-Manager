@@ -13,6 +13,7 @@
                 <data android:scheme="com.luymanager.nativeapp" android:host="auth" android:path="/callback" />
             </intent-filter>
         </activity>
+        <activity android:name=".WebActivity" android:exported="false" android:configChanges="orientation|screenSize|keyboardHidden|smallestScreenSize|screenLayout|uiMode" android:windowSoftInputMode="adjustResize" />
         <service android:name=".SyncJob" android:permission="android.permission.BIND_JOB_SERVICE" android:exported="true" />
     </application>
 </manifest>

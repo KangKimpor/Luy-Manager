@@ -1,6 +1,7 @@
 package com.luymanager.nativeapp;
 
 import java.io.InputStream;
+import java.math.BigDecimal;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
@@ -195,8 +196,73 @@ class CloudClient {
     }
   }
 
-  JSONArray readAll(String table) throws Exception {
-    String scope = table.equals("profiles") ? "id" : "user_id";
+  /** Make sure the access token lasts at least `seconds` more, before handing it to the web view. */
+  void ensureFresh(long seconds) throws Exception {
+    if (session == null) throw new AuthException(SESSION_EXPIRED, true);
+    long left = session.optLong("expires_at", 0L) - System.currentTimeMillis() / 1000L;
+    if (!session.has("user") || left < seconds) forceRefresh();
+  }
+
+  /**
+   * Take back a session the web view refreshed. Only one party may own the refresh token, so the
+   * phone adopts the newer session instead of refreshing a token the web app has already used.
+   */
+  synchronized boolean adoptWebSession(JSONObject web) {
+    try {
+      if (session == null || web == null) return false;
+      String refresh = web.optString("refresh_token", "");
+      if (refresh.isEmpty() || web.optString("access_token", "").isEmpty()) return false;
+      if (refresh.equals(session.optString("refresh_token"))) return false;
+      JSONObject user = web.optJSONObject("user");
+      if (user == null || !owner().equals(user.optString("id"))) return false;
+      if (web.optLong("expires_at", 0L) < session.optLong("expires_at", 0L)) return false;
+      JSONObject merged = new JSONObject(web.toString());
+      persist(merged);
+      session = merged;
+      return true;
+    } catch (Exception e) {
+      return false;
+    }
+  }
+
+  /** Stores a session securely. Separate so tests can run without the Android keystore. */
+  void persist(JSONObject value) throws Exception {
+    vault.save(value);
+  }
+
+  /** The USD to KHR rate the web app would use today: the newest day, your own rate first. */
+  BigDecimal fetchUsdKhr() throws Exception {
+    String today = java.time.LocalDate.now(java.time.ZoneId.of("Asia/Phnom_Penh")).toString();
+    Response r =
+        request(
+            "GET",
+            "/rest/v1/exchange_rates?select=rate,as_of,user_id&base_currency=eq.USD"
+                + "&quote_currency=eq.KHR&as_of=lte."
+                + today
+                + "&order=as_of.desc&limit=8",
+            null,
+            true,
+            -1);
+    if (!r.ok()) throw new Exception("Could not download the exchange rate.");
+    return pickRate(new JSONArray(r.body));
+  }
+
+  static BigDecimal pickRate(JSONArray rows) throws Exception {
+    if (rows.length() == 0) return null;
+    String day = rows.getJSONObject(0).getString("as_of");
+    BigDecimal chosen = null;
+    for (int i = 0; i < rows.length(); i++) {
+      JSONObject row = rows.getJSONObject(i);
+      if (!day.equals(row.getString("as_of"))) break;
+      BigDecimal value = new BigDecimal(String.valueOf(row.get("rate")));
+      if (value.signum() <= 0) continue;
+      if (!row.isNull("user_id")) return value;
+      if (chosen == null) chosen = value;
+    }
+    return chosen;
+  }
+
+  JSONArray readAll(String table) throws Exception {    String scope = table.equals("profiles") ? "id" : "user_id";
     String path = "/rest/v1/" + table + "?select=*&" + scope + "=eq." + owner() + "&order=id.asc";
     JSONArray all = new JSONArray();
     int offset = 0, total = Integer.MAX_VALUE;

@@ -19,7 +19,7 @@ This is the first native core build for testing on the Samsung S25 Ultra. It use
 
 ## Scope and remaining checks
 
-This build does not yet provide native editing/deletion, category management, budget editing, splits, mixed-currency tenders, converted reports, import/export, exchange-rate management, or Telegram notification parity. These remain available in the existing web app. Native entries do not capture historical base-currency conversion fields; native totals are explicitly separated by currency. Dates use Cambodia time.
+Version 0.3.0 opens the real web app inside the APK (a WebView signed in with the phone's own session) for everything the native screens do not cover: editing, deleting and restoring transactions, reports, budgets, accounts, settings, exchange rate, Telegram, and import and export. Those screens need a connection. The native screens keep offline entry, the upload queue and cached reading. Native Activity and Home totals convert between USD and KHR the way the web does (the amount stored with the entry, otherwise the latest synced rate). Splits and mixed-currency tenders are available through the web screens only. Dates use Cambodia time.
 
 Automated checks use isolated local fixtures and simulated server responses. They do not establish successful production Google sign-in, production upload/RLS behavior under a real user session, or frame-rate/battery behavior on a Samsung phone. The redirect allowlist save was submitted with the owner's approval, but its persisted dashboard state must still be confirmed after the browser connection is restored.
 

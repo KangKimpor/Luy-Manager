@@ -104,3 +104,12 @@ fixes the "Connection unavailable" banner that kept entries from ever syncing.
 - Not verified: installation and sync on a phone. Signed with the preview key
   (certificate SHA-256 2c05dfa3...21d923); Android only accepts it as an update if the
   installed app used the same key. Do not uninstall or clear app data.
+
+## Android 0.3.0 web parity
+
+`android/Luy-Manager-Native-0.3.0.apk` (package `com.luymanager.nativeapp`, version code 6).
+
+- Native Activity, Home cash flow and the category breakdown now total across currencies like the web instead of one currency at a time. The USD to KHR rate is downloaded with each sync.
+- Tapping a transaction opens the web edit page. More lists Reports, Calendar and filters, Manage budgets, Manage accounts, Settings and the Full web app. These run in an in-app web view signed in with the phone's session. The session is written as the `sb-<project>-auth-token` cookie, and a session the web app refreshes is taken back so only one refresh token lineage exists. Background sync pauses while the web view is open.
+- Verified: 40 Android unit tests pass, lint reports 0 errors, release build and APK signature and alignment verified. SHA256: `b25bcbcb0e39d433f4fc24ae02e2534d6e44b4a653c163e42a588bb9a0cc99da`.
+- Not verified: the web sign-in handoff and downloads on a real phone. Signed with the preview key (certificate SHA-256 `2c05dfa3...21d923`), which differs from the 0.2.0 release key, so it installs as an update only over a build signed with the preview key.
