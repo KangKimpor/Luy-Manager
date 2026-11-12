@@ -76,6 +76,32 @@ public class LedgerStoreTest {
   }
 
   @Test
+  public void deltaMergeReplacesChangedRowsAndKeepsTombstones() throws Exception {
+    LedgerStore store = new LedgerStore(context, owner);
+    JSONObject first = transaction(UUID.randomUUID().toString());
+    JSONObject second = transaction(UUID.randomUUID().toString());
+    store.commitSnapshot(
+        new JSONObject().put("transactions", new JSONArray().put(first).put(second)),
+        new ArrayList<>());
+    store.setLastSyncedAt(123456789L);
+    JSONObject updated = new JSONObject(second.toString()).put("amount", -500L);
+    JSONObject removed = new JSONObject(first.toString()).put("deleted_at", "2026-11-12T00:00:00Z");
+    // A delta contains only rows that changed; untouched rows must survive.
+    store.mergeSnapshot(
+        new JSONObject().put("transactions", new JSONArray().put(updated).put(removed)),
+        new ArrayList<>());
+    JSONArray rows = store.rows("transactions");
+    assertEquals(1, rows.length());
+    assertEquals(-500L, rows.getJSONObject(0).getLong("amount"));
+    assertEquals(123456789L, store.lastSyncedAt());
+    store.close();
+    store = new LedgerStore(context, owner);
+    assertEquals(123456789L, store.lastSyncedAt());
+    assertEquals(1, store.rows("transactions").length());
+    store.close();
+  }
+
+  @Test
   public void failedRefreshDoesNotRemoveUnacknowledgedOperations() throws Exception {
     LedgerStore store = new LedgerStore(context, owner);
     store.enqueue("transactions", new JSONArray().put(transaction(UUID.randomUUID().toString())));

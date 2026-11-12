@@ -26,15 +26,26 @@ public final class LuyApplication extends Application {
   volatile Runnable synced;
   /** True while the web view holds the session, so the phone does not refresh it underneath. */
   volatile boolean webOpen;
+  /** Incremented after every pull commits, so a screen can tell whether its copy is current. */
+  volatile int dataVersion;
+  /** When the last successful sync finished, for `syncIfStale`. */
+  private volatile long lastSyncAt;
+  /** Parsed form of the stored rate, so row rendering does not re-read preferences. */
+  private volatile java.math.BigDecimal cachedRate;
 
   /** The USD to KHR rate from the last sync, or the web app's built-in 4100 before the first. */
   java.math.BigDecimal usdKhr() {
+    java.math.BigDecimal rate = cachedRate;
+    if (rate != null) return rate;
     try {
-      return new java.math.BigDecimal(
-          getSharedPreferences("rates", 0).getString("usd_khr", "4100"));
+      rate =
+          new java.math.BigDecimal(
+              getSharedPreferences("rates", 0).getString("usd_khr", "4100"));
     } catch (RuntimeException e) {
-      return new java.math.BigDecimal(4100);
+      rate = new java.math.BigDecimal(4100);
     }
+    cachedRate = rate;
+    return rate;
   }
 
   @Override
@@ -82,7 +93,8 @@ public final class LuyApplication extends Application {
     if (webOpen) {
       if (finished != null) finished.run();
       return;
-    }    if (!syncing.compareAndSet(false, true)) {
+    }
+    if (!syncing.compareAndSet(false, true)) {
       if (finished != null) finished.run();
       return;
     }
@@ -92,16 +104,21 @@ public final class LuyApplication extends Application {
             if (store == null || cloud == null || !cloud.signedIn()) return;
             status = "Syncing";
             cloud.sync(store);
+            dataVersion++;
             try {
               java.math.BigDecimal rate = cloud.fetchUsdKhr();
-              if (rate != null)
+              if (rate != null) {
                 getSharedPreferences("rates", 0)
                     .edit()
                     .putString("usd_khr", rate.toPlainString())
                     .apply();
+                cachedRate = rate;
+              }
             } catch (Exception ignored) {
               // The last known rate keeps working; the ledger itself synced.
-            }            status = "Up to date";
+            }
+            status = "Up to date";
+            lastSyncAt = System.currentTimeMillis();
             blocked = false;
             reauth = false;
           } catch (CloudClient.AuthException e) {
@@ -120,5 +137,21 @@ public final class LuyApplication extends Application {
             if (finished != null) finished.run();
           }
         });
+  }
+
+  /**
+   * Sync only when the cached ledger is older than `maxAgeMs`, or when an entry waits.
+   *
+   * Opening the app used to pull and then rebuild every view even when nothing had
+   * changed. A short freshness window makes that resume free while a queued entry or a
+   * stale cache still syncs immediately. Returns true when a sync was actually started,
+   * so the caller knows whether a reload is coming.
+   */
+  boolean syncIfStale(long maxAgeMs, Runnable finished) {
+    if (store == null || cloud == null || !cloud.signedIn() || blocked) return false;
+    if (store.pendingCount() == 0
+        && System.currentTimeMillis() - lastSyncAt < maxAgeMs) return false;
+    sync(finished);
+    return true;
   }
 }

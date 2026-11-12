@@ -2,7 +2,6 @@ import { render, screen } from "@testing-library/react";
 import { expect, test, vi } from "vitest";
 import { TransactionRow } from "./transaction-row";
 import { DEMO_TRANSACTIONS } from "@/lib/demo-data";
-vi.mock("@/components/transaction-row-actions", () => ({ TransactionRowActions: ({ deleted }: { deleted: boolean }) => <button>{deleted ? "Restore" : "Delete"}</button> }));
 vi.mock("@/components/app-link", () => ({ AppLink: ({ children, ...props }: React.ComponentProps<"a">) => <a {...props}>{children}</a> }));
 
 test("activity links the whole row to edit and keeps exact native riel", () => {
@@ -20,6 +19,6 @@ test("a deleted transfer is neutral, has no edit link, and offers restoration", 
   render(<ul><TransactionRow transaction={transaction} transactions={[transaction]} categories={{}} accounts={{}} activity deleted /></ul>);
   expect(screen.getByText("Transfer")).toBeInTheDocument();
   expect(screen.queryByRole("link")).toBeNull();
-  expect(screen.getByText("Restore")).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Restore this transaction" })).toBeInTheDocument();
   expect(document.querySelector("data")).not.toHaveClass("text-outflow");
 });

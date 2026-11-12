@@ -1,7 +1,7 @@
 import { expect, test } from "vitest";
 import { DEMO_RATE, DEMO_TRANSACTIONS } from "@/lib/demo-data";
 import { monthFromParam } from "@/lib/period";
-import { activityCalendar, activityDays, filterActivity, weekdayLabels, weekStart } from "./activity";
+import { activityCalendar, activityDays, filterActivity, limitActivityDays, weekdayLabels, weekStart } from "./activity";
 
 const row = DEMO_TRANSACTIONS[0];
 test("Cambodia midnight groups, orders, converts, and excludes both transfer legs", () => {
@@ -42,4 +42,21 @@ test("filters apply equally to daily groups and calendar cells, including report
   const filtered = filterActivity(rows, { q: "no match" });
   expect(activityDays(filtered, "USD", DEMO_RATE)).toEqual([]);
   expect(activityCalendar(monthFromParam("2026-07"), [], "USD").every(day => day.count === 0)).toBe(true);
+});
+test("a row budget cuts at whole days and always keeps the newest one", () => {
+  const rows = [
+    { ...row, id: "new-a", occurredAt: "2026-10-10T02:00:00Z" },
+    { ...row, id: "new-b", occurredAt: "2026-10-10T03:00:00Z" },
+    { ...row, id: "mid-a", occurredAt: "2026-10-09T02:00:00Z" },
+    { ...row, id: "mid-b", occurredAt: "2026-10-09T03:00:00Z" },
+    { ...row, id: "old", occurredAt: "2026-10-08T02:00:00Z" },
+  ];
+  const days = activityDays(rows, "USD", DEMO_RATE);
+  expect(limitActivityDays(days, 2)).toMatchObject({ rows: 2, total: 5 });
+  expect(limitActivityDays(days, 2).days.map(day => day.date)).toEqual(["2026-10-10"]);
+  expect(limitActivityDays(days, 4).days.map(day => day.date)).toEqual(["2026-10-10", "2026-10-09"]);
+  expect(limitActivityDays(days, 10).days).toHaveLength(3);
+  expect(limitActivityDays(days, Infinity).rows).toBe(5);
+  // A day larger than the budget still renders: an empty screen would be worse.
+  expect(limitActivityDays(days, 1).days[0].transactions).toHaveLength(2);
 });

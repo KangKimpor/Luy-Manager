@@ -1,10 +1,9 @@
 import { categoryLabel } from "@/lib/domain/categories";
-import { ArrowDownLeft, ArrowRightLeft, ArrowUpRight, Ellipsis, Send } from "@/components/app-icon";
+import { ArrowDownLeft, ArrowRightLeft, ArrowUpRight, Ellipsis, Pencil, Send, Trash2, Undo2 } from "@/components/app-icon";
 import { AppLink as Link } from "@/components/app-link";
 import { CategoryIcon } from "@/components/category-icon";
 
 import { CurrencyBadge, MoneyAmount } from "@/components/money-amount";
-import { TransactionRowActions } from "@/components/transaction-row-actions";
 import type { AccountBalance, Category, Transaction } from "@/lib/domain/types";
 import { money } from "@/lib/money";
 import { cn } from "@/lib/utils";
@@ -58,6 +57,14 @@ function transferRoute(
   if (transaction.type !== "transfer" || transaction.transferGroupId === null) return null;
 
   const group = transferGroupsFor(transactions).get(transaction.transferGroupId);
+  return routeFor(transaction, group, accounts);
+}
+
+function routeFor(
+  transaction: Transaction,
+  group: readonly Transaction[] | undefined,
+  accounts: Record<string, AccountBalance>,
+): string {
   const counterpart = group?.find((other) => other.id !== transaction.id);
 
   const own = accounts[transaction.accountId]?.name ?? "Account";
@@ -66,6 +73,83 @@ function transferRoute(
   const other = accounts[counterpart.accountId]?.name ?? "Account";
   // "to", not "→": U+2192 is outside every font subset the app ships and tofus.
   return transaction.amount < 0 ? `${own} to ${other}` : `${other} to ${own}`;
+}
+
+/**
+ * Labels for every transfer in a list, computed once.
+ *
+ * A page that shows only the newest days would otherwise hand the renderer the
+ * full month just so each leg can find its counterpart. Resolving the labels
+ * here lets the page ship only the rows it renders.
+ */
+export function transferRoutesFor(
+  transactions: readonly Transaction[],
+  accounts: Record<string, AccountBalance>,
+): Record<string, string> {
+  const groups = transferGroupsFor(transactions);
+  const routes: Record<string, string> = {};
+  for (const transaction of transactions) {
+    if (transaction.type !== "transfer" || transaction.transferGroupId === null) continue;
+    routes[transaction.id] = routeFor(
+      transaction,
+      groups.get(transaction.transferGroupId),
+      accounts,
+    );
+  }
+  return routes;
+}
+
+/**
+ * Mutation buttons without a client component of their own.
+ *
+ * The click is handled once by TransactionActions, which wraps the list.
+ */
+function RowActions({
+  transactionId,
+  isTransfer,
+  deleted,
+}: {
+  transactionId: string;
+  isTransfer: boolean;
+  deleted: boolean;
+}) {
+  return (
+    <div className="row-actions flex shrink-0 items-center gap-0.5">
+      {deleted ? (
+        <button
+          type="button"
+          data-transaction-action="restore"
+          data-transaction-id={transactionId}
+          aria-label="Restore this transaction"
+          className="flex size-11 items-center justify-center text-ink-faint hover:text-inflow"
+        >
+          <Undo2 size={14} aria-hidden="true" />
+        </button>
+      ) : (
+        <>
+          {isTransfer ? null : (
+            <Link
+              href={`/transactions/${transactionId}/edit`}
+              aria-label="Edit this transaction"
+              className="flex size-11 items-center justify-center text-ink-faint hover:text-ink"
+            >
+              <Pencil size={14} aria-hidden="true" />
+            </Link>
+          )}
+          <button
+            type="button"
+            data-transaction-action="delete"
+            data-transaction-id={transactionId}
+            data-transaction-transfer={isTransfer ? "true" : "false"}
+            aria-label="Delete this transaction"
+            className="flex size-11 items-center justify-center text-ink-faint hover:text-outflow"
+          >
+            <Trash2 size={14} aria-hidden="true" />
+          </button>
+        </>
+      )}
+    </div>
+  );
 }
 
 export function TransactionRow({
@@ -78,6 +162,7 @@ export function TransactionRow({
   showDate = true,
   activity = false,
   merchant,
+  transferLabel,
 }: {
   transaction: Transaction;
   /** The rows on screen, used to find a transfer's counterpart leg. */
@@ -90,11 +175,15 @@ export function TransactionRow({
   showDate?: boolean;
   activity?: boolean;
   merchant?: string;
+  /** Precomputed route, for pages that render only part of the month. */
+  transferLabel?: string | null;
 }) {
   const category = transaction.categoryId ? categories[transaction.categoryId] : undefined;
   const account = accounts[transaction.accountId];
   const amount = money(transaction.amount, transaction.currency);
-  const route = transferRoute(transaction, transactions, accounts);
+  const route = transferLabel !== undefined
+    ? transferLabel
+    : transferRoute(transaction, transactions, accounts);
   const isTransfer = transaction.type === "transfer";
 
   if (activity) {
@@ -115,7 +204,7 @@ export function TransactionRow({
       {editable ? <details className="relative shrink-0">
         <summary aria-label="Transaction actions" className="flex size-11 list-none items-center justify-center rounded-xl text-ink-faint"><Ellipsis size={18} aria-hidden="true" /></summary>
         <div className="absolute right-0 z-10 rounded-xl border border-surface-variant bg-surface p-1 shadow-card">
-          <TransactionRowActions transactionId={transaction.id} isTransfer={isTransfer} deleted={deleted} />
+          <RowActions transactionId={transaction.id} isTransfer={isTransfer} deleted={deleted} />
         </div>
       </details> : null}
     </li>;
@@ -169,11 +258,7 @@ export function TransactionRow({
 
       {editable ? (
         <div className="col-span-2 col-start-2 flex justify-end sm:col-span-1 sm:col-start-auto">
-        <TransactionRowActions
-          transactionId={transaction.id}
-          isTransfer={isTransfer}
-          deleted={deleted}
-        />
+          <RowActions transactionId={transaction.id} isTransfer={isTransfer} deleted={deleted} />
         </div>
       ) : null}
     </li>

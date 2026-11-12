@@ -6,7 +6,10 @@ import { DEMO_TRANSACTIONS } from "@/lib/demo-data";
 import { DEMO_RATE } from "@/lib/demo-data";
 import { activityDays } from "@/lib/domain/activity";
 
-vi.mock("@/components/transaction-row", () => ({ TransactionRow: ({ transaction }: { transaction: { id: string } }) => <li>{transaction.id}</li> }));
+vi.mock("@/components/transaction-row", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/components/transaction-row")>()),
+  TransactionRow: ({ transaction }: { transaction: { id: string } }) => <li>{transaction.id}</li>,
+}));
 
 it("groups by Cambodia calendar dates across the UTC midnight boundary", () => {
   const transactions = [

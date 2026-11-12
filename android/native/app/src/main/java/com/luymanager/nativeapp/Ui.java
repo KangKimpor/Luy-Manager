@@ -1,8 +1,5 @@
 package com.luymanager.nativeapp;
 
-import android.animation.ObjectAnimator;
-import android.animation.PropertyValuesHolder;
-import android.animation.StateListAnimator;
 import android.content.Context;
 import android.content.res.ColorStateList;
 import android.graphics.Canvas;
@@ -62,8 +59,14 @@ final class Ui {
     return bg;
   }
 
+  private static final android.util.SparseArray<Typeface> FONTS = new android.util.SparseArray<>();
+
   static Typeface font(int weight) {
-    return Typeface.create(Typeface.SANS_SERIF, weight, false);
+    Typeface cached = FONTS.get(weight);
+    if (cached != null) return cached;
+    Typeface created = Typeface.create(Typeface.SANS_SERIF, weight, false);
+    FONTS.put(weight, created);
+    return created;
   }
 
   TextView text(String value, float sp, int color, int weight) {
@@ -114,12 +117,16 @@ final class Ui {
     return v;
   }
 
+  private final HashMap<String, Integer> iconIds = new HashMap<>();
+
   int iconRes(String name) {
-    int id =
-        context
-            .getResources()
-            .getIdentifier("ic_" + name.replace('-', '_'), "drawable", context.getPackageName());
-    return id == 0 ? R.drawable.ic_widget : id;
+    String key = name.replace('-', '_');
+    Integer cached = iconIds.get(key);
+    if (cached != null) return cached;
+    int id = context.getResources().getIdentifier("ic_" + key, "drawable", context.getPackageName());
+    if (id == 0) id = R.drawable.ic_widget;
+    iconIds.put(key, id);
+    return id;
   }
 
   /** A square tile holding an icon, the `flex size-10 rounded-2xl bg-*-soft` pattern. */
@@ -188,26 +195,26 @@ final class Ui {
     return gap;
   }
 
-  /** The `active:scale-*` press feedback the web gives every tappable surface. */
+  /**
+   * The `active:scale-*` press feedback the web gives every tappable surface.
+   *
+   * Uses `ViewPropertyAnimator` on touch rather than attaching a `StateListAnimator`
+   * and two `ObjectAnimator`s to every row at draw time, so building a screen of
+   * fifty rows does not allocate a hundred animators upfront.
+   */
   <T extends View> T press(T view, float scale, Runnable action) {
     view.setClickable(true);
     view.setFocusable(true);
-    StateListAnimator animator = new StateListAnimator();
-    animator.addState(
-        new int[] {android.R.attr.state_pressed},
-        ObjectAnimator.ofPropertyValuesHolder(
-                view,
-                PropertyValuesHolder.ofFloat("scaleX", scale),
-                PropertyValuesHolder.ofFloat("scaleY", scale))
-            .setDuration(110));
-    animator.addState(
-        new int[0],
-        ObjectAnimator.ofPropertyValuesHolder(
-                view,
-                PropertyValuesHolder.ofFloat("scaleX", 1f),
-                PropertyValuesHolder.ofFloat("scaleY", 1f))
-            .setDuration(160));
-    view.setStateListAnimator(animator);
+    view.setOnTouchListener(
+        (v, event) -> {
+          int act = event.getActionMasked();
+          if (act == android.view.MotionEvent.ACTION_DOWN)
+            v.animate().scaleX(scale).scaleY(scale).setDuration(110).start();
+          else if (act == android.view.MotionEvent.ACTION_UP
+              || act == android.view.MotionEvent.ACTION_CANCEL)
+            v.animate().scaleX(1f).scaleY(1f).setDuration(160).start();
+          return false;
+        });
     view.setOnClickListener(v -> action.run());
     return view;
   }

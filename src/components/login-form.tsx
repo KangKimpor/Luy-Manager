@@ -5,7 +5,19 @@ import { useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardBody } from "@/components/ui/card";
-import { createClient } from "@/lib/supabase/client";
+
+/**
+ * Load the browser Supabase client only when someone actually signs in.
+ *
+ * A static import put the whole auth library in the first load of /login: 248 KB
+ * uncompressed, on the screen a new user meets first and often on a phone. Both
+ * entry points below are already async, so the import costs a moment of the
+ * click it belongs to and nothing before it.
+ */
+async function authClient() {
+  const { createClient } = await import("@/lib/supabase/client");
+  return createClient();
+}
 
 /**
  * Google OAuth and magic-link sign-in.
@@ -46,7 +58,7 @@ export function LoginForm({
     setPending("google");
 
     try {
-      const supabase = createClient();
+      const supabase = await authClient();
       const { error: oauthError } = await supabase.auth.signInWithOAuth({
         provider: "google",
         options: { redirectTo: callbackUrl() },
@@ -70,7 +82,7 @@ export function LoginForm({
     setPending("email");
 
     try {
-      const supabase = createClient();
+      const supabase = await authClient();
       const { error: otpError } = await supabase.auth.signInWithOtp({
         email: email.trim(),
         options: { emailRedirectTo: callbackUrl() },

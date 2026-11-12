@@ -8,6 +8,20 @@ import java.util.Locale;
 final class Money {
   static final long MAX_MINOR = 9007199254740991L;
 
+  /**
+   * Formatting runs for every row, heading and total on a screen. Building a new
+   * NumberFormat each time was measurable on long lists, so the formatter is
+   * reused per thread and its digit settings reset by each caller.
+   */
+  private static final ThreadLocal<NumberFormat> NUMBERS =
+      ThreadLocal.withInitial(() -> NumberFormat.getNumberInstance(Locale.US));
+
+  private static NumberFormat numbers() {
+    NumberFormat format = NUMBERS.get();
+    format.setGroupingUsed(true);
+    return format;
+  }
+
   static String currency(String value) {
     if (!value.equals("USD") && !value.equals("KHR"))
       throw new IllegalArgumentException("Unknown currency");
@@ -50,7 +64,7 @@ final class Money {
 
   static String format(long minor, String currency) {
     currency(currency);
-    NumberFormat f = NumberFormat.getNumberInstance(Locale.US);
+    NumberFormat f = numbers();
     f.setMinimumFractionDigits(2);
     f.setMaximumFractionDigits(2);
     String n = f.format(BigDecimal.valueOf(Math.abs(checked(minor)), 2));
@@ -61,7 +75,7 @@ final class Money {
   static String display(long minor, String currency) {
     currency(currency);
     long magnitude = Math.abs(checked(minor));
-    NumberFormat f = NumberFormat.getNumberInstance(Locale.US);
+    NumberFormat f = numbers();
     boolean whole = currency.equals("KHR") && magnitude % 100 == 0;
     f.setMinimumFractionDigits(whole ? 0 : 2);
     f.setMaximumFractionDigits(whole ? 0 : 2);

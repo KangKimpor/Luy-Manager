@@ -21,6 +21,11 @@ class CloudClient {
   JSONObject session;
   private String verifiedPrecisionOwner;
   private boolean refreshing;
+  /**
+   * Newest server clock seen during one sync. SQLite stores this as the delta
+   * watermark, so the phone does not trust its own clock for `updated_at >`.
+   */
+  private long syncServerTime;
 
   /** The server refused our credentials. This is different from the network being unreachable. */
   static final class AuthException extends Exception {
@@ -48,6 +53,8 @@ class CloudClient {
   static final class Response {
     int status;
     String body, range;
+    /** Server Date header in milliseconds, or 0 when a test supplied no clock. */
+    long serverTime;
 
     boolean ok() {
       return status >= 200 && status < 300;
@@ -77,7 +84,13 @@ class CloudClient {
     c.setRequestProperty("apikey", BuildConfig.SUPABASE_KEY);
     c.setRequestProperty("Content-Type", "application/json");
     if (auth) c.setRequestProperty("Authorization", "Bearer " + session.getString("access_token"));
-    c.setRequestProperty("Prefer", method.equals("GET") ? "count=exact" : "return=representation");
+    if (path.startsWith("/rest/v1/")) {
+      // Page through reads with an exact count, but do not ask PostgREST to serialize a
+      // written row back: the caller never reads it, and every queued write paid for it.
+      if (offset >= 0) c.setRequestProperty("Prefer", "count=exact");
+      else if (!method.equals("GET") && !path.startsWith("/rest/v1/rpc/"))
+        c.setRequestProperty("Prefer", "return=minimal");
+    }
     if (offset >= 0) c.setRequestProperty("Range", offset + "-" + (offset + 999));
     if (body != null) {
       c.setDoOutput(true);
@@ -96,9 +109,13 @@ class CloudClient {
         if (!message.contains("authentication challenge")) throw e;
         result.status = 401;
         result.body = "";
+        // Nothing was read from the error stream, so this connection cannot be pooled.
+        c.disconnect();
         return result;
       }
       result.range = c.getHeaderField("Content-Range");
+      result.serverTime = c.getHeaderFieldDate("Date", 0L);
+      if (result.serverTime > syncServerTime) syncServerTime = result.serverTime;
       InputStream stream = result.ok() ? c.getInputStream() : c.getErrorStream();
       java.io.ByteArrayOutputStream bytes = new java.io.ByteArrayOutputStream();
       if (stream != null) {
@@ -110,8 +127,11 @@ class CloudClient {
       }
       result.body = bytes.toString(StandardCharsets.UTF_8.name());
       return result;
-    } finally {
+    } catch (Exception e) {
+      // Only a failed exchange should close the connection. A fully read response goes back
+      // to the pool, so consecutive calls to the same host reuse the TLS connection.
       c.disconnect();
+      throw e;
     }
   }
 
@@ -293,6 +313,51 @@ class CloudClient {
     return all;
   }
 
+  /**
+   * Rows changed since the last sync, oldest first.
+   *
+   * A delta is paged by size rather than by a checked total because rows can be
+   * edited while it downloads; a moving total is normal here, not corruption.
+   * The next sync re-reads from an earlier watermark, so an overlap is harmless
+   * and duplicates are collapsed by id.
+   */
+  JSONArray readSince(String table, long since) throws Exception {
+    String scope = table.equals("profiles") ? "id" : "user_id";
+    String path =
+        "/rest/v1/"
+            + table
+            + "?select=*&"
+            + scope
+            + "=eq."
+            + owner()
+            + "&updated_at=gt."
+            + java.time.Instant.ofEpochMilli(since)
+            + "&order=updated_at.asc,id.asc";
+    JSONArray all = new JSONArray();
+    java.util.LinkedHashMap<String, JSONObject> seen = new java.util.LinkedHashMap<>();
+    int offset = 0;
+    while (true) {
+      Response r = request("GET", path, null, true, offset);
+      if (!r.ok())
+        throw new Exception("Could not download " + table + ". Cached data is unchanged.");
+      JSONArray page = new JSONArray(r.body);
+      for (int i = 0; i < page.length(); i++) {
+        JSONObject row = page.getJSONObject(i);
+        if (!row.getString(scope).equals(owner()))
+          throw new Exception("Server returned a row from another account");
+        seen.put(row.getString("id"), row);
+      }
+      offset += page.length();
+      int total = -1;
+      if (r.range != null && r.range.matches(".*/[0-9]+"))
+        total = Integer.parseInt(r.range.substring(r.range.indexOf('/') + 1));
+      if (page.length() == 0) break;
+      if (total >= 0 ? offset >= total : page.length() < 1000) break;
+    }
+    for (JSONObject row : seen.values()) all.put(row);
+    return all;
+  }
+
   void validatePrecision() throws Exception {
     String currentOwner = owner();
     if (currentOwner.equals(verifiedPrecisionOwner)) return;
@@ -303,7 +368,17 @@ class CloudClient {
     verifiedPrecisionOwner = currentOwner;
   }
 
+  /** Rows already verified during one sync pass, shared by every queued write in it. */
+  static final class Validation {
+    final HashMap<String, JSONObject> accounts = new HashMap<>();
+    final HashMap<String, JSONObject> categories = new HashMap<>();
+  }
+
   void send(JSONObject operation) throws Exception {
+    send(operation, new Validation());
+  }
+
+  void send(JSONObject operation, Validation cache) throws Exception {
     String table = operation.getString("table");
     JSONArray rows = operation.getJSONArray("rows");
     if (!table.equals("transactions") && !table.equals("accounts") && !table.equals("budgets"))
@@ -313,8 +388,8 @@ class CloudClient {
         throw new Exception("Queued entry belongs to another account");
     if (rows.length() == 0) throw new Exception("Queued write is empty");
     if (table.equals("transactions")) {
-      HashMap<String, JSONObject> checkedAccounts = new HashMap<>();
-      HashMap<String, JSONObject> checkedCategories = new HashMap<>();
+      HashMap<String, JSONObject> checkedAccounts = cache.accounts;
+      HashMap<String, JSONObject> checkedCategories = cache.categories;
       try {
         for (int i = 0; i < rows.length(); i++) {
           JSONObject row = rows.getJSONObject(i);
@@ -393,12 +468,14 @@ class CloudClient {
   }
 
   void sync(LedgerStore store) throws Exception {
+    syncServerTime = 0;
     refresh();
     validatePrecision();
     ArrayList<String> acknowledged = new ArrayList<>();
+    Validation validation = new Validation();
     for (JSONObject queued : store.pending()) {
       try {
-        send(queued.getJSONObject("operation"));
+        send(queued.getJSONObject("operation"), validation);
         acknowledged.add(queued.getString("id"));
       } catch (Exception e) {
         if (!(e instanceof java.io.IOException) && !(e instanceof AuthException))
@@ -406,10 +483,21 @@ class CloudClient {
         throw e;
       }
     }
+
+    long since = store.lastSyncedAt();
+    boolean full = since <= 0;
     JSONObject data = new JSONObject();
     for (String table :
         new String[] {"accounts", "categories", "transactions", "budgets", "profiles"})
-      data.put(table, readAll(table));
-    store.commitSnapshot(data, acknowledged);
+      data.put(table, full ? readAll(table) : readSince(table, since));
+
+    if (full) store.commitSnapshot(data, acknowledged);
+    else store.mergeSnapshot(data, acknowledged);
+
+    // One minute of overlap keeps a transaction that committed with an earlier
+    // now() than the response Date from falling between two syncs.
+    long watermark =
+        (syncServerTime > 0 ? syncServerTime : System.currentTimeMillis()) - 60_000L;
+    store.setLastSyncedAt(Math.max(0L, watermark));
   }
 }

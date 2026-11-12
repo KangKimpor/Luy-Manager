@@ -4,7 +4,7 @@ import { DEMO_ACCOUNTS, DEMO_CATEGORIES, DEMO_RATE, DEMO_TRANSACTIONS } from "@/
 const mocks = vi.hoisted(() => ({ transactions: vi.fn(), deleted: vi.fn() }));
 vi.mock("@/components/app-link", () => ({ AppLink: ({ children, ...props }: React.ComponentProps<"a">) => <a {...props}>{children}</a> }));
 vi.mock("@/components/currency-toggle", () => ({ CurrencyToggle: () => <span>USD / KHR</span> }));
-vi.mock("@/components/transaction-row-actions", () => ({ TransactionRowActions: () => <button>Restore entry</button> }));
+vi.mock("@/components/transaction-actions", () => ({ TransactionActions: ({ children }: { children: React.ReactNode }) => <>{children}</> }));
 vi.mock("@/components/transaction-filters", () => ({ TransactionFilters: () => <span>Filters</span> }));
 vi.mock("@/lib/auth", () => ({ isDemoMode: () => false }));
 vi.mock("@/lib/display-currency", () => ({ readDisplayCurrency: async () => "USD" }));
@@ -40,7 +40,7 @@ test("deleted rows are fetched only when requested and can be restored", async (
   mocks.transactions.mockResolvedValue([]); mocks.deleted.mockResolvedValue(rows.slice(0, 1));
   render(await TransactionsPage({ searchParams: Promise.resolve({ month: "2026-10", deleted: "1" }) }));
   expect(mocks.deleted).toHaveBeenCalledWith(50, expect.objectContaining({ from: expect.any(Date), to: expect.any(Date) }));
-  expect(screen.getByRole("button", { name: "Restore entry" })).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Restore this transaction" })).toBeInTheDocument();
 });
 
 test("an account filter names the account and links back to all accounts", async () => {

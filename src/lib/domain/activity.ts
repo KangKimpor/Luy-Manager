@@ -49,6 +49,33 @@ export function activityDays(transactions: readonly Transaction[], base: Currenc
 }
 export type ActivityDay = ReturnType<typeof activityDays>[number];
 
+/**
+ * The newest whole days that fit within a row budget.
+ *
+ * The activity page used to hand every transaction in the month to the DOM. A
+ * heavy month then shipped and mounted hundreds of rows and their client action
+ * menus before the first one could be tapped. Cutting at a day boundary, rather
+ * than mid-day, keeps each visible day's income and expense figures complete.
+ *
+ * The first day is always kept, so a single unusually busy day never renders an
+ * empty screen.
+ */
+export function limitActivityDays(
+  days: readonly ActivityDay[],
+  maxRows: number,
+): { days: ActivityDay[]; rows: number; total: number } {
+  const total = days.reduce((count, day) => count + day.transactions.length, 0);
+  const limit = Number.isFinite(maxRows) ? Math.max(1, Math.trunc(maxRows)) : Infinity;
+  const kept: ActivityDay[] = [];
+  let rows = 0;
+  for (const day of days) {
+    if (kept.length > 0 && rows + day.transactions.length > limit) break;
+    kept.push(day);
+    rows += day.transactions.length;
+  }
+  return { days: kept, rows, total };
+}
+
 export function weekStart(value?: number): number {
   return value !== undefined && Number.isInteger(value) && value >= 0 && value <= 6 ? value : 1;
 }

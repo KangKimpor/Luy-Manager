@@ -6,6 +6,7 @@ import { MoneyAmount } from "@/components/money-amount";
 import { MonthStepper } from "@/components/month-stepper";
 import { TransactionFilters } from "@/components/transaction-filters";
 import { TransactionHistory } from "@/components/transaction-history";
+import { transferRoutesFor } from "@/components/transaction-row";
 import { Card, CardBody } from "@/components/ui/card";
 import { activityHref, type ActivityParams } from "@/lib/activity-url";
 import { isDemoMode } from "@/lib/auth";
@@ -14,7 +15,7 @@ import { getSettings, listCategories, merchantLookup } from "@/lib/data/referenc
 import { listDeletedTransactions, listTransactionsInRange } from "@/lib/data/transactions";
 import { readDisplayCurrency } from "@/lib/display-currency";
 import { balanceOf } from "@/lib/domain/accounts";
-import { activityDays, filterActivity, weekStart } from "@/lib/domain/activity";
+import { activityDays, filterActivity, limitActivityDays, weekStart } from "@/lib/domain/activity";
 import { summarizeCashFlow } from "@/lib/domain/transactions";
 import { TRANSACTION_TYPES, type Merchant } from "@/lib/domain/types";
 import { monthFromParam, monthParam, shiftMonth } from "@/lib/period";
@@ -34,6 +35,7 @@ export default async function TransactionsPage({ searchParams }: {
     month, view, day: day && /^\d{4}-\d{2}-\d{2}$/.test(day) && day.startsWith(`${month}-`) ? day : undefined,
     account: single("account"), category: single("category"), q: single("q"),
     type: TRANSACTION_TYPES.find(type => type === single("type")), deleted: single("deleted") === "1" ? "1" : undefined,
+    rows: single("rows"),
   };
   const transactionsPromise = listTransactionsInRange(period.from, period.to);
   const deletedPromise = params.deleted ? listDeletedTransactions(50, { from: period.from, to: period.to }) : Promise.resolve([]);
@@ -54,10 +56,27 @@ export default async function TransactionsPage({ searchParams }: {
   const days = activityDays(filtered, currency, rate);
   const flow = summarizeCashFlow(filtered, currency, rate);
   const selectedDays = view === "calendar" ? days.filter(group => group.date === params.day) : days;
+  // Render a bounded page of whole days. The month totals above still cover every
+  // filtered entry, so "Showing the newest N" never changes the figures.
+  const requestedRows = params.rows === "all" ? Infinity : Number(params.rows ?? 100);
+  const rowBudget = requestedRows === Infinity
+    ? Infinity
+    : Number.isFinite(requestedRows) && requestedRows > 0
+      ? Math.max(50, Math.trunc(requestedRows))
+      : 100;
+  const visible = limitActivityDays(selectedDays, rowBudget);
+  const visibleRows = visible.days.flatMap(day => day.transactions);
+  const visibleIds = new Set(visibleRows.map(transaction => transaction.id));
+  // Resolve transfer labels against the whole month, then ship only the labels
+  // for rows actually rendered. A leg whose counterpart is on the next page still
+  // reads "ABA USD to Wing" instead of losing its route.
+  const transferLabels = Object.fromEntries(
+    Object.entries(transferRoutesFor(transactions, lookup)).filter(([id]) => visibleIds.has(id)),
+  );
   const hasFilters = Boolean(params.account || params.category || params.type || params.q);
   const converted = filtered.some(transaction => transaction.type !== "transfer" && transaction.currency !== currency);
   const editable = !isDemoMode();
-  const historyProps = { transactions, accounts: lookup, categories: categoryMap, merchants, editable };
+  const historyProps = { accounts: lookup, categories: categoryMap, merchants, editable };
 
   return <div className="page-enter mx-auto max-w-4xl space-y-5">
     <div className="flex items-center justify-between gap-2">
@@ -87,7 +106,15 @@ export default async function TransactionsPage({ searchParams }: {
       {(["income", "expense", "net"] as const).map(key => <div key={key} className="min-w-0"><dt className="text-[10px] font-medium text-ink-muted">{key === "net" ? "Total" : key === "income" ? "Income" : "Expense"}</dt><dd className={cn("mt-1 truncate text-sm font-semibold", key === "income" ? "text-inflow" : key === "expense" ? "text-outflow" : "text-ink")}><MoneyAmount amount={flow[key]} /></dd></div>)}
     </dl>{converted ? <p className="mt-3 text-center text-[10px] text-ink-faint">Converted to {currency}. Transfers excluded.</p> : null}</CardBody></Card>
     {view === "calendar" ? <ActivityCalendar period={period} days={days} currency={currency} startsOn={weekStart(settings?.weekStartsOn)} params={params} /> : null}
-    {selectedDays.length ? <TransactionHistory {...historyProps} days={selectedDays} /> : <Card><CardBody className="py-8 text-center">
+    {selectedDays.length ? <>
+      <TransactionHistory {...historyProps} days={visible.days} transactions={visibleRows} transferLabels={transferLabels} />
+      {visible.rows < visible.total ? <p className="text-center text-xs text-ink-faint">
+        Showing the newest {visible.rows} of {visible.total}.{" "}
+        <Link href={activityHref(params, { rows: visible.rows + 100 >= visible.total ? "all" : String(visible.rows + 100) })} className="inline-flex min-h-11 items-center font-semibold text-brand">
+          Show more
+        </Link>
+      </p> : null}
+    </> : <Card><CardBody className="py-8 text-center">
       <Search size={22} aria-hidden="true" className="mx-auto mb-3 text-brand" />
       <p className="font-semibold text-ink">{view === "calendar" && !params.day ? "Choose a day" : "Nothing here yet"}</p>
       <p className="mt-2 text-sm text-ink-muted">{view === "calendar" && !params.day ? "Tap a date to see its transactions." : `No matching transactions for ${params.day ?? period.label}.`}</p>

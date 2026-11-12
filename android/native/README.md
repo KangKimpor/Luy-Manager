@@ -41,7 +41,10 @@ publishableKey=sb_publishable_REPLACE_WITH_PUBLIC_KEY
 
 Only a public publishable key belongs in an APK. Never use a secret or service-role key. Release builds reject a missing or invalid publishable key.
 
+Gradle 8.11.1 runs on JDK 17 through 23. Newer Android Studio builds ship a JBR 25, which Gradle rejects with "Unsupported class file major version 69". Point `JAVA_HOME` at a JDK 21 before building if the terminal picks that runtime:
+
 ```powershell
+$env:JAVA_HOME = '<path to a JDK 21>'
 ./gradlew.bat --no-daemon testDebugUnitTest assembleRelease lint
 ```
 

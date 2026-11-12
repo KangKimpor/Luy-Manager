@@ -1,11 +1,15 @@
-export interface ActivityParams { view?: string; month?: string; day?: string; account?: string; category?: string; type?: string; q?: string; deleted?: string }
+export interface ActivityParams { view?: string; month?: string; day?: string; account?: string; category?: string; type?: string; q?: string; deleted?: string; rows?: string }
 
 /** Keep navigation and filtering linkable, without carrying arbitrary query keys. */
 export function activityHref(params: ActivityParams, patch: ActivityParams = {}) {
   const values = { ...params, ...patch };
-  if (patch.month && patch.month !== params.month) values.day = undefined;
+  if (patch.month && patch.month !== params.month) {
+    values.day = undefined;
+    // A new month starts at the default page size, not at the previous month's cap.
+    values.rows = undefined;
+  }
   const query = new URLSearchParams();
-  for (const key of ["view", "month", "day", "account", "category", "type", "q", "deleted"] as const) {
+  for (const key of ["view", "month", "day", "account", "category", "type", "q", "deleted", "rows"] as const) {
     if (values[key]) query.set(key, values[key]);
   }
   return `/transactions?${query}`;

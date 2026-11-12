@@ -282,4 +282,45 @@ public class MainActivityTest {
     assertEquals(1, requests.get());
     assertEquals(10, callbacks.get());
   }
+
+  @Test
+  public void aFreshSyncLetsAResumeSkipTheNetworkButAQueuedEntryDoesNot() throws Exception {
+    java.util.concurrent.atomic.AtomicInteger pulls =
+        new java.util.concurrent.atomic.AtomicInteger();
+    JSONObject session = new JSONObject(app.cloud.session.toString());
+    app.cloud =
+        new CloudClient(new SessionVault(app)) {
+          @Override
+          void sync(LedgerStore store) {
+            pulls.incrementAndGet();
+          }
+
+          @Override
+          java.math.BigDecimal fetchUsdKhr() {
+            return null;
+          }
+        };
+    app.cloud.session = session;
+
+    assertTrue(app.syncIfStale(60_000L, null));
+    app.network.submit(() -> {}).get(5, TimeUnit.SECONDS);
+    assertEquals(1, pulls.get());
+
+    assertFalse("a resume inside the window must not pull again", app.syncIfStale(60_000L, null));
+
+    app.store.enqueue(
+        "budgets",
+        new JSONArray()
+            .put(
+                new JSONObject()
+                    .put("id", UUID.randomUUID().toString())
+                    .put("user_id", app.cloud.owner())));
+    assertTrue("a waiting entry forces a pull", app.syncIfStale(60_000L, null));
+    app.network.submit(() -> {}).get(5, TimeUnit.SECONDS);
+    assertEquals(2, pulls.get());
+
+    assertTrue("an expired window forces a pull even with an empty outbox", app.syncIfStale(0L, null));
+    app.network.submit(() -> {}).get(5, TimeUnit.SECONDS);
+    assertEquals(3, pulls.get());
+  }
 }

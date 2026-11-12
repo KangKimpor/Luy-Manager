@@ -65,6 +65,8 @@ public final class MainActivity extends Activity {
     "notebook", "mobile", "wallet", "wallet-alt", "line-up", "credit-card"
   };
   static final String WEB = "https://luy-manager.vercel.app";
+  /** A resume inside this window after a completed sync skips the network round trip. */
+  static final long FRESH_MS = 60_000L;
 
   LuyApplication app;
   Ui ui;
@@ -80,9 +82,18 @@ public final class MainActivity extends Activity {
   private final HashMap<String, JSONObject> accountById = new HashMap<>();
   private final HashMap<String, JSONObject> categoryById = new HashMap<>();
   private final HashMap<String, ArrayList<JSONObject>> transferByGroup = new HashMap<>();
+  /** Cambodia dates by row id. Parsing an offset date per row is the hot path on Activity. */
+  private final HashMap<String, LocalDate> dayById = new HashMap<>();
+  private final android.os.Handler timer = new android.os.Handler(android.os.Looper.getMainLooper());
+  /** The debounced search render, so a burst of keystrokes builds one list. */
+  private Runnable pendingSearch;
   int tab = 0, mode = 0;
   YearMonth month = YearMonth.now(CAMBODIA);
   boolean loaded = false;
+  /** The app dataVersion this screen was built from, so a committed pull is not missed. */
+  private int loadedVersion = -1;
+  /** True between onResume and onPause, so a pull from elsewhere never redraws a hidden screen. */
+  private boolean visible;
   String shown = "USD", accountFilter = null, search = "";
   EditText amount, note, received, keypadTarget;
   Spinner account, category, destination;
@@ -113,6 +124,14 @@ public final class MainActivity extends Activity {
     super.onCreate(state);
     app = (LuyApplication) getApplication();
     ui = new Ui(this);
+    // Kept across pause so a pull that lands after this screen resumes still refreshes it,
+    // while `visible` keeps a background pull from rebuilding a hidden screen.
+    app.synced =
+        () ->
+            runOnUiThread(
+                () -> {
+                  if (visible && !isFinishing() && app.store != null) load();
+                });
     shown = getSharedPreferences("display", 0).getString("currency", "USD");
     if (android.os.Build.VERSION.SDK_INT >= 33)
       getOnBackInvokedDispatcher()
@@ -160,22 +179,36 @@ public final class MainActivity extends Activity {
   @Override
   protected void onPause() {
     saveDraft();
-    app.synced = null;
+    cancelSearch();
+    visible = false;
     super.onPause();
+  }
+
+  @Override
+  protected void onDestroy() {
+    if (app.synced != null) app.synced = null;
+    super.onDestroy();
+  }
+
+  /** Drop a debounced search render so it cannot touch a screen that was replaced. */
+  void cancelSearch() {
+    if (pendingSearch == null) return;
+    timer.removeCallbacks(pendingSearch);
+    pendingSearch = null;
   }
 
   @Override
   protected void onResume() {
     super.onResume();
-    app.synced =
-        () ->
-            runOnUiThread(
-                () -> {
-                  if (!isFinishing() && app.store != null) load();
-                });
+    visible = true;
     if (app.store != null) {
       app.schedule();
-      app.sync(
+      // Coming back from the web view may have changed data the pull in takeBack is still
+      // committing. A committed pull bumps dataVersion, so read now only when this screen
+      // missed one; otherwise a resume inside the freshness window needs no work.
+      if (loaded && app.dataVersion != loadedVersion) load();
+      app.syncIfStale(
+          FRESH_MS,
           () ->
               runOnUiThread(
                   () -> {
@@ -320,6 +353,7 @@ public final class MainActivity extends Activity {
     app.worker.execute(
         () -> {
           try {
+            int version = app.dataVersion;
             JSONArray a = source.rows("accounts"),
                 c = source.rows("categories"),
                 t = source.rows("transactions"),
@@ -339,6 +373,8 @@ public final class MainActivity extends Activity {
                   transactions = ordered;
                   budgets = b;
                   ledger = summary;
+                  dayById.clear();
+                  loadedVersion = version;
                   boolean preserve = loaded && tab == 2 && amount != null;
                   loaded = true;
                   if (preserve && status != null) updateStatus();
@@ -369,6 +405,7 @@ public final class MainActivity extends Activity {
   }
 
   void draw() {
+    cancelSearch();
     amount = null;
     note = null;
     received = null;
@@ -710,13 +747,23 @@ public final class MainActivity extends Activity {
         .toLocalDate();
   }
 
+  /** The same date, parsed once per transaction across every screen rebuild. */
+  LocalDate dayOf(JSONObject row) throws Exception {
+    String id = row.optString("id");
+    LocalDate known = id.isEmpty() ? null : dayById.get(id);
+    if (known != null) return known;
+    LocalDate when = day(row);
+    if (!id.isEmpty()) dayById.put(id, when);
+    return when;
+  }
+
   long balance(JSONObject account) throws Exception {
     return ledger.balance(account.getString("id"));
   }
 
   boolean inMonth(JSONObject row) {
     try {
-      return Ledger.month(row).equals(month);
+      return YearMonth.from(dayOf(row)).equals(month);
     } catch (Exception e) {
       return false;
     }
@@ -1055,7 +1102,7 @@ public final class MainActivity extends Activity {
                 : ui.tile("arrow-down", 36, 17, color(R.color.inflow_soft), color(R.color.inflow), 45));
     LinearLayout middle = ui.column();
     middle.addView(ui.truncate(ui.text(title(row), 14, color(R.color.ink), 600)));
-    String when = day(row).format(SHORT_DATE_FORMAT);
+    String when = dayOf(row).format(SHORT_DATE_FORMAT);
     TextView sub =
         ui.truncate(
             ui.text(
@@ -1230,8 +1277,16 @@ public final class MainActivity extends Activity {
 
           public void afterTextChanged(Editable s) {
             search = s.toString();
-            refresh.run();
-            count.setText(showActivity(list, search, 0));
+            // Rebuilding the summary and the list for every keystroke made typing lag on a
+            // long month. Render once the typing settles.
+            if (pendingSearch != null) timer.removeCallbacks(pendingSearch);
+            pendingSearch =
+                () -> {
+                  pendingSearch = null;
+                  refresh.run();
+                  count.setText(showActivity(list, search, 0));
+                };
+            timer.postDelayed(pendingSearch, 180);
           }
         });
     refresh.run();
@@ -1282,7 +1337,7 @@ public final class MainActivity extends Activity {
       for (int i = 0; i < transactions.length(); i++) {
         JSONObject row = transactions.getJSONObject(i);
         if (matches(row, term)) {
-          LocalDate when = day(row);
+          LocalDate when = dayOf(row);
           matched.add(row);
           matchedDays.add(when);
           if (!isTransfer(row)) {
