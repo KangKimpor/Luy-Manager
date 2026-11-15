@@ -85,6 +85,7 @@ export default async function DashboardPage(props: {
         cashFlow={cashFlow}
         netWorthEquivalent={netWorthEquivalent}
         periodLabel={period.label}
+        periodControl={<MonthStepper compact label={period.label} prevHref={`/?month=${monthParam(previous)}`} nextHref={`/?month=${monthParam(next)}`} />}
       />
       <div className="stagger-children grid grid-cols-3 gap-3" aria-label="Quick actions">
         {[
@@ -97,10 +98,7 @@ export default async function DashboardPage(props: {
           </Link>
         ))}
       </div>
-      <div className="grid items-center gap-3 lg:grid-cols-2">
-        <MonthStepper label={period.label} prevHref={`/?month=${monthParam(previous)}`} nextHref={`/?month=${monthParam(next)}`} />
-        <RateStrip snapshot={snapshot}><CurrencyToggle current={displayCurrency} /></RateStrip>
-      </div>
+      <RateStrip snapshot={snapshot}><CurrencyToggle current={displayCurrency} /></RateStrip>
       <div className="stagger-children grid items-start gap-5 lg:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)]">
         <TransactionList transactions={recent} categories={categories} accounts={lookup} limit={5} />
         <div className="space-y-5">

@@ -198,7 +198,8 @@ export function TransactionRow({
       </span>
       <MoneyAmount amount={amount} colorBySign={!isTransfer} showPlus={!isTransfer} className="whitespace-nowrap text-xs font-semibold tracking-tight" />
     </>;
-    const rowClass = "grid min-h-14 min-w-0 flex-1 grid-cols-[3.25rem_minmax(0,1fr)_auto] items-center gap-2 py-3";
+    // 4.5rem fits the longest default label ("Transportation"), which truncated at 3.25rem.
+    const rowClass = "grid min-h-14 min-w-0 flex-1 grid-cols-[4.5rem_minmax(0,1fr)_auto] items-center gap-2 py-3";
     return <li className="flex min-w-0 items-center gap-1">
       {editable && !deleted && !isTransfer ? <Link href={`/transactions/${transaction.id}/edit`} className={rowClass} aria-label={`Edit ${transaction.notes ?? (category ? categoryLabel(category) : "transaction")}`}>{contents}</Link> : <div className={rowClass}>{contents}</div>}
       {editable ? <details className="relative shrink-0">
@@ -219,7 +220,10 @@ export function TransactionRow({
           isTransfer ? "bg-surface-container text-ink-muted" : transaction.amount < 0 ? "bg-outflow-soft text-outflow" : "bg-inflow-soft text-inflow",
         )}
       >
-        {isTransfer ? <ArrowRightLeft size={17} /> : transaction.amount < 0 ? <ArrowUpRight size={17} /> : <ArrowDownLeft size={17} />}
+        {/* The tint already says which way the money moved, so the glyph is free to
+            say what it was for. A column of identical arrows told the reader nothing
+            the minus sign had not. The arrow remains for uncategorised rows. */}
+        {isTransfer ? <ArrowRightLeft size={17} /> : category ? <CategoryIcon category={category} size={17} /> : transaction.amount < 0 ? <ArrowUpRight size={17} /> : <ArrowDownLeft size={17} />}
       </span>
 
       <div className="min-w-0">

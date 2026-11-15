@@ -219,17 +219,10 @@ export function QuickAddForm({
         }
       />
 
-      <TransactionDateField value={date} today={initialDate} onChange={(next) => { setSaved(null); void selectDate(next); }} />
-      {ratePending ? <p role="status" className="text-ink-faint text-xs">Updating the rate for this date...</p> : null}
-      {dateError ? <p role="alert" className="text-outflow text-sm">{dateError}</p> : null}
-
-      <AccountPicker compact accounts={accounts} selectedId={accountId} onSelect={selectAccount} />
-
-      <div>
-        <label htmlFor="note" className="text-ink-muted mb-2 block text-sm font-medium">Note</label>
-        <input id="note" type="text" maxLength={500} value={resolvedNote} onChange={(event) => { setSaved(null); setNote(event.target.value); }} placeholder="What was it for?" className="border-border-subtle bg-surface rounded-xl text-ink placeholder:text-ink-faint min-h-11 w-full border px-3" />
-      </div>
-
+      {/* Amount, keypad and category come first: they are the three things every
+          entry needs, and they now fit one phone screen. Date, account and note
+          default sensibly, so they follow for the entries that need them changed.
+          The keypad used to sit below all three, under the fold. */}
       {/* The keypad is hidden while tenders are open: with two currencies being
           entered, a third figure on the keypad would be a total that can disagree
           with them. */}
@@ -253,6 +246,17 @@ export function QuickAddForm({
       {!splits ? <CategoryPicker categories={relevantCategories} selectedId={resolvedCategoryId}
         onSelect={(id) => { setSaved(null); setCategoryId(id); }} /> : null}
       {!splits && categoryId === undefined && resolvedCategoryId ? <p role="status" className="text-ink-faint text-xs">{note === null && habit ? "Suggested from your usual entries. You can change the note or category." : "Suggested from your note. Choose another category or clear it."}</p> : null}
+
+      <TransactionDateField value={date} today={initialDate} onChange={(next) => { setSaved(null); void selectDate(next); }} />
+      {ratePending ? <p role="status" className="text-ink-faint text-xs">Updating the rate for this date...</p> : null}
+      {dateError ? <p role="alert" className="text-outflow text-sm">{dateError}</p> : null}
+
+      <AccountPicker compact accounts={accounts} selectedId={accountId} onSelect={selectAccount} />
+
+      <div>
+        <label htmlFor="note" className="text-ink-muted mb-2 block text-sm font-medium">Note</label>
+        <input id="note" type="text" maxLength={500} value={resolvedNote} onChange={(event) => { setSaved(null); setNote(event.target.value); }} placeholder="What was it for?" className="border-border-subtle bg-surface rounded-xl text-ink placeholder:text-ink-faint min-h-11 w-full border px-3" />
+      </div>
 
       <details className="border-surface-variant rounded-2xl border bg-surface p-4">
       <summary className="text-ink-muted flex min-h-11 items-center justify-between text-sm font-medium">More options<ChevronDown className="disclosure-icon" size={17} aria-hidden="true" /></summary>

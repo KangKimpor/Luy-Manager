@@ -2,6 +2,7 @@
  * responses always use the network, including when the app is installed. */
 const CACHE_PREFIX = "luy-";
 const ASSET_CACHE = "luy-v2-assets";
+const ICON_CACHE = "luy-v1-icons";
 const MAX_ASSETS = 48;
 
 const OFFLINE_PAGE = `<!doctype html>
@@ -47,7 +48,7 @@ self.addEventListener("activate", (event) => {
   event.waitUntil(
     caches.keys()
       .then((keys) => Promise.all(keys
-        .filter((key) => key.startsWith(CACHE_PREFIX) && key !== ASSET_CACHE)
+        .filter((key) => key.startsWith(CACHE_PREFIX) && key !== ASSET_CACHE && key !== ICON_CACHE)
         .map((key) => caches.delete(key))))
       .catch(() => undefined)
       .then(() => self.clients.claim()),
@@ -79,6 +80,28 @@ async function cachedAsset(request, event) {
   return response;
 }
 
+/* Icons are unhashed, so answer from cache at once and refresh behind it. They
+ * have their own cache: sharing the capped asset cache would evict script chunks. */
+async function cachedIcon(request, event) {
+  let cache;
+  let cached;
+  try {
+    cache = await caches.open(ICON_CACHE);
+    cached = await cache.match(request);
+  } catch {
+    // Same Safari storage refusal as above. Fall through to the network.
+  }
+  const refreshed = fetch(request).then((response) => {
+    if (cache && response.ok && !response.redirected) {
+      event.waitUntil(cache.put(request, response.clone()).catch(() => undefined));
+    }
+    return response;
+  });
+  if (!cached) return refreshed;
+  event.waitUntil(refreshed.catch(() => undefined));
+  return cached;
+}
+
 self.addEventListener("fetch", (event) => {
   const { request } = event;
   if (request.method !== "GET") return;
@@ -87,6 +110,11 @@ self.addEventListener("fetch", (event) => {
 
   if (url.pathname.startsWith("/_next/static/")) {
     event.respondWith(cachedAsset(request, event));
+    return;
+  }
+
+  if (url.pathname.startsWith("/icons/") || url.pathname === "/icon.svg") {
+    event.respondWith(cachedIcon(request, event));
     return;
   }
 

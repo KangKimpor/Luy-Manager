@@ -6,12 +6,19 @@ import { Card } from "@/components/ui/card";
 import type { NetWorthSummary } from "@/lib/domain/accounts";
 import type { CashFlowSummary } from "@/lib/domain/transactions";
 import { isZero, type Money } from "@/lib/money";
+import type { ReactNode } from "react";
 
-export function SummaryCards({ netWorth, cashFlow, netWorthEquivalent, periodLabel }: {
+export function SummaryCards({ netWorth, cashFlow, netWorthEquivalent, periodLabel, periodControl }: {
   netWorth: NetWorthSummary;
   cashFlow: CashFlowSummary;
   netWorthEquivalent?: Money;
   periodLabel: string;
+  /**
+   * The month stepper. It lives in the cash flow heading because cash flow is the
+   * first figure the month changes; it used to sit two cards further down, below
+   * the numbers it controls.
+   */
+  periodControl?: ReactNode;
 }) {
   return (
     <div className="stagger-children grid gap-4 lg:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)]">
@@ -29,7 +36,7 @@ export function SummaryCards({ netWorth, cashFlow, netWorthEquivalent, periodLab
         <p className="relative mt-4 text-[11px] leading-relaxed text-on-hero/55">Account balances converted to {netWorth.netWorth.currency}</p>
       </Card>
       <div className="flex min-w-0 flex-col gap-3">
-        <div className="flex items-center justify-between px-1"><p className="text-sm font-semibold text-ink">Your cash flow</p><span className="text-xs text-ink-faint">{periodLabel}</span></div>
+        <div className="flex min-h-11 items-center justify-between px-1"><p className="text-sm font-semibold text-ink">Your cash flow</p>{periodControl ?? <span className="text-xs text-ink-faint">{periodLabel}</span>}</div>
         <div className="grid flex-1 grid-cols-2 gap-3">
           <Card className="flex min-w-0 flex-col items-start justify-between p-4 sm:p-5">
             <span className="flex size-10 items-center justify-center rounded-2xl bg-inflow-soft text-inflow"><ArrowUpRight size={20} aria-hidden="true" /></span>

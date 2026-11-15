@@ -12,7 +12,7 @@ export function Sidebar() {
   const pathname = usePathname();
   if (pathname === "/login") return null;
   return (
-    <aside className="bg-surface border-surface-variant fixed inset-y-0 left-0 z-50 hidden w-60 flex-col border-r px-5 py-8 lg:flex">
+    <aside className="app-chrome-sidebar bg-surface border-surface-variant fixed inset-y-0 left-0 z-50 hidden w-60 flex-col border-r px-5 py-8 lg:flex">
       <Link href="/" className="text-ink mb-10 flex items-center gap-3 px-2 text-lg font-bold tracking-tight">
         <Image src="/icon.svg" alt="" width={40} height={40} className="shrink-0 rounded-xl" />Luy Manager
       </Link>

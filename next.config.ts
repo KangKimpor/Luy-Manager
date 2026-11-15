@@ -19,6 +19,23 @@ const nextConfig: NextConfig = {
   headers() {
     return [
       {
+        // Every icon is a CSS mask pointing at its own file, and files in public/
+        // default to max-age=0. That made each navigation revalidate a dozen icons
+        // one request at a time, and they painted late. The names are not hashed, so
+        // this is a week rather than immutable, with a long stale window so a
+        // changed icon is picked up in the background instead of blocking paint.
+        source: "/icons/:path*",
+        headers: [
+          { key: "Cache-Control", value: "public, max-age=604800, stale-while-revalidate=2592000" },
+        ],
+      },
+      {
+        source: "/icon.svg",
+        headers: [
+          { key: "Cache-Control", value: "public, max-age=604800, stale-while-revalidate=2592000" },
+        ],
+      },
+      {
         source: "/sw.js",
         headers: [
           { key: "Content-Type", value: "application/javascript; charset=utf-8" },

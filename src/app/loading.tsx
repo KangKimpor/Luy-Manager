@@ -1,7 +1,9 @@
+import { SkeletonReveal } from "@/components/page-skeleton";
 import { Card, CardBody } from "@/components/ui/card";
 
 export default function Loading() {
   return (
+    <SkeletonReveal>
     <div className="page-enter space-y-5" aria-busy="true" aria-live="polite">
       <span className="sr-only">Loading your figures...</span>
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]" aria-hidden="true">
@@ -20,5 +22,6 @@ export default function Loading() {
         {[0, 1, 2, 3, 4].map(index => <div key={index} className="flex items-center gap-3"><div className="bg-surface-container size-10 shrink-0 animate-pulse rounded-2xl" /><div className="flex-1 space-y-2"><div className="bg-surface-container h-4 w-2/3 animate-pulse rounded" /><div className="bg-surface-container h-3 w-1/3 animate-pulse rounded" /></div><div className="bg-surface-container h-5 w-16 animate-pulse rounded" /></div>)}
       </CardBody></Card>
     </div>
+    </SkeletonReveal>
   );
 }

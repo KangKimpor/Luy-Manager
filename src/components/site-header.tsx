@@ -68,7 +68,7 @@ export function SiteHeader() {
   const { title, isRoot } = resolved;
 
   return (
-    <header className="bg-surface-muted pt-safe fixed inset-x-0 top-0 z-40 lg:left-60">
+    <header className="app-chrome-header bg-surface-muted pt-safe fixed inset-x-0 top-0 z-40 lg:left-60">
       <div className="safe-gutters mx-auto flex h-appbar max-w-xl items-center justify-between gap-3 px-5 lg:max-w-none lg:px-10 xl:px-14">
         <div className="flex min-w-0 items-center gap-3">
           {isRoot ? (

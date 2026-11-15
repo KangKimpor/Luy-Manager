@@ -17,12 +17,29 @@ export function MonthStepper({
   hint,
   prevHref,
   nextHref,
+  compact = false,
 }: {
   label: string;
   hint?: string;
   prevHref: string;
   nextHref: string;
+  /** Sits inside a section heading instead of standing as its own card. */
+  compact?: boolean;
 }) {
+  if (compact) {
+    return (
+      <div className="-mr-2 flex items-center">
+        <Link href={prevHref} aria-label={`Previous period, ${label}`} rel="prev" className="text-ink-muted hover:bg-surface-container flex size-11 items-center justify-center rounded-xl transition-colors">
+          <ChevronLeft size={18} aria-hidden="true" />
+        </Link>
+        <span key={label} className="selection-label text-ink min-w-24 text-center text-sm font-semibold">{label}</span>
+        <Link href={nextHref} aria-label={`Next period, ${label}`} rel="next" className="text-ink-muted hover:bg-surface-container flex size-11 items-center justify-center rounded-xl transition-colors">
+          <ChevronRight size={18} aria-hidden="true" />
+        </Link>
+      </div>
+    );
+  }
+
   return (
     <div className="rounded-card border-surface-variant bg-surface shadow-card flex items-center justify-between border p-1">
       <Link

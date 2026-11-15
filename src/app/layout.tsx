@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import { ViewTransition } from "react";
 import { Inter } from "next/font/google";
 import localFont from "next/font/local";
 import { Analytics } from "@vercel/analytics/next";
@@ -97,7 +98,14 @@ export default function RootLayout({
             paddingTop: "calc(var(--spacing-appbar) + env(safe-area-inset-top, 0px) + 1rem)",
           }}
         >
-          <div className="mx-auto max-w-6xl">{children}</div>
+          {/*
+            Only navigations started from a link fade. A refresh, a server action
+            or the back button carries no "nav" type and so swaps in place: the
+            ledger re-rendering after a save must not blink the whole screen.
+          */}
+          <ViewTransition default={{ nav: "page", default: "none" }}>
+            <div className="mx-auto max-w-6xl">{children}</div>
+          </ViewTransition>
         </main>
 
         <BottomNav />

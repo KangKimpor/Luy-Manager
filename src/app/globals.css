@@ -427,6 +427,45 @@ details[open] summary .disclosure-icon { rotate: 180deg; }
   .card-interactive:hover { transform: translateY(-2px); box-shadow: var(--shadow-hover); border-color: var(--color-border-subtle); }
   .app-link:hover > svg, .app-link:hover > .nav-icon > svg { scale: 1.08; }
 }
+/*
+ * Route changes.
+ *
+ * The outgoing screen is dropped rather than cross-faded. Next scrolls to the top
+ * as part of the same commit, so an outgoing snapshot taken halfway down a long
+ * ledger would be dragged up the screen while it faded. The incoming screen only
+ * fades: rows already carry their own small rise on pointer devices, and adding a
+ * second translation on top reads as wobble. Header, sidebar and bottom bar keep
+ * their own names so page content can never paint over them mid-transition.
+ */
+::view-transition-group(.page) { animation: none; }
+::view-transition-old(.page) { display: none; }
+::view-transition-new(.page) { animation: route-in 180ms ease-out both; }
+::view-transition-group(root) { animation: none; }
+::view-transition-old(root) { display: none; }
+::view-transition-new(root) { animation: none; }
+.app-chrome-header { view-transition-name: app-header; }
+.app-chrome-nav { view-transition-name: app-nav; }
+.app-chrome-sidebar { view-transition-name: app-sidebar; }
+::view-transition-group(app-header),
+::view-transition-group(app-nav),
+::view-transition-group(app-sidebar) { animation: none; }
+::view-transition-old(app-header),
+::view-transition-old(app-nav),
+::view-transition-old(app-sidebar) { display: none; }
+::view-transition-new(app-header),
+::view-transition-new(app-nav),
+::view-transition-new(app-sidebar) { animation: none; }
+/* A loading placeholder dissolves over the content that replaces it. */
+::view-transition-group(.skeleton-out) { animation: none; }
+::view-transition-old(.skeleton-out) { animation: route-out 140ms ease-out both; }
+@keyframes route-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes route-out { to { opacity: 0; } }
+@media (prefers-reduced-motion: reduce) {
+  /* The universal selector above does not reach view-transition pseudo-elements. */
+  ::view-transition-new(.page) { animation: none; }
+  ::view-transition-old(.skeleton-out) { display: none; }
+}
+
 /* Content stays readable from the first frame while the small movement settles. */
 @keyframes page-in { from { opacity: 0.88; } to { opacity: 1; } }
 @keyframes item-in { from { opacity: 0.8; translate: 0 6px; } to { opacity: 1; translate: 0 0; } }

@@ -3,6 +3,7 @@ import { Plus, Target } from "@/components/app-icon";
 import { AppLink as Link } from "@/components/app-link";
 
 import { BudgetRowActions } from "@/components/budget-row-actions";
+import { CategoryIcon } from "@/components/category-icon";
 import { MoneyAmount } from "@/components/money-amount";
 import { buttonVariants } from "@/components/ui/button";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
@@ -13,7 +14,6 @@ import { readDisplayCurrency } from "@/lib/display-currency";
 import { totalRemaining } from "@/lib/domain/budgets";
 import { absolute } from "@/lib/money";
 import { loadUsdKhrRate } from "@/lib/rates/repository";
-import { CHART_COLORS } from "@/lib/theme";
 import { cn } from "@/lib/utils";
 
 /**
@@ -94,18 +94,14 @@ export default async function BudgetsPage() {
         <ul className="stagger-children grid gap-4 lg:grid-cols-2">
           {progress.map((entry) => {
             const tone = TONE[entry.status];
+            const category = entry.budget.categoryId
+              ? categories[entry.budget.categoryId]
+              : undefined;
             const name =
               entry.budget.name ??
               (entry.budget.categoryId
-                ? categoryLabel(categories[entry.budget.categoryId])
+                ? categoryLabel(category)
                 : "Everything");
-
-            // The category's own colour, so a budget is recognisable by the same
-            // swatch the transaction rows and the spending breakdown use. An
-            // overall cap has no category, so it takes the brand colour.
-            const swatch = entry.budget.categoryId
-              ? categories[entry.budget.categoryId]?.color ?? CHART_COLORS.brand
-              : CHART_COLORS.brand;
 
             return (
               <li key={entry.budget.id}>
@@ -119,12 +115,14 @@ export default async function BudgetsPage() {
                   <CardHeader className="flex items-start gap-3">
                     <span
                       aria-hidden="true"
-                      className="mt-0.5 flex size-10 shrink-0 items-center justify-center rounded-2xl"
-                      style={{
-                        backgroundColor: `${swatch}1f`,
-                        color: swatch,
-                      }}
-                    ><Target size={20} /></span>
+                      className="flex size-10 shrink-0 items-center justify-center rounded-2xl bg-brand-soft text-brand"
+                    >
+                      {category ? (
+                        <CategoryIcon category={category} size={19} />
+                      ) : (
+                        <Target size={19} aria-hidden="true" />
+                      )}
+                    </span>
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-sm font-semibold text-ink">{name}</p>
                       <p className="text-ink-faint mt-0.5 text-xs capitalize">

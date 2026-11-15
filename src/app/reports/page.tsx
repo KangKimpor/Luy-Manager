@@ -51,7 +51,9 @@ export default async function ReportsPage({ searchParams }: { searchParams: Prom
         <p className="mb-3 text-xs text-ink-muted">{period.label} · {totals.length} categories</p>
         <div className="grid items-center gap-5 sm:grid-cols-2">
         <DeferredCategoryDonut slices={slices} total={flow[type]} label={type === "expense" ? "Total spent" : "Total received"} />
-        <ul aria-label="Chart labels" className="space-y-4">
+        {/* Beside the chart on wide screens only. On a phone it stacked directly above
+            the ranked list below and repeated it row for row. */}
+        <ul aria-label="Chart labels" className="hidden space-y-4 sm:block">
           {slices.map((slice) => <li key={slice.name} className="min-w-0 text-xs">
             <div className="flex items-center gap-2">
               <span className="size-2.5 shrink-0 rounded-full" style={{ backgroundColor: slice.color }} />
