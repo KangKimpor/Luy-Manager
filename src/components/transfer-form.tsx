@@ -237,6 +237,7 @@ export function TransferForm({
         amount={amount}
         tone="neutral"
         label="Amount to transfer"
+        hint={plan?.isCrossCurrency ? `~ ${formatMoney(plan.received)} in ${plan.to.name}` : null}
         onAmountChange={pending ? undefined : (next) => { setRaw(next); setSaved(null); setSaveError(null); }}
         trailing={
           from ? (
@@ -252,7 +253,7 @@ export function TransferForm({
           case, so it sits directly under the amount rather than below the keypad. */}
       {plan?.isCrossCurrency ? (
         <Card>
-          <CardBody className="space-y-3">
+          <CardBody className="space-y-3 pt-4">
             <div className="flex items-center justify-between gap-3">
               <div className="min-w-0">
                 <p className="text-ink-muted text-sm font-medium">
@@ -298,7 +299,7 @@ export function TransferForm({
                   setReceivedRaw(event.target.value);
                 }}
                 placeholder={formatMoney(plan.quotedReceived, { showSymbol: false })}
-                className="border-border-subtle bg-surface rounded-card text-ink placeholder:text-ink-faint tabular min-h-11 w-full border px-3 text-sm"
+                className="field-input tabular text-sm"
               />
             </div>
 
@@ -320,7 +321,7 @@ export function TransferForm({
       {ratePending ? <p role="status" className="text-ink-faint text-xs">Updating the rate for this date...</p> : null}
       {dateError ? <p role="alert" className="feedback-enter text-outflow text-sm">{dateError}</p> : null}
 
-      <AmountKeypad currency={sentCurrency} onPress={press} />
+      <AmountKeypad currency={sentCurrency} raw={raw} onPress={press} />
 
       {/* Accounts. Two pickers plus a swap, because reversing a transfer is a
           common correction and re-picking both sides invites choosing the same
@@ -341,7 +342,7 @@ export function TransferForm({
           type="button"
           onClick={swap}
           aria-label="Swap the two accounts"
-          className="bg-surface-muted text-ink-muted hover:text-ink rounded-pill flex min-h-11 items-center gap-1.5 px-3 text-xs font-semibold transition-colors"
+          className="bg-fill text-brand hover:bg-surface-container rounded-pill flex min-h-11 items-center gap-1.5 px-4 text-xs font-semibold transition-colors"
         >
           <ArrowRightLeft size={14} aria-hidden="true" />
           Swap
@@ -363,7 +364,7 @@ export function TransferForm({
           thinking about what is left behind, not just what moved. */}
       {plan ? (
         <Card>
-          <CardBody>
+          <CardBody className="pt-4">
             <div className="flex items-center justify-between gap-2 text-sm">
               <div className="min-w-0 flex-1">
                 <p className="text-ink-faint truncate text-xs">{plan.from.name}</p>
@@ -396,7 +397,7 @@ export function TransferForm({
           value={note}
           onChange={(event) => setNote(event.target.value)}
           placeholder="Top up Wing"
-          className="border-border-subtle bg-surface rounded-card text-ink placeholder:text-ink-faint min-h-11 w-full border px-3 text-sm"
+          className="field-input text-sm"
         />
       </div>
 

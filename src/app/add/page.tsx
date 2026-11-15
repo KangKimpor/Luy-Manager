@@ -6,7 +6,7 @@ import { listActiveAccountBalances } from "@/lib/data/accounts";
 import { calendarDate, validTimezone } from "@/lib/calendar";
 import { getProfile, listCategories } from "@/lib/data/reference";
 import { listEntryHabitLines } from "@/lib/data/transactions";
-import { learnEntryHabits } from "@/lib/domain/entry-habits";
+import { entryHabitKey, learnEntryHabits, resolveEntryHabit } from "@/lib/domain/entry-habits";
 import { loadUsdKhrRate } from "@/lib/rates/repository";
 import { AppLink as Link } from "@/components/app-link";
 
@@ -20,9 +20,12 @@ import { AppLink as Link } from "@/components/app-link";
  * Only active accounts are offered. A closed account should not accept new entries,
  * and the server action refuses one anyway, so offering it would be a dead end.
  */
-export default async function AddTransactionPage({ searchParams }: { searchParams: Promise<{ type?: string }> }) {
-  const { type } = await searchParams;
-  const initialMode = type === "income" || type === "transfer" ? type : "expense";
+export default async function AddTransactionPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ type?: string; habit?: string }>;
+}) {
+  const { type, habit } = await searchParams;
   const [accounts, categories, { rate }, profile, history] = await Promise.all([
     listActiveAccountBalances(),
     listCategories(),
@@ -50,15 +53,29 @@ export default async function AddTransactionPage({ searchParams }: { searchParam
     );
   }
 
+  const habits = learnEntryHabits(history, categories);
+  const resolvedHabit = resolveEntryHabit(habits, habit);
+  const initialHabit =
+    resolvedHabit && (resolvedHabit.type === "expense" || resolvedHabit.type === "income")
+      ? resolvedHabit
+      : null;
+  const initialMode =
+    initialHabit?.type === "income" || initialHabit?.type === "expense"
+      ? initialHabit.type
+      : type === "income" || type === "transfer"
+        ? type
+        : "expense";
+
   return (
     <div className="page-enter mx-auto max-w-2xl space-y-5">
       <p className="text-ink-muted text-sm">A few taps, and your money is up to date.</p>
       <AddEntry
-        key={initialMode}
+        key={`${initialMode}:${initialHabit ? entryHabitKey(initialHabit) : ""}`}
         initialMode={initialMode}
+        initialHabit={initialHabit}
         accounts={accounts}
         categories={categories}
-        habits={learnEntryHabits(history, categories)}
+        habits={habits}
         rate={rate}
         readOnly={isDemoMode()}
         timezone={validTimezone(profile?.timezone)}

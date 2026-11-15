@@ -14,6 +14,7 @@
  */
 
 import {
+  add,
   convert,
   DEFAULT_RATE,
   type CurrencyCode,
@@ -23,9 +24,10 @@ import {
   subtract,
 } from "@/lib/money";
 
+import { calendarDate, validTimezone } from "@/lib/calendar";
+import { cambodiaDateParts, cambodiaMidnight } from "@/lib/period";
 import { amountInBase } from "./transactions";
 import type { Budget, BudgetPeriod, LedgerLine } from "./types";
-import { cambodiaDateParts, cambodiaMidnight } from "@/lib/period";
 
 export interface DateWindow {
   from: Date;
@@ -34,6 +36,9 @@ export interface DateWindow {
 }
 
 const MS_PER_DAY = 86_400_000;
+/** Tolerance around +/-10pp boundaries so exact tenths don't flip on float representation. */
+const PACE_BAND = 0.1;
+const PACE_EPSILON = 1e-9;
 
 /** How many months one period spans. Weekly is handled separately. */
 const MONTHS_PER_PERIOD: Record<Exclude<BudgetPeriod, "weekly">, number> = {
@@ -51,6 +56,14 @@ function startOfDay(date: Date): Date {
 function parseIsoDate(iso: string): Date {
   const [year, month, day] = iso.split("-").map(Number);
   return cambodiaMidnight(year, (month ?? 1) - 1, day ?? 1);
+}
+
+/**
+ * Resolve "today" as a calendar-midnight instant aligned with budget windows,
+ * using the user's configured timezone from `src/lib/calendar`.
+ */
+function calendarToday(now: Date, timezone?: string): Date {
+  return parseIsoDate(calendarDate(now, validTimezone(timezone)));
 }
 
 /**
@@ -129,6 +142,73 @@ export type BudgetStatus =
   /** Spent more than the limit. */
   | "over";
 
+export type BudgetPaceStatus =
+  /** More than 10 percentage points below elapsed share of the period. */
+  | "under-pace"
+  /** Within 10 percentage points of elapsed share. */
+  | "on-pace"
+  /** More than 10 percentage points above elapsed share, up to 100%. */
+  | "ahead-of-pace"
+  /** Spent more than 100% of the limit. */
+  | "over";
+
+export interface PeriodPace {
+  /** Whole days in this budget window. */
+  totalDays: number;
+  /** Days elapsed up through today (1-indexed while inside the window, 0 before, totalDays after). */
+  elapsedDays: number;
+  /** Fraction of period elapsed (`elapsedDays / totalDays`), or `null` outside an active period (past/future). */
+  elapsedShare: number | null;
+}
+
+/**
+ * Whole days in a span of milliseconds.
+ *
+ * Rounded rather than floored because a window that crosses a daylight saving
+ * change is an hour off a whole number of days. Half away from zero, the same
+ * rule money uses, so a negative span cannot round toward the window.
+ */
+function wholeDays(ms: number): number {
+  return Math.sign(ms) * Math.round(Math.abs(ms) / MS_PER_DAY);
+}
+
+export function periodPace(
+  period: DateWindow,
+  now: Date = new Date(),
+  timezone?: string,
+): PeriodPace {
+  const totalDays = Math.max(1, wholeDays(period.to.getTime() - period.from.getTime()));
+  const today = calendarToday(now, timezone);
+
+  if (today < period.from) {
+    return { totalDays, elapsedDays: 0, elapsedShare: null };
+  }
+  if (today >= period.to) {
+    return { totalDays, elapsedDays: totalDays, elapsedShare: null };
+  }
+
+  const dayIndex = wholeDays(today.getTime() - period.from.getTime());
+  const elapsedDays = Math.min(totalDays, Math.max(1, dayIndex + 1));
+  return {
+    totalDays,
+    elapsedDays,
+    elapsedShare: elapsedDays / totalDays,
+  };
+}
+
+export function computePaceStatus(
+  fraction: number,
+  elapsedShare: number | null,
+  isOver: boolean,
+): BudgetPaceStatus {
+  if (isOver || fraction > 1 + PACE_EPSILON) return "over";
+  if (elapsedShare === null) return "under-pace";
+  const diff = fraction - elapsedShare;
+  if (diff > PACE_BAND + PACE_EPSILON) return "ahead-of-pace";
+  if (diff < -PACE_BAND - PACE_EPSILON) return "under-pace";
+  return "on-pace";
+}
+
 export interface BudgetProgress {
   budget: Budget;
   /** The limit, in the budget's own currency. */
@@ -139,7 +219,14 @@ export interface BudgetProgress {
   remaining: Money;
   /** Share of the limit used, 0 upward. Can exceed 1. */
   fraction: number;
+  /** Bar fill ratio clamped to [0, 1]. */
+  fillRatio: number;
   status: BudgetStatus;
+  paceStatus: BudgetPaceStatus;
+  /** Fraction of the period elapsed (0..1), or `null` for non-active/past windows. */
+  elapsedShare: number | null;
+  elapsedDays: number;
+  totalDays: number;
   period: DateWindow;
   /** Whole days left in the window, 0 on the last day. */
   daysRemaining: number;
@@ -187,11 +274,13 @@ export function budgetProgress(
   transactions: readonly LedgerLine[],
   rate: ExchangeRate = DEFAULT_RATE,
   now: Date = new Date(),
+  timezone?: string,
 ): BudgetProgress {
   const limit = money(budget.amount, budget.currency);
   const { spent, period } = spentForBudget(budget, transactions, rate, now);
 
   const fraction = limit.minor === 0 ? 0 : spent.minor / limit.minor;
+  const fillRatio = Math.min(1, Math.max(0, fraction));
 
   const status: BudgetStatus =
     spent.minor > limit.minor
@@ -200,9 +289,13 @@ export function budgetProgress(
         ? "warning"
         : "under";
 
+  const pace = periodPace(period, now, timezone);
+  const paceStatus = computePaceStatus(fraction, pace.elapsedShare, spent.minor > limit.minor);
+
+  const todayForRemaining = timezone ? calendarToday(now, timezone) : startOfDay(now);
   const daysRemaining = Math.max(
     0,
-    Math.ceil((period.to.getTime() - startOfDay(now).getTime()) / MS_PER_DAY) - 1,
+    Math.ceil((period.to.getTime() - todayForRemaining.getTime()) / MS_PER_DAY) - 1,
   );
 
   return {
@@ -211,7 +304,12 @@ export function budgetProgress(
     spent,
     remaining: subtract(limit, spent),
     fraction,
+    fillRatio,
     status,
+    paceStatus,
+    elapsedShare: pace.elapsedShare,
+    elapsedDays: pace.elapsedDays,
+    totalDays: pace.totalDays,
     period,
     daysRemaining,
   };
@@ -228,10 +326,11 @@ export function summarizeBudgets(
   transactions: readonly LedgerLine[],
   rate: ExchangeRate = DEFAULT_RATE,
   now: Date = new Date(),
+  timezone?: string,
 ): BudgetProgress[] {
   return budgets
     .filter((budget) => budget.isActive)
-    .map((budget) => budgetProgress(budget, transactions, rate, now))
+    .map((budget) => budgetProgress(budget, transactions, rate, now, timezone))
     .sort((a, b) => b.fraction - a.fraction);
 }
 
@@ -253,4 +352,69 @@ export function totalRemaining(
       (acc, entry) => money(acc.minor + convert(entry.remaining, base, rate).minor, base),
       money(0, base),
     );
+}
+
+export interface BudgetsOverview {
+  totalSpent: Money;
+  totalLimit: Money;
+  ratio: number;
+  fillRatio: number;
+  percent: number;
+  paceStatus: BudgetPaceStatus;
+  elapsedShare: number | null;
+  elapsedDays: number;
+  totalDays: number;
+  verdict: string;
+}
+
+/** Overall summary across category budgets (or overall caps if no category budgets exist). */
+export function summarizeBudgetsOverview(
+  progress: readonly BudgetProgress[],
+  base: CurrencyCode,
+  rate: ExchangeRate = DEFAULT_RATE,
+): BudgetsOverview {
+  const categoryEntries = progress.filter((entry) => entry.budget.categoryId !== null);
+  const scope = categoryEntries.length > 0 ? categoryEntries : progress;
+
+  let totalSpent = money(0, base);
+  let totalLimit = money(0, base);
+  for (const entry of scope) {
+    totalSpent = add(totalSpent, convert(entry.spent, base, rate));
+    totalLimit = add(totalLimit, convert(entry.limit, base, rate));
+  }
+
+  const ratio = totalLimit.minor === 0 ? 0 : totalSpent.minor / totalLimit.minor;
+  const fillRatio = Math.min(1, Math.max(0, ratio));
+  const percent = Math.round(ratio * 100);
+
+  // Representative active period for calendar pace on the ring.
+  const activeWithPace = scope.find((entry) => entry.elapsedShare !== null) ?? scope[0];
+  const elapsedShare = activeWithPace?.elapsedShare ?? null;
+  const elapsedDays = activeWithPace?.elapsedDays ?? 0;
+  const totalDays = activeWithPace?.totalDays ?? 30;
+  const paceStatus = computePaceStatus(ratio, elapsedShare, totalSpent.minor > totalLimit.minor);
+
+  let verdict: string;
+  if (paceStatus === "over") {
+    verdict = "Spending has passed your budgeted total.";
+  } else if (paceStatus === "ahead-of-pace") {
+    verdict = "Your spending is slightly ahead of the calendar.";
+  } else if (paceStatus === "on-pace") {
+    verdict = "Your spending is right on pace with the calendar.";
+  } else {
+    verdict = "You are comfortably under pace for this period.";
+  }
+
+  return {
+    totalSpent,
+    totalLimit,
+    ratio,
+    fillRatio,
+    percent,
+    paceStatus,
+    elapsedShare,
+    elapsedDays,
+    totalDays,
+    verdict,
+  };
 }

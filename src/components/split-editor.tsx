@@ -157,7 +157,7 @@ export function SplitEditor({
                   onChange={(event) => update(split.id, { amount: event.target.value })}
                   placeholder={currency === "KHR" ? "12000" : "0.00"}
                   aria-label={`Split ${index + 1} amount`}
-                  className="border-border-subtle bg-surface rounded-card text-ink placeholder:text-ink-faint tabular min-h-11 w-24 border px-3 text-sm"
+                  className="field-input tabular w-28 text-sm"
                 />
 
                 <button
@@ -194,7 +194,7 @@ export function SplitEditor({
         </button>
 
         {drift && drift.minor !== 0 ? (
-          <p className="text-ink-faint border-border-subtle/70 border-t pt-2.5 text-xs">
+          <p className="text-ink-faint border-hairline border-t pt-2.5 text-xs">
             Your figures come to <MoneyAmount amount={enteredTotal!} />, which is{" "}
             <MoneyAmount amount={absolute(drift)} />{" "}
             {drift.minor > 0 ? "more" : "less"} than the transaction. They will be

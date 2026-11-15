@@ -77,10 +77,13 @@ export function NetWorthTrend({
           />
           <Tooltip
             contentStyle={{
-              backgroundColor: "var(--color-surface)",
+              backgroundColor: "var(--glass)",
+              backdropFilter: "var(--glass-blur)",
+              WebkitBackdropFilter: "var(--glass-blur)",
               color: "var(--color-ink)",
-              borderRadius: "1rem",
-              border: "1px solid var(--color-border-subtle)",
+              borderRadius: "14px",
+              border: "0.5px solid var(--glass-border)",
+              boxShadow: "var(--shadow-float)",
               fontSize: "0.75rem",
             }}
             formatter={(value) => [formatMoney(money(Number(value), currency)), "Net worth"]}

@@ -102,7 +102,7 @@ export function AccountForm({ account }: { account?: Account }) {
                 key={preset.label}
                 type="button"
                 onClick={() => applyPreset(preset)}
-                className="rounded-xl border-border-subtle bg-surface text-ink-muted hover:text-brand flex min-h-11 items-center gap-1.5 border px-3 text-xs font-medium transition-colors"
+                className="rounded-pill bg-surface text-ink hover:text-brand flex min-h-11 items-center gap-2 px-3.5 text-xs font-medium transition-colors"
               >
                 <span
                   aria-hidden="true"
@@ -117,7 +117,7 @@ export function AccountForm({ account }: { account?: Account }) {
       ) : null}
 
       <Card>
-        <CardBody className="space-y-3 pt-4">
+        <CardBody className="space-y-4 pt-5">
           <div>
             <label
               htmlFor="account-name"
@@ -133,7 +133,7 @@ export function AccountForm({ account }: { account?: Account }) {
               value={name}
               onChange={(event) => setName(event.target.value)}
               placeholder="ABA USD"
-              className="border-border-subtle bg-surface rounded-card text-ink placeholder:text-ink-faint min-h-11 w-full border px-3 text-sm"
+              className="field-input text-sm"
             />
           </div>
 
@@ -150,7 +150,7 @@ export function AccountForm({ account }: { account?: Account }) {
               value={institution}
               onChange={(event) => setInstitution(event.target.value)}
               placeholder="ABA Bank"
-              className="border-border-subtle bg-surface rounded-card text-ink placeholder:text-ink-faint min-h-11 w-full border px-3 text-sm"
+              className="field-input text-sm"
             />
           </div>
 
@@ -166,10 +166,10 @@ export function AccountForm({ account }: { account?: Account }) {
                   aria-pressed={type === option}
                   onClick={() => setType(option)}
                   className={cn(
-                    "rounded-pill min-h-9 border px-3 text-xs font-medium transition-colors",
+                    "rounded-pill min-h-9 px-4 text-xs font-medium transition-colors",
                     type === option
-                      ? "border-brand bg-brand-soft text-brand"
-                      : "border-border-subtle bg-surface text-ink-muted",
+                      ? "bg-brand text-on-action"
+                      : "bg-fill text-ink-muted",
                   )}
                 >
                   {ACCOUNT_TYPE_LABELS[option]}
@@ -182,28 +182,30 @@ export function AccountForm({ account }: { account?: Account }) {
             <legend className="text-ink-muted mb-2 text-sm font-medium">
               Currency
             </legend>
-            <div className="flex gap-2">
-              {CURRENCIES.map((code) => (
-                <button
-                  key={code}
-                  type="button"
-                  aria-pressed={currency === code}
-                  // Fixed after creation: changing it would reinterpret every
-                  // amount already recorded against the account.
-                  disabled={editing}
-                  onClick={() => setCurrency(code)}
-                  className={cn(
-                    "rounded-pill min-h-9 border px-4 text-xs font-bold transition-colors",
-                    currency === code
-                      ? "border-brand bg-brand-soft text-brand"
-                      : "border-border-subtle bg-surface text-ink-muted",
-                    editing && "opacity-50",
-                  )}
-                >
-                  {code}
-                </button>
-              ))}
-              <CurrencyBadge currency={currency} className="self-center" />
+            <div className="flex items-center gap-3">
+              <div className="segmented-control" role="group" aria-label="Account currency">
+                {CURRENCIES.map((code) => (
+                  <button
+                    key={code}
+                    type="button"
+                    aria-pressed={currency === code}
+                    // Fixed after creation: changing it would reinterpret every
+                    // amount already recorded against the account.
+                    disabled={editing}
+                    onClick={() => setCurrency(code)}
+                    className={cn(
+                      "relative z-10 min-h-8 px-4 text-xs whitespace-nowrap transition-colors",
+                      currency === code
+                        ? "text-ink font-semibold"
+                        : "text-ink-muted font-medium",
+                      editing && "opacity-50",
+                    )}
+                  >
+                    {code}
+                  </button>
+                ))}
+              </div>
+              <CurrencyBadge currency={currency} />
             </div>
             {editing ? (
               <p className="text-ink-faint mt-1.5 text-xs">
@@ -228,7 +230,7 @@ export function AccountForm({ account }: { account?: Account }) {
               value={openingBalance}
               onChange={(event) => setOpeningBalance(event.target.value)}
               placeholder={currency === "KHR" ? "0" : "0.00"}
-              className="border-border-subtle bg-surface rounded-card text-ink placeholder:text-ink-faint tabular min-h-11 w-full border px-3 text-sm"
+              className="field-input tabular text-sm"
             />
             <p className="text-ink-faint mt-1.5 text-xs">
               {type === "credit_card"
@@ -242,7 +244,7 @@ export function AccountForm({ account }: { account?: Account }) {
               type="checkbox"
               checked={includeInNetWorth}
               onChange={(event) => setIncludeInNetWorth(event.target.checked)}
-              className="size-4"
+              className="size-4 accent-[var(--color-brand)]"
             />
             <span className="text-ink">Count toward net worth</span>
           </label>

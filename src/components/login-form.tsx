@@ -121,7 +121,7 @@ export function LoginForm({
 
   return (
     <Card>
-      <CardBody className="space-y-4">
+      <CardBody className="space-y-4 pt-5">
         <Button
           size="full"
           variant="secondary"
@@ -133,16 +133,16 @@ export function LoginForm({
         </Button>
 
         <div className="flex items-center gap-3">
-          <span className="bg-border-subtle h-px flex-1" />
+          <span className="bg-hairline h-px flex-1" />
           <span className="text-ink-faint text-xs font-semibold uppercase">or</span>
-          <span className="bg-border-subtle h-px flex-1" />
+          <span className="bg-hairline h-px flex-1" />
         </div>
 
         <form onSubmit={signInWithEmail} className="space-y-3">
           <div>
             <label
               htmlFor="email"
-              className="text-ink-muted mb-2 block text-xs font-semibold tracking-wide uppercase"
+              className="text-ink-muted mb-2 block text-sm font-medium"
             >
               Email
             </label>
@@ -154,7 +154,7 @@ export function LoginForm({
               value={email}
               onChange={(event) => setEmail(event.target.value)}
               placeholder="you@example.com"
-              className="border-border-subtle bg-surface rounded-card text-ink placeholder:text-ink-faint min-h-11 w-full border px-3 text-sm"
+              className="field-input text-sm"
             />
           </div>
 

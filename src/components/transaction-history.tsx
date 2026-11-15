@@ -1,7 +1,6 @@
 import { MoneyAmount } from "@/components/money-amount";
 import { TransactionActions } from "@/components/transaction-actions";
 import { TransactionRow, transferRoutesFor } from "@/components/transaction-row";
-import { Card, CardBody } from "@/components/ui/card";
 import type { ActivityDay } from "@/lib/domain/activity";
 import type { AccountBalance, Category, Merchant, Transaction } from "@/lib/domain/types";
 import { isZero } from "@/lib/money";
@@ -18,19 +17,46 @@ export function TransactionHistory({ days, transactions, categories, accounts, m
   transferLabels?: Record<string, string>;
 }) {
   const labels = transferLabels ?? transferRoutesFor(transactions, accounts);
-  const content = <div className="stagger-children space-y-5">
-    {days.map(day => <section key={day.date} aria-label={day.label}>
-      <div className="mb-2 flex items-center justify-between gap-3 px-1">
-        <h2 className="flex items-center gap-2 text-ink"><span className="tabular text-2xl font-semibold">{day.day}</span><span className="rounded-pill bg-surface-container px-2 py-1 text-[10px] font-semibold text-ink-muted">{day.weekday}</span><span className="sr-only">{day.label}</span></h2>
-        {!deleted ? <div className="flex flex-wrap justify-end gap-x-3 text-xs font-semibold">
-          {!isZero(day.flow.income) ? <span aria-label="Day income"><MoneyAmount amount={day.flow.income} className="text-inflow" /></span> : null}
-          {!isZero(day.flow.expense) ? <span aria-label="Day expense"><MoneyAmount amount={day.flow.expense} className="text-outflow" /></span> : null}
-        </div> : null}
-      </div>
-      <Card><CardBody className="px-3 pt-1 pb-1"><ul className="divide-y divide-surface-variant">
-        {day.transactions.map(transaction => <TransactionRow key={transaction.id} transaction={transaction} transactions={transactions} transferLabel={labels[transaction.id]} categories={categories} accounts={accounts} merchant={merchants[transaction.merchantId ?? ""]?.name} editable={editable} deleted={deleted} activity />)}
-      </ul></CardBody></Card>
-    </section>)}
-  </div>;
+  const content = (
+    <div className="stagger-children">
+      {days.map((day) => (
+        <section key={day.date} aria-label={day.label} className="day-group">
+          <div className="day-header">
+            <h2 className="text-[13px] leading-[18px] font-semibold text-ink-muted">{day.label}</h2>
+            {!deleted ? (
+              <div className="day-header-total flex flex-wrap justify-end gap-x-2">
+                {!isZero(day.flow.expense) ? (
+                  <span aria-label="Day expense">
+                    <MoneyAmount amount={day.flow.expense} /> spent
+                  </span>
+                ) : null}
+                {!isZero(day.flow.income) ? (
+                  <span aria-label="Day income" className="text-inflow">
+                    <MoneyAmount amount={day.flow.income} showPlus />
+                  </span>
+                ) : null}
+              </div>
+            ) : null}
+          </div>
+          <ul className="tx-activity-group">
+            {day.transactions.map((transaction) => (
+              <TransactionRow
+                key={transaction.id}
+                transaction={transaction}
+                transactions={transactions}
+                transferLabel={labels[transaction.id]}
+                categories={categories}
+                accounts={accounts}
+                merchant={merchants[transaction.merchantId ?? ""]?.name}
+                editable={editable}
+                deleted={deleted}
+                activity
+              />
+            ))}
+          </ul>
+        </section>
+      ))}
+    </div>
+  );
   return editable ? <TransactionActions>{content}</TransactionActions> : content;
 }

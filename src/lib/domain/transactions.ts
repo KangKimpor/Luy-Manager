@@ -21,6 +21,7 @@ import {
   sum,
   zero,
 } from "@/lib/money";
+import { cambodiaDate, cambodiaDateParts, cambodiaMidnight, type Period } from "@/lib/period";
 
 import type { LedgerLine, Transaction, TransactionType } from "./types";
 
@@ -413,3 +414,138 @@ export const EMPTY_CASH_FLOW = (base: CurrencyCode): CashFlowSummary => ({
   expense: zero(base),
   net: zero(base),
 });
+
+export interface DailySpendingDay {
+  /** ISO date YYYY-MM-DD in Cambodia calendar (UTC+7). */
+  date: string;
+  /** 1-based day of month. */
+  day: number;
+  /** Total spending on that day, reported positive in `base`. */
+  amount: Money;
+  /** Bar height ratio in [0, 1] with outlier capping applied. */
+  ratio: number;
+  /** Whole-number percentage (0 to 100) matching `ratio`. */
+  heightPercent: number;
+  isToday: boolean;
+  isFuture: boolean;
+  isZero: boolean;
+  isCapped: boolean;
+}
+
+export interface DailySpendingBreakdown {
+  totalDays: number;
+  elapsedDays: number;
+  typicalDay: Money;
+  typicalRatio: number;
+  typicalPercent: number;
+  hasSpending: boolean;
+  isFuturePeriod: boolean;
+  days: DailySpendingDay[];
+}
+
+/**
+ * Daily spending bars for the Home month card, anchored to Cambodia dates (UTC+7).
+ *
+ * Computes the median of non-zero elapsed days as `typicalDay` and caps single-day
+ * outliers (when max > 2x the second-highest day) at 1.2x the second day so normal
+ * daily patterns stay legible.
+ */
+export function dailySpendingBreakdown(
+  transactions: readonly LedgerLine[],
+  period: Period,
+  base: CurrencyCode,
+  rate: ExchangeRate = DEFAULT_RATE,
+  now: Date = new Date(),
+): DailySpendingBreakdown {
+  const { year, month } = cambodiaDateParts(period.from);
+  const totalDays = cambodiaDateParts(period.to).day;
+  const todayIso = cambodiaDate(now);
+
+  const dailyMinors = new Map<string, number>();
+  for (const transaction of transactions) {
+    if (transaction.type === "transfer") continue;
+    const value = amountInBase(transaction, base, rate).minor;
+    if (value >= 0) continue;
+    const key = cambodiaDate(new Date(transaction.occurredAt));
+    dailyMinors.set(key, (dailyMinors.get(key) ?? 0) + -value);
+  }
+
+  const rawDays: Array<{ date: string; day: number; minor: number; isToday: boolean; isFuture: boolean }> = [];
+  for (let day = 1; day <= totalDays; day++) {
+    const date = cambodiaDate(cambodiaMidnight(year, month, day));
+    rawDays.push({
+      date,
+      day,
+      minor: dailyMinors.get(date) ?? 0,
+      isToday: date === todayIso,
+      isFuture: date > todayIso,
+    });
+  }
+
+  const activeDays = rawDays.filter((entry) => !entry.isFuture);
+  const elapsedDays = activeDays.length;
+  const isFuturePeriod = elapsedDays === 0;
+
+  const nonZeroSorted = activeDays
+    .map((entry) => entry.minor)
+    .filter((minor) => minor > 0)
+    .sort((a, b) => a - b);
+  const hasSpending = nonZeroSorted.length > 0;
+
+  let typicalMinor = 0;
+  if (nonZeroSorted.length > 0) {
+    const mid = Math.floor(nonZeroSorted.length / 2);
+    typicalMinor =
+      nonZeroSorted.length % 2 === 1
+        ? nonZeroSorted[mid]
+        : Math.trunc((nonZeroSorted[mid - 1] + nonZeroSorted[mid] + 1) / 2);
+  }
+
+  let maxMinor = 0;
+  for (const entry of activeDays) {
+    if (entry.minor > maxMinor) maxMinor = entry.minor;
+  }
+
+  let secondMinor = 0;
+  for (const entry of activeDays) {
+    if (entry.minor < maxMinor && entry.minor > secondMinor) secondMinor = entry.minor;
+  }
+
+  const isOutlierCapped = secondMinor > 0 && maxMinor > secondMinor * 2;
+  const chartMax = Math.max(isOutlierCapped ? Math.trunc((secondMinor * 6 + 2) / 5) : maxMinor, 1);
+
+  const days: DailySpendingDay[] = rawDays.map((entry) => {
+    const isZeroDay = entry.minor === 0;
+    const isCapped = !entry.isFuture && isOutlierCapped && entry.minor > chartMax;
+    const rawRatio = entry.minor / chartMax;
+    const ratio = entry.isFuture
+      ? 0.04
+      : Math.min(1, Math.max(0.05, rawRatio));
+    return {
+      date: entry.date,
+      day: entry.day,
+      amount: money(entry.minor, base),
+      ratio,
+      heightPercent: Math.round(ratio * 100),
+      isToday: entry.isToday,
+      isFuture: entry.isFuture,
+      isZero: isZeroDay,
+      isCapped,
+    };
+  });
+
+  const rawTypicalRatio = typicalMinor / chartMax;
+  const clampedTypicalRatio = Math.min(0.92, Math.max(0.06, rawTypicalRatio));
+  const typicalRatio = typicalMinor === 0 ? 0 : clampedTypicalRatio;
+
+  return {
+    totalDays,
+    elapsedDays,
+    typicalDay: money(typicalMinor, base),
+    typicalRatio,
+    typicalPercent: typicalRatio === 0 ? 0 : Math.round(typicalRatio * 100),
+    hasSpending,
+    isFuturePeriod,
+    days,
+  };
+}

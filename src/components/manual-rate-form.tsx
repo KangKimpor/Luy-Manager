@@ -4,18 +4,13 @@ import { Check, LoaderCircle, RotateCcw, TriangleAlert } from "@/components/app-
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
-import { Button } from "@/components/ui/button";
 import { clearManualRate, setManualRate } from "@/app/actions/rates";
+import { Button } from "@/components/ui/button";
 import { withActionFeedback } from "@/lib/action-feedback";
 import { cambodiaDate } from "@/lib/period";
 
 /**
  * Recording the rate your own bank or money changer gave you.
- *
- * Stored as a personal override for a specific day, which the rate reader prefers
- * over the published figure. Only aggregates and future conversions change: any
- * transaction already recorded keeps the rate stored on it, which is the whole point
- * of persisting `exchange_rate` alongside every converted amount.
  */
 export function ManualRateForm({ currentRate }: { currentRate: number }) {
   const router = useRouter();
@@ -34,7 +29,10 @@ export function ManualRateForm({ currentRate }: { currentRate: number }) {
     setError(null);
     setSaved(false);
 
-    const result = await withActionFeedback(() => setManualRate({ rate: rate.trim(), asOf }), "Could not confirm the change. Check recent exchange rates before trying again.");
+    const result = await withActionFeedback(
+      () => setManualRate({ rate: rate.trim(), asOf }),
+      "Could not confirm the change. Check recent exchange rates before trying again.",
+    );
     setPending(null);
 
     if (!result.ok) {
@@ -52,7 +50,10 @@ export function ManualRateForm({ currentRate }: { currentRate: number }) {
     setPending("reset");
     setError(null);
 
-    const result = await withActionFeedback(() => clearManualRate(asOf), "Could not confirm the change. Reload Settings to check the rate.");
+    const result = await withActionFeedback(
+      () => clearManualRate(asOf),
+      "Could not confirm the change. Reload Settings to check the rate.",
+    );
     setPending(null);
 
     if (!result.ok) setError(result.error);
@@ -60,12 +61,12 @@ export function ManualRateForm({ currentRate }: { currentRate: number }) {
   }
 
   return (
-    <form onSubmit={save} className="space-y-3" aria-busy={pending !== null}>
+    <form onSubmit={save} className="w-full space-y-3" aria-busy={pending !== null}>
       <div className="grid grid-cols-1 items-end gap-3 sm:grid-cols-2">
         <div className="min-w-0">
           <label
             htmlFor="manual-rate"
-            className="text-ink-muted mb-2 block text-xs font-semibold tracking-wide uppercase"
+            className="text-ink-muted mb-1.5 block text-xs font-medium"
           >
             Riel per $1
           </label>
@@ -76,14 +77,14 @@ export function ManualRateForm({ currentRate }: { currentRate: number }) {
             value={rate}
             onChange={(event) => setRate(event.target.value)}
             placeholder={String(Math.round(currentRate))}
-            className="border-border-subtle bg-surface rounded-card text-ink placeholder:text-ink-faint tabular min-h-11 w-full border px-3 text-sm"
+            className="num-input w-full"
           />
         </div>
 
-        <div>
+        <div className="min-w-0">
           <label
             htmlFor="manual-rate-date"
-            className="text-ink-muted mb-2 block text-xs font-semibold tracking-wide uppercase"
+            className="text-ink-muted mb-1.5 block text-xs font-medium"
           >
             For
           </label>
@@ -93,7 +94,7 @@ export function ManualRateForm({ currentRate }: { currentRate: number }) {
             value={asOf}
             max={today}
             onChange={(event) => setAsOf(event.target.value)}
-            className="border-border-subtle bg-surface rounded-card text-ink min-h-11 w-full min-w-0 border px-3 text-sm"
+            className="field-input"
           />
         </div>
       </div>
@@ -112,7 +113,12 @@ export function ManualRateForm({ currentRate }: { currentRate: number }) {
       ) : null}
 
       <div className="flex gap-2">
-        <Button loading={pending === "save"} type="submit" size="full" disabled={pending !== null || rate.trim() === ""}>
+        <Button
+          loading={pending === "save"}
+          type="submit"
+          size="full"
+          disabled={pending !== null || rate.trim() === ""}
+        >
           {pending !== "save" ? <Check size={16} aria-hidden="true" /> : null}
           {pending === "save" ? "Saving…" : "Use my rate"}
         </Button>
@@ -123,17 +129,16 @@ export function ManualRateForm({ currentRate }: { currentRate: number }) {
           disabled={pending !== null}
           aria-busy={pending === "reset"}
           title="Go back to the published rate for this date"
-          className="border-border-subtle bg-surface text-ink-muted hover:text-ink rounded-card flex min-h-11 shrink-0 items-center gap-1.5 border px-3 text-xs font-semibold disabled:opacity-40"
+          className="bg-fill text-ink-muted hover:text-ink rounded-pill flex min-h-11 shrink-0 items-center gap-1.5 px-4 text-xs font-semibold disabled:opacity-40"
         >
-          {pending === "reset" ? <LoaderCircle size={14} className="animate-spin" aria-hidden="true" /> : <RotateCcw size={14} aria-hidden="true" />}
+          {pending === "reset" ? (
+            <LoaderCircle size={14} className="animate-spin" aria-hidden="true" />
+          ) : (
+            <RotateCcw size={14} aria-hidden="true" />
+          )}
           {pending === "reset" ? "Resetting..." : "Reset"}
         </button>
       </div>
-
-      <p className="text-ink-faint text-xs">
-        Transactions you have already recorded keep the rate they were saved with, so
-        past figures do not move.
-      </p>
     </form>
   );
 }

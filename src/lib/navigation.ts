@@ -1,20 +1,22 @@
-import { ChartNoAxesColumn, Ellipsis, ExpenseList, House, PieChart, Settings, Wallet } from "@/components/app-icon";
+import { ChartNoAxesColumn, ExpenseList, House, PieChart, Settings, Wallet } from "@/components/app-icon";
 
 export const MAIN_NAV = [
   { href: "/", label: "Home", icon: House },
   { href: "/transactions", label: "Activity", icon: ExpenseList },
-  { href: "/accounts", label: "Accounts", icon: Wallet },
-  { href: "/more", label: "More", icon: Ellipsis },
+  { href: "/budgets", label: "Budgets", icon: PieChart },
+  { href: "/reports", label: "Insights", icon: ChartNoAxesColumn },
 ] as const;
 
-export const MORE_NAV = [
-  { href: "/budgets", label: "Budgets", description: "Stay on top of your spending", icon: PieChart },
-  { href: "/reports", label: "Reports", description: "See how your money moves", icon: ChartNoAxesColumn },
-  { href: "/settings", label: "Settings", description: "Currency, exchange rate and Telegram", icon: Settings },
+export const SIDEBAR_NAV = [
+  { href: "/", label: "Home", icon: House },
+  { href: "/transactions", label: "Activity", icon: ExpenseList },
+  { href: "/accounts", label: "Accounts", icon: Wallet },
+  { href: "/budgets", label: "Budgets", icon: PieChart },
+  { href: "/reports", label: "Insights", icon: ChartNoAxesColumn },
+  { href: "/settings", label: "Settings", icon: Settings },
 ] as const;
 
 export function isNavActive(pathname: string, href: string): boolean {
   if (href === "/") return pathname === "/";
-  if (href === "/more") return pathname === "/more" || MORE_NAV.some((item) => isNavActive(pathname, item.href));
   return pathname === href || pathname.startsWith(`${href}/`);
 }

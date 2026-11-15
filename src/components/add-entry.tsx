@@ -34,6 +34,7 @@ export function AddEntry({
   rate = DEFAULT_RATE,
   readOnly = false,
   initialMode = "expense",
+  initialHabit = null,
   timezone,
   initialDate,
 }: {
@@ -44,6 +45,7 @@ export function AddEntry({
   /** Demo mode: the forms render but cannot persist. */
   readOnly?: boolean;
   initialMode?: EntryMode;
+  initialHabit?: EntryHabit | null;
   timezone?: string;
   initialDate?: string;
 }) {
@@ -52,7 +54,7 @@ export function AddEntry({
   return (
     <div className="mx-auto max-w-2xl space-y-5">
       <div
-        className="segmented-control segmented-control-three segmented-control-brand bg-surface-container rounded-2xl"
+        className="segmented-control segmented-control-three segmented-control-full"
         role="group"
         aria-label="Entry type"
       >
@@ -63,8 +65,8 @@ export function AddEntry({
             aria-pressed={mode === option.value}
             onClick={() => setMode(option.value)}
             className={cn(
-              "rounded-xl min-h-11 text-sm font-semibold",
-              mode === option.value ? "text-on-action" : "text-ink-muted",
+              "relative z-10 min-h-8 text-[13px] leading-[18px] tracking-[-0.006em] whitespace-nowrap before:absolute before:-inset-y-1.5 before:inset-x-0",
+              mode === option.value ? "text-ink font-semibold" : "text-ink-muted font-medium",
             )}
           >
             {option.label}
@@ -87,6 +89,7 @@ export function AddEntry({
           accounts={accounts}
           categories={categories}
           habits={habits}
+          initialHabit={initialHabit?.type === mode ? initialHabit : null}
           rate={rate}
           readOnly={readOnly}
         />

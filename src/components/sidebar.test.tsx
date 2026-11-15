@@ -6,7 +6,7 @@ import { Sidebar } from "./sidebar";
 
 test("retains every desktop destination and add action without the blurb", () => {
   render(<Sidebar />);
-  for (const label of ["Home", "Activity", "Accounts", "Budgets", "Reports", "Settings", "Add transaction"]) {
+  for (const label of ["Home", "Activity", "Accounts", "Budgets", "Insights", "Settings", "Add transaction"]) {
     expect(screen.getByRole("link", { name: label })).toBeInTheDocument();
   }
   expect(screen.queryByText("A little clearer.")).not.toBeInTheDocument();

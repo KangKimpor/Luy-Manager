@@ -29,13 +29,14 @@ import { Button } from "@/components/ui/button";
 import { AccountPicker } from "@/components/account-picker";
 import { CategoryPicker } from "@/components/category-picker";
 import { resolveCategory } from "@/lib/domain/categories";
-import type { EntryHabit } from "@/lib/domain/entry-habits";
+import { amountToRawString, type EntryHabit } from "@/lib/domain/entry-habits";
 import { TransactionDateField } from "@/components/transaction-date-field";
 import { useEntryDate } from "@/components/use-entry-date";
 import { calendarDate, isCalendarDate, transactionDate } from "@/lib/calendar";
 import { createTransaction } from "@/app/actions/transactions";
 import type { AccountBalance, Category, TransactionType } from "@/lib/domain/types";
 import {
+  convert,
   CURRENCIES,
   type CurrencyCode,
   DEFAULT_RATE,
@@ -68,6 +69,8 @@ interface QuickAddFormProps {
   accounts: readonly AccountBalance[];
   categories: readonly Category[];
   habits?: readonly EntryHabit[];
+  /** Server-resolved habit from `/add?habit=...`, prefilling amount, account, category and note. */
+  initialHabit?: EntryHabit | null;
   /**
    * Owned by the parent, which also offers Transfer as a third mode. Keeping the
    * choice in one segmented control avoids two nested toggles competing to say
@@ -86,6 +89,7 @@ export function QuickAddForm({
   accounts,
   categories,
   habits = [],
+  initialHabit = null,
   type,
   rate: initialRate = DEFAULT_RATE,
   readOnly = false,
@@ -93,11 +97,22 @@ export function QuickAddForm({
   initialDate = calendarDate(new Date(), timezone),
 }: QuickAddFormProps) {
   const { date, selectDate, rate, ratePending, dateError } = useEntryDate(initialDate, initialRate, readOnly);
-  const [raw, setRaw] = useState("");
-  const [accountId, setAccountId] = useState(accounts[0]?.accountId ?? "");
-  const [currency, setCurrency] = useState<CurrencyCode>(accounts[0]?.currency ?? "USD");
-  const [categoryId, setCategoryId] = useState<string | null | undefined>(undefined);
-  const [note, setNote] = useState<string | null>(null);
+  const prefilledAccount = initialHabit
+    ? accounts.find((account) => account.currency === initialHabit.amount.currency)
+    : undefined;
+  const matchedHabit = initialHabit && initialHabit.type === type && prefilledAccount ? initialHabit : null;
+
+  const [raw, setRaw] = useState(() => (matchedHabit ? amountToRawString(matchedHabit.amount) : ""));
+  const [accountId, setAccountId] = useState(
+    () => prefilledAccount?.accountId ?? accounts[0]?.accountId ?? "",
+  );
+  const [currency, setCurrency] = useState<CurrencyCode>(
+    () => matchedHabit?.amount.currency ?? accounts[0]?.currency ?? "USD",
+  );
+  const [categoryId, setCategoryId] = useState<string | null | undefined>(
+    () => matchedHabit?.categoryId ?? undefined,
+  );
+  const [note, setNote] = useState<string | null>(() => matchedHabit?.note ?? null);
   const [saved, setSaved] = useState<Money | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
@@ -115,6 +130,11 @@ export function QuickAddForm({
   // rather than offering a second figure that could disagree.
   const mixedAmount = tenders ? tenderTotal(tenders, currency, rate) : null;
   const amount = mixedAmount ?? keypadAmount;
+  const otherCurrency: CurrencyCode = currency === "USD" ? "KHR" : "USD";
+  const converted = useMemo(
+    () => (amount.minor > 0 ? convert(amount, otherCurrency, rate) : null),
+    [amount, otherCurrency, rate],
+  );
   const habit = !tenders && !splits ? habits.find(habit => habit.type === type && habit.amount.currency === currency && habit.amount.minor === amount.minor) : undefined;
   const resolvedNote = note ?? habit?.note ?? "";
   const suggestedCategoryId = note === null && habit ? habit.categoryId : resolveCategory(relevantCategories, resolvedNote)?.id;
@@ -188,8 +208,9 @@ export function QuickAddForm({
         amount={amount}
         onAmountChange={tenders || pending ? undefined : (next) => { setRaw(next); setSaved(null); setError(null); }}
         tone={type === "expense" ? "outflow" : "inflow"}
+        hint={converted ? <>~ <MoneyAmount amount={converted} /> at {rate.rate.toLocaleString("en-US", { maximumFractionDigits: 0 })}&#x17DB;</> : null}
         trailing={
-          <div className="flex gap-1" role="group" aria-label="Currency">
+          <div className="segmented-control" role="group" aria-label="Currency">
             {CURRENCIES.map((code) => {
               const target = accounts.find((account) => account.currency === code);
               return (
@@ -204,10 +225,10 @@ export function QuickAddForm({
                   disabled={!target}
                   onClick={() => target && selectAccount(target)}
                   className={cn(
-                    "rounded-pill min-h-11 px-3 text-xs font-bold transition-colors",
+                    "relative z-10 min-h-8 px-3 text-xs whitespace-nowrap transition-colors",
                     currency === code
-                      ? "bg-brand text-on-action"
-                      : "bg-surface-muted text-ink-muted",
+                      ? "text-ink font-semibold"
+                      : "text-ink-muted font-medium",
                     !target && "opacity-30",
                   )}
                 >
@@ -239,7 +260,7 @@ export function QuickAddForm({
           }}
         />
       ) : (
-        <AmountKeypad currency={currency} onPress={press} />
+        <AmountKeypad currency={currency} raw={raw} onPress={press} />
       )}
 
       {/* A split has its own category for each part. */}
@@ -255,10 +276,10 @@ export function QuickAddForm({
 
       <div>
         <label htmlFor="note" className="text-ink-muted mb-2 block text-sm font-medium">Note</label>
-        <input id="note" type="text" maxLength={500} value={resolvedNote} onChange={(event) => { setSaved(null); setNote(event.target.value); }} placeholder="What was it for?" className="border-border-subtle bg-surface rounded-xl text-ink placeholder:text-ink-faint min-h-11 w-full border px-3" />
+        <input id="note" type="text" maxLength={500} value={resolvedNote} onChange={(event) => { setSaved(null); setNote(event.target.value); }} placeholder="What was it for?" className="field-input" />
       </div>
 
-      <details className="border-surface-variant rounded-2xl border bg-surface p-4">
+      <details className="rounded-card bg-surface border-card-edge border-[0.5px] p-4">
       <summary className="text-ink-muted flex min-h-11 items-center justify-between text-sm font-medium">More options<ChevronDown className="disclosure-icon" size={17} aria-hidden="true" /></summary>
       <div className="mt-4 space-y-4">
       <div className="flex flex-wrap gap-2">
@@ -280,10 +301,10 @@ export function QuickAddForm({
             );
           }}
           className={cn(
-            "rounded-pill flex min-h-11 flex-1 items-center justify-center gap-1.5 border text-xs font-medium transition-colors",
+            "rounded-pill flex min-h-11 flex-1 items-center justify-center gap-1.5 px-4 text-xs font-medium transition-colors",
             tenders !== null
-              ? "border-brand bg-brand-soft text-brand"
-              : "border-border-subtle bg-surface text-ink-muted",
+              ? "bg-brand text-on-action"
+              : "bg-fill text-ink-muted",
           )}
         >
           <Wallet size={14} aria-hidden="true" />
@@ -299,10 +320,10 @@ export function QuickAddForm({
             setSplits(splits ? null : [newSplit(), newSplit()]);
           }}
           className={cn(
-            "rounded-pill flex min-h-11 flex-1 items-center justify-center gap-1.5 border text-xs font-medium transition-colors",
+            "rounded-pill flex min-h-11 flex-1 items-center justify-center gap-1.5 px-4 text-xs font-medium transition-colors",
             splits !== null
-              ? "border-brand bg-brand-soft text-brand"
-              : "border-border-subtle bg-surface text-ink-muted",
+              ? "bg-brand text-on-action"
+              : "bg-fill text-ink-muted",
           )}
         >
           <Layers size={14} aria-hidden="true" />

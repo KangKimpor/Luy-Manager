@@ -1,4 +1,5 @@
 import {
+  ChevronRight,
   CreditCard,
   Landmark,
   PiggyBank,
@@ -10,42 +11,26 @@ import {
 } from "@/components/app-icon";
 import { AppLink as Link } from "@/components/app-link";
 
-import { AccountRowActions } from "@/components/account-row-actions";
 import { AccountExport } from "@/components/account-export";
+import { AccountRowActions } from "@/components/account-row-actions";
+import { RowIconTile } from "@/components/category-icon";
 import { CurrencyToggle } from "@/components/currency-toggle";
-import { CurrencyBadge, MoneyAmount } from "@/components/money-amount";
+import { MoneyAmount } from "@/components/money-amount";
 import { buttonVariants } from "@/components/ui/button";
-import { Card, CardBody } from "@/components/ui/card";
 import { activityHref } from "@/lib/activity-url";
 import { isDemoMode } from "@/lib/auth";
 import { listAccountBalances } from "@/lib/data/accounts";
-import { otherCurrency, readDisplayCurrency } from "@/lib/display-currency";
-import { ACCOUNT_TYPE_LABELS, balanceOf, summarizeNetWorth } from "@/lib/domain/accounts";
-import type { AccountType } from "@/lib/domain/types";
-import { totalInBaseCurrency } from "@/lib/money";
+import { readDisplayCurrency } from "@/lib/display-currency";
+import {
+  ACCOUNT_TYPE_LABELS,
+  balanceOf,
+  summarizeCurrencyPockets,
+  summarizeNetWorth,
+} from "@/lib/domain/accounts";
+import type { AccountBalance, AccountType } from "@/lib/domain/types";
+import { convert, formatMoney, fromMajor } from "@/lib/money";
 import { loadUsdKhrRate } from "@/lib/rates/repository";
 import { cn } from "@/lib/utils";
-
-/**
- * Accounts, PRD Section 6.
- *
- * Grouped by type so the shape of someone's money is legible at a glance: what is
- * spendable, what is put away, what is owed. Each balance stays in the account's
- * own currency, since that is the figure the bank app will show.
- *
- * Only the totals follow the currency toggle. Converting the individual rows would
- * be actively unhelpful: the point of a per-account balance is to be checked
- * against the bank, and a converted figure cannot be.
- */
-
-const GROUP_ORDER: AccountType[] = [
-  "bank",
-  "ewallet",
-  "cash",
-  "savings",
-  "investment",
-  "credit_card",
-];
 
 const GROUP_ICONS: Record<AccountType, AppIconType> = {
   bank: Landmark,
@@ -56,19 +41,6 @@ const GROUP_ICONS: Record<AccountType, AppIconType> = {
   credit_card: CreditCard,
 };
 
-/**
- * Two tints, not six.
- *
- * The design mockup gave each account type its own colour, which looks lively but
- * encodes nothing: the colours were decorative and a reader learns nothing from
- * green versus red here. One distinction is worth colour, and it is the one that
- * changes the arithmetic: an asset adds to net worth, a credit card subtracts
- * from it.
- */
-function tintFor(type: AccountType): string {
-  return type === "credit_card" ? "bg-outflow-soft text-outflow" : "bg-brand-soft text-brand";
-}
-
 export default async function AccountsPage() {
   const [displayCurrency, { rate }, accounts] = await Promise.all([
     readDisplayCurrency(),
@@ -76,171 +48,171 @@ export default async function AccountsPage() {
     listAccountBalances(),
   ]);
 
-  // Sample data cannot be edited, so only a signed-in user gets the row controls.
   const editable = !isDemoMode();
-
   const summary = summarizeNetWorth(accounts, displayCurrency, rate);
-  // Aggregated in the other currency, not converted from the total above, so the
-  // equivalent matches exactly what the toggle will show rather than differing by a
-  // few riel of rounding.
-  const equivalent = summarizeNetWorth(accounts, otherCurrency(displayCurrency), rate).netWorth;
+  const pockets = summarizeCurrencyPockets(accounts, displayCurrency, rate);
+  const perDollar = formatMoney(fromMajor(rate.rate, "KHR"));
 
-  const grouped = GROUP_ORDER.map((type) => {
-    const members = accounts.filter((account) => account.type === type);
-    const balances = members.map(balanceOf);
+  const usdAccounts = accounts.filter((account) => account.currency === "USD");
+  const khrAccounts = accounts.filter((account) => account.currency === "KHR");
 
-    // A group of accounts all held in one currency has an exact subtotal. A group
-    // mixing USD and KHR does not, so its subtotal is a conversion and is marked
-    // as approximate rather than presented as a hard figure.
-    const currencies = new Set(members.map((account) => account.currency));
-    const isMixed = currencies.size > 1;
-    const subtotalCurrency = isMixed ? displayCurrency : (members[0]?.currency ?? displayCurrency);
-
-    return {
-      type,
-      accounts: members,
-      isMixed,
-      subtotal: totalInBaseCurrency(balances, subtotalCurrency, rate),
-    };
-  }).filter((group) => group.accounts.length > 0);
+  const pocketSections: ReadonlyArray<{
+    key: "USD" | "KHR";
+    label: string;
+    ariaLabel: string;
+    dotClass: string;
+    tintColor: string;
+    subtotal: typeof pockets.usd.subtotal;
+    items: readonly AccountBalance[];
+  }> = [
+    {
+      key: "USD",
+      label: "Dollars",
+      ariaLabel: "Dollar accounts",
+      dotClass: "dot-usd-ink",
+      tintColor: "var(--color-usd)",
+      subtotal: pockets.usd.subtotal,
+      items: usdAccounts,
+    },
+    {
+      key: "KHR",
+      label: "Riel",
+      ariaLabel: "Riel accounts",
+      dotClass: "dot-khr-ink",
+      tintColor: "var(--color-khr)",
+      subtotal: pockets.khr.subtotal,
+      items: khrAccounts,
+    },
+  ];
 
   return (
-    <div className="page-enter mx-auto max-w-4xl space-y-5 sm:space-y-6">
+    <div className="page-enter mx-auto max-w-4xl space-y-5">
       <div className="flex items-center justify-between gap-3">
-        <p className="text-sm text-ink-muted">Every account, one clear picture.</p>
         <CurrencyToggle current={displayCurrency} className="shrink-0" />
-      </div>
-
-      <Card className="hero-orbit border-0 bg-hero p-6 text-on-hero sm:p-8">
-        <p className="relative text-sm text-on-hero/70">Total net worth</p>
-        <MoneyAmount amount={summary.netWorth} className="relative mt-3 block text-[clamp(1.9rem,7.5vw,3rem)] leading-tight font-semibold tracking-tight" />
-        <p className="relative mt-2 text-sm text-on-hero/60">~ <MoneyAmount amount={equivalent} /> equivalent</p>
-        <div className="relative mt-6 grid grid-cols-2 gap-4 border-t border-on-hero/15 pt-4">
-          <div><p className="text-xs text-on-hero/60">Cash available</p><MoneyAmount amount={summary.cash} className="mt-1 block text-sm font-semibold" /></div>
-          <div><p className="text-xs text-on-hero/60">Liabilities</p><MoneyAmount amount={summary.liabilities} className="mt-1 block text-sm font-semibold" /></div>
-        </div>
-        <p className="relative mt-4 text-[11px] text-on-hero/55">Included balances converted to {displayCurrency}</p>
-      </Card>
-
-      {accounts.length === 0 ? (
-        <Card>
-          <CardBody className="space-y-3 py-8 text-center">
-            <span className="mx-auto flex size-12 items-center justify-center rounded-2xl bg-brand-soft text-brand">
-              <Wallet size={22} aria-hidden="true" />
-            </span>
-            <p className="text-ink text-numeric-md">No accounts yet</p>
-            <p className="text-ink-muted text-body-md">
-              Add the banks, wallets and cash you actually use. There are presets for
-              ABA, ACLEDA, Wing and TrueMoney.
-            </p>
-            <Link href="/accounts/new" className={buttonVariants({ size: "full" })}>
-              <Plus size={16} aria-hidden="true" />
-              Add your accounts
-            </Link>
-          </CardBody>
-        </Card>
-      ) : (
         <Link
           href="/accounts/new"
-          className={cn(buttonVariants({ variant: "secondary", size: "full" }), "card-interactive")}
+          className={cn(buttonVariants({ variant: "secondary", size: "sm" }), "px-4")}
         >
           <Plus size={16} aria-hidden="true" />
           Add an account
         </Link>
+      </div>
+
+      {accounts.length === 0 ? (
+        <div className="proto-card space-y-3 py-8 text-center">
+          <span className="bg-brand-soft text-brand mx-auto flex size-12 items-center justify-center rounded-2xl">
+            <Wallet size={22} aria-hidden="true" />
+          </span>
+          <p className="text-ink text-numeric-md">No accounts yet</p>
+          <p className="text-ink-muted text-body-md">
+            Add the banks, wallets and cash you actually use. There are presets for ABA, ACLEDA,
+            Wing and TrueMoney.
+          </p>
+          <Link href="/accounts/new" className={buttonVariants({ size: "full" })}>
+            <Plus size={16} aria-hidden="true" />
+            Add your accounts
+          </Link>
+        </div>
+      ) : (
+        <>
+          {pocketSections.map((section) =>
+            section.items.length === 0 ? null : (
+              <section key={section.key} className="sec-wrap" aria-label={section.ariaLabel}>
+                <div className="acct-sec-head">
+                  <h2 className="acct-sec-title m-0">
+                    <span className={cn("dot", section.dotClass)} aria-hidden="true" />
+                    {section.label}
+                  </h2>
+                  <MoneyAmount amount={section.subtotal} className="numeric-md text-ink" />
+                </div>
+
+                <ul className="tx-activity-group stagger-children">
+                  {section.items.map((account) => {
+                    const Icon = GROUP_ICONS[account.type];
+                    const balance = balanceOf(account);
+                    const showConverted = account.currency !== displayCurrency;
+
+                    return (
+                      <li key={account.accountId} className="acct-card-row">
+                        <Link
+                          href={activityHref({ account: account.accountId })}
+                          className="flex min-w-0 flex-1 items-center justify-between gap-3"
+                        >
+                          <div className="flex min-w-0 flex-1 items-center gap-3">
+                            <RowIconTile
+                              color={
+                                account.type === "credit_card"
+                                  ? "var(--color-outflow)"
+                                  : section.tintColor
+                              }
+                            >
+                              <Icon size={19} aria-hidden="true" />
+                            </RowIconTile>
+
+                            <div className="min-w-0 flex-1">
+                              <p
+                                className={cn(
+                                  "tx-title truncate",
+                                  !account.isActive && "text-ink-faint line-through",
+                                )}
+                              >
+                                {account.name}
+                              </p>
+                              <p className="caption mt-0.5 truncate">
+                                {account.institution && account.institution !== account.name
+                                  ? account.institution
+                                  : ACCOUNT_TYPE_LABELS[account.type]}
+                                {!account.isActive ? " · closed" : null}
+                                {account.isActive && !account.includeInNetWorth
+                                  ? " · not counted"
+                                  : null}
+                              </p>
+                            </div>
+                          </div>
+
+                          <div className="flex shrink-0 items-center gap-2">
+                            <div className="flex flex-col items-end">
+                              <MoneyAmount
+                                amount={balance}
+                                colorBySign={account.type === "credit_card"}
+                                className="numeric-md whitespace-nowrap"
+                              />
+                              {showConverted ? (
+                                <span className="caption tabular">
+                                  ~ <MoneyAmount amount={convert(balance, displayCurrency, rate)} />
+                                </span>
+                              ) : null}
+                            </div>
+                            <ChevronRight
+                              size={16}
+                              aria-hidden="true"
+                              className="text-ink-faint shrink-0"
+                            />
+                          </div>
+                        </Link>
+
+                        {editable ? (
+                          <AccountRowActions
+                            accountId={account.accountId}
+                            name={account.name}
+                            isActive={account.isActive}
+                            transactionCount={account.transactionCount}
+                          />
+                        ) : null}
+                      </li>
+                    );
+                  })}
+                </ul>
+              </section>
+            ),
+          )}
+
+          <p className="caption tabular pt-2 text-center">
+            Total ~ <MoneyAmount amount={summary.netWorth} /> at $1 = {perDollar}
+          </p>
+        </>
       )}
 
-      {grouped.map((group) => {
-        const Icon = GROUP_ICONS[group.type];
-
-        return (
-          <section key={group.type} className="page-enter space-y-3">
-            {/*
-              Group heading sits outside the card, so the card holds only rows and
-              the eye can run down a single column of balances uninterrupted.
-            */}
-            <div className="flex items-baseline justify-between gap-2 px-1">
-              <h2 className="text-sm font-semibold text-ink-muted">
-                {ACCOUNT_TYPE_LABELS[group.type]}
-              </h2>
-              <span className="text-sm font-semibold text-ink">
-                {group.isMixed ? <span className="text-ink-faint">~ </span> : null}
-                <MoneyAmount
-                  amount={group.subtotal}
-                  colorBySign={group.type === "credit_card"}
-                />
-              </span>
-            </div>
-
-            <Card className="overflow-hidden">
-              <ul className="stagger-children divide-y divide-surface-variant">
-                {group.accounts.map((account) => (
-                  <li key={account.accountId}>
-                    {/*
-                      The whole summary links to that account's Activity, which already
-                      filters by `account`. The edit and close controls stay outside the
-                      link, because a button inside a link is invalid and unreliable.
-                    */}
-                    <Link
-                      href={activityHref({ account: account.accountId })}
-                      className={cn(
-                        "grid grid-cols-[2.5rem_minmax(0,1fr)_auto] items-center gap-x-3 px-4 pt-5 transition-colors hover:bg-surface-container-low sm:px-5",
-                        editable ? "pb-2" : "pb-5",
-                      )}
-                    >
-                      <span
-                        className={cn(
-                          "flex size-10 shrink-0 items-center justify-center rounded-2xl",
-                          tintFor(account.type),
-                        )}
-                      >
-                        <Icon size={20} aria-hidden="true" />
-                      </span>
-
-                      <div className="min-w-0">
-                        <p
-                          className={cn(
-                            "truncate text-sm font-semibold",
-                            account.isActive ? "text-ink" : "text-ink-faint line-through",
-                          )}
-                        >
-                          {account.name}
-                        </p>
-                        <p className="mt-1 truncate text-[11px] text-ink-faint">
-                          {account.institution ?? ACCOUNT_TYPE_LABELS[account.type]}
-                          {!account.isActive ? " · closed" : null}
-                          {account.isActive && !account.includeInNetWorth
-                            ? " · not counted"
-                            : null}
-                        </p>
-                      </div>
-
-                      <div className="flex flex-col items-end gap-1">
-                        <MoneyAmount
-                          amount={balanceOf(account)}
-                          colorBySign={account.type === "credit_card"}
-                          className="whitespace-nowrap text-sm font-semibold tracking-tight"
-                        />
-                        <CurrencyBadge currency={account.currency} />
-                      </div>
-                    </Link>
-
-                    {editable ? (
-                      <div className="flex justify-end px-4 pb-5 sm:px-5">
-                        <AccountRowActions
-                          accountId={account.accountId}
-                          name={account.name}
-                          isActive={account.isActive}
-                          transactionCount={account.transactionCount}
-                        />
-                      </div>
-                    ) : null}
-                  </li>
-                ))}
-              </ul>
-            </Card>
-          </section>
-        );
-      })}
       <AccountExport />
     </div>
   );

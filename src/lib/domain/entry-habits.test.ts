@@ -1,7 +1,8 @@
 import { expect, test } from "vitest";
 import { DEMO_ACCOUNTS, DEMO_CATEGORIES, DEMO_TRANSACTIONS } from "@/lib/demo-data";
+import { money } from "@/lib/money";
 import type { Transaction } from "./types";
-import { learnEntryHabits } from "./entry-habits";
+import { amountToRawString, entryHabitKey, learnEntryHabits, resolveEntryHabit } from "./entry-habits";
 import { quickEntryAccounts } from "./entry-choices";
 
 function coffee(overrides: Partial<Transaction> = {}): Transaction {
@@ -30,6 +31,20 @@ test("keeps currencies and transaction types separate and ignores transfers", ()
 test("recognizes case variants and resolves uncategorised coffee to Drinks", () => {
   expect(learnEntryHabits([coffee({ categoryId: null }), coffee({ notes: "coffee" }), coffee({ notes: " Coffee  " })], DEMO_CATEGORIES)).toHaveLength(1);
   expect(learnEntryHabits([coffee(), coffee(), coffee()], [])).toEqual([]);
+});
+
+test("resolves habit keys and formats amounts cleanly without floats", () => {
+  const habits = learnEntryHabits([coffee(), coffee(), coffee()], DEMO_CATEGORIES);
+  const key = entryHabitKey(habits[0]);
+  expect(key).toBe("expense:KHR:600000");
+  expect(resolveEntryHabit(habits, key)).toEqual(habits[0]);
+  expect(resolveEntryHabit(habits, "expense:KHR:999")).toBeNull();
+  expect(resolveEntryHabit(habits, undefined)).toBeNull();
+
+  expect(amountToRawString(money(-600000, "KHR"))).toBe("6000");
+  expect(amountToRawString(money(-123455, "KHR"))).toBe("1234.55");
+  expect(amountToRawString(money(-350, "USD"))).toBe("3.50");
+  expect(amountToRawString(money(50, "USD"))).toBe("0.50");
 });
 
 test("quick entry offers ABA checking in both currencies ahead of savings or other wallets", () => {

@@ -1,44 +1,35 @@
 "use client";
 
-import { ArrowLeft, Settings } from "@/components/app-icon";
-import Image from "next/image";
-import { AppLink as Link } from "@/components/app-link";
+import { useEffect, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 
+import { ChevronLeft, Settings } from "@/components/app-icon";
+import { AppLink as Link } from "@/components/app-link";
+import { cn } from "@/lib/utils";
+
 /**
- * Fixed top app bar.
+ * Navigation bar and in-flow large screen title.
  *
- * Two variants, chosen by route depth rather than by a prop, so no page has to
- * remember to declare which one it wants:
- *
- *   Top-level destination -> app mark, screen name, and a link to settings.
- *   Anything deeper       -> back button and the screen name.
- *
- * The title lives here rather than in each page because it was previously
- * repeated: the Stitch mockups showed "Accounts" in the bar and again as a
- * heading immediately below it. One h1 per screen, rendered once, in the bar.
- *
- * Hidden entirely on /login, which is a full-bleed screen with nothing to
- * navigate back to and no session to reach settings with.
+ * Phone screens use a transparent top bar carrying circular glass controls
+ * (Back on sub routes, Settings on the right everywhere except /settings) plus a
+ * headline inline title that fades in once the in-flow large title scrolls under
+ * the bar. Only one <h1> renders per screen, here, inside the page flow.
  */
 
-/** Routes that are destinations in their own right, so no back affordance. */
 const ROOT_TITLES: Record<string, string> = {
   "/": "Home",
-  "/accounts": "Accounts",
-  "/budgets": "Budgets",
-  "/reports": "Reports",
   "/transactions": "Activity",
-  "/more": "More",
+  "/budgets": "Budgets",
+  "/reports": "Insights",
 };
 
-/** Deeper routes, matched most specific first. */
 const SUB_TITLES: ReadonlyArray<[RegExp, string]> = [
   [/^\/reports\/overall$/, "Overall report"],
-  [/^\/add$/, "Add transaction"],
+  [/^\/accounts$/, "Accounts"],
   [/^\/accounts\/new$/, "Add account"],
   [/^\/accounts\/[^/]+\/edit$/, "Edit account"],
   [/^\/budgets\/new$/, "New budget"],
+  [/^\/add$/, "Add transaction"],
   [/^\/transactions\/[^/]+\/edit$/, "Edit transaction"],
   [/^\/settings$/, "Settings"],
 ];
@@ -53,53 +44,77 @@ function resolveTitle(pathname: string): { title: string; isRoot: boolean } | nu
     if (pattern.test(pathname)) return { title, isRoot: false };
   }
 
-  // An unmapped route still gets a bar with a way back, which is better than a
-  // screen that looks broken because its chrome vanished.
   return { title: "Luy Manager", isRoot: false };
 }
 
 export function SiteHeader() {
   const pathname = usePathname();
   const router = useRouter();
+  const [scrolled, setScrolled] = useState(false);
+  const titleRef = useRef<HTMLDivElement>(null);
 
   const resolved = resolveTitle(pathname);
+
+  useEffect(() => {
+    if (!resolved) return;
+
+    function updateFromScroll() {
+      const target = titleRef.current;
+      if (!target) {
+        setScrolled(window.scrollY > 36);
+        return;
+      }
+      const rect = target.getBoundingClientRect();
+      setScrolled(rect.bottom <= 52);
+    }
+
+    updateFromScroll();
+    window.addEventListener("scroll", updateFromScroll, { passive: true });
+    return () => window.removeEventListener("scroll", updateFromScroll);
+  }, [pathname, resolved]);
+
   if (!resolved) return null;
 
   const { title, isRoot } = resolved;
+  const showSettingsButton = pathname !== "/settings";
 
   return (
-    <header className="app-chrome-header bg-surface-muted pt-safe fixed inset-x-0 top-0 z-40 lg:left-60">
-      <div className="safe-gutters mx-auto flex h-appbar max-w-xl items-center justify-between gap-3 px-5 lg:max-w-none lg:px-10 xl:px-14">
-        <div className="flex min-w-0 items-center gap-3">
-          {isRoot ? (
-            <Image src="/icon.svg" alt="Luy Manager" width={40} height={40} className="shrink-0 rounded-xl lg:hidden" />
-          ) : (
+    <>
+      <div className={cn("scroll-edge", scrolled && "is-scrolled")} aria-hidden="true" />
+      <header className={cn("topbar app-chrome-header", scrolled && "is-scrolled")}>
+        <div className="topbar-left">
+          {!isRoot ? (
             <button
               type="button"
-              onClick={() => window.history.length > 1 ? router.back() : router.push(pathname === "/reports/overall" ? "/reports" : "/")}
+              onClick={() =>
+                window.history.length > 1
+                  ? router.back()
+                  : router.push(pathname === "/reports/overall" ? "/reports" : "/")
+              }
               aria-label="Go back"
-              className="text-ink-muted hover:bg-surface-container -ml-2 flex size-11 shrink-0 items-center justify-center rounded-2xl transition-colors"
+              className="icon-btn"
             >
-              <ArrowLeft size={20} aria-hidden="true" />
+              <ChevronLeft size={20} aria-hidden="true" />
             </button>
-          )}
-
-          <div className="min-w-0">
-            <p className="text-ink-faint mb-0.5 text-[10px] font-semibold tracking-[0.15em] uppercase">Luy Manager</p>
-            <h1 className="text-headline-md text-ink truncate tracking-tight lg:text-2xl">{title}</h1>
-          </div>
+          ) : null}
         </div>
 
-        {isRoot ? (
-          <Link
-            href="/settings"
-            aria-label="Settings"
-            className="card-interactive bg-surface text-ink-muted border-surface-variant hover:text-brand flex size-11 shrink-0 items-center justify-center rounded-2xl border"
-          >
-            <Settings size={19} aria-hidden="true" />
-          </Link>
-        ) : null}
+        <span className="topbar-inline-title" aria-hidden="true">
+          {title}
+        </span>
+
+        <div className="topbar-actions">
+          {showSettingsButton ? (
+            <Link href="/settings" aria-label="Settings" className="icon-btn">
+              <Settings size={19} aria-hidden="true" />
+            </Link>
+          ) : null}
+        </div>
+      </header>
+
+      <div ref={titleRef} className="screen-head-flow mx-auto max-w-[1120px]">
+        <h1 className="large-title-h1">{title}</h1>
       </div>
-    </header>
+    </>
   );
 }

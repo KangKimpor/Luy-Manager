@@ -1,35 +1,20 @@
-import { categoryLabel } from "@/lib/domain/categories";
 import { AppLink as Link } from "@/components/app-link";
-
+import { BudgetPaceCaption, BudgetProgressBar } from "@/components/budget-progress-bar";
+import { CategoryIcon, categoryColorToken, RowIconTile } from "@/components/category-icon";
 import { MoneyAmount } from "@/components/money-amount";
-import { Card, CardBody, CardHeader, CardTitle } from "@/components/ui/card";
 import type { BudgetProgress } from "@/lib/domain/budgets";
+import { categoryLabel } from "@/lib/domain/categories";
 import type { Category } from "@/lib/domain/types";
-import { absolute } from "@/lib/money";
-import { cn } from "@/lib/utils";
 
 /**
- * Budget progress bars.
+ * Budget progress bars, ordered worst-first by `summarizeBudgets`.
  *
- * Ordered worst-first by `summarizeBudgets`, because the budget worth looking at is
- * the one nearest to being blown, not the one that happens to sort first
- * alphabetically.
- *
- * The bar is capped at 100% width while the figure beside it is not: someone who
- * has spent 240% of a budget needs to see 240%, but a bar three times the width of
- * its track would break the layout and read as a rendering fault.
+ * Bar width is clamped to 100% while remaining/over amount reports the true figure.
  */
-
-const TONE = {
-  under: { bar: "bg-inflow", text: "text-ink" },
-  warning: { bar: "bg-warning", text: "text-warning" },
-  over: { bar: "bg-outflow", text: "text-outflow" },
-} as const;
-
 export function BudgetSummaryCard({
   progress,
   categories,
-  limit = 4,
+  limit = 3,
 }: {
   progress: readonly BudgetProgress[];
   categories: Record<string, Category>;
@@ -38,77 +23,49 @@ export function BudgetSummaryCard({
   const shown = progress.slice(0, limit);
 
   return (
-    <Card>
-      <CardHeader className="flex items-center justify-between gap-2">
-        <div><CardTitle>Keep it in balance</CardTitle><p className="mt-1 text-xs text-ink-faint">Your current budgets</p></div>
-        <Link href="/budgets" className="card-interactive flex min-h-11 items-center text-xs font-semibold text-brand">
-          View all
+    <section className="sec-wrap order-5 lg:order-none" aria-label="Budgets summary">
+      <div className="sec-head">
+        <h2 className="sec-title">Budgets</h2>
+        <Link href="/budgets" className="text-link">
+          See all
         </Link>
-      </CardHeader>
-      <CardBody>
-        <ul className="stagger-children space-y-5">
+      </div>
+
+      <div className="proto-card">
+        <ul className="budget-list">
           {shown.map((entry) => {
-            const tone = TONE[entry.status];
+            const category = entry.budget.categoryId
+              ? categories[entry.budget.categoryId]
+              : undefined;
             const name =
               entry.budget.name ??
-              (entry.budget.categoryId
-                ? categoryLabel(categories[entry.budget.categoryId])
-                : "Everything");
+              (entry.budget.categoryId ? categoryLabel(category) : "Everything");
+            const color = categoryColorToken(category);
 
             return (
-              <li key={entry.budget.id} className="space-y-2">
-                <div className="flex items-baseline justify-between gap-2 text-sm">
-                  <span className="text-ink truncate font-medium">{name}</span>
-                  <span className={cn("shrink-0 tabular text-xs", tone.text)}>
-                    {Math.round(entry.fraction * 100)}%
+              <li key={entry.budget.id} className="budget-row">
+                <div className="budget-top">
+                  <div className="budget-id">
+                    <RowIconTile color={color}>
+                      <CategoryIcon category={category} size={17} />
+                    </RowIconTile>
+                    <span className="budget-name">{name}</span>
+                  </div>
+                  <span className="budget-nums">
+                    <MoneyAmount amount={entry.spent} /> of <MoneyAmount amount={entry.limit} />
                   </span>
                 </div>
 
-                <div
-                  className="bg-surface-variant h-1.5 w-full overflow-hidden rounded-full"
-                  role="progressbar"
-                  aria-valuenow={Math.min(100, Math.round(entry.fraction * 100))}
-                  aria-valuetext={`${Math.round(entry.fraction * 100)}% spent`}
-                  aria-valuemin={0}
-                  aria-valuemax={100}
-                  aria-label={`${name} budget`}
-                >
-                  <div
-                    className={cn("progress-fill h-full rounded-full", tone.bar)}
-                    // Clamped so an overspend cannot render wider than its track.
-                    style={{ width: `${Math.min(100, Math.round(entry.fraction * 100))}%` }}
-                  />
-                </div>
+                <BudgetProgressBar entry={entry} label={`${name} budget`} />
 
-                <p className="text-ink-faint text-xs">
-                  {entry.status === "over" ? (
-                    <span className="text-outflow font-medium">
-                      <MoneyAmount amount={absolute(entry.remaining)} /> over budget
-                    </span>
-                  ) : (
-                    <>
-                      <MoneyAmount amount={entry.remaining} /> left
-                    </>
-                  )}
-                  {" · "}
-                  {entry.daysRemaining === 0
-                    ? "last day"
-                    : `${entry.daysRemaining} day${entry.daysRemaining === 1 ? "" : "s"} left`}
+                <p className="caption">
+                  <BudgetPaceCaption entry={entry} />
                 </p>
               </li>
             );
           })}
         </ul>
-
-        {progress.length > shown.length ? (
-          <Link
-            href="/budgets"
-            className="text-ink-muted mt-3 block text-center text-xs font-medium"
-          >
-            {progress.length - shown.length} more
-          </Link>
-        ) : null}
-      </CardBody>
-    </Card>
+      </div>
+    </section>
   );
 }

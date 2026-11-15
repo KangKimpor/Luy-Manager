@@ -20,9 +20,11 @@ import { cn } from "@/lib/utils";
  */
 export function CurrencyToggle({
   current,
+  variant = "default",
   className,
 }: {
   current: CurrencyCode;
+  variant?: "default" | "hero";
   className?: string;
 }) {
   const [isPending, startTransition] = useTransition();
@@ -43,6 +45,8 @@ export function CurrencyToggle({
     });
   }
 
+  const isHero = variant === "hero";
+
   return (
     <div className="inline-flex flex-col gap-1">
     <div
@@ -52,7 +56,10 @@ export function CurrencyToggle({
       // Dimmed while in flight so a slow network reads as "working" rather than
       // as the toggle having been ignored.
       className={cn(
-        "segmented-control bg-surface-muted rounded-pill transition-opacity",
+        isHero
+          ? "hero-seg"
+          : "segmented-control rounded-pill bg-fill h-9 items-center",
+        "transition-opacity",
         isPending && "opacity-70",
         className,
       )}
@@ -65,17 +72,21 @@ export function CurrencyToggle({
           disabled={isPending}
           onClick={() => choose(code)}
           className={cn(
-            "rounded-pill min-h-11 px-3 text-xs font-bold",
-            optimistic === code
-              ? "text-ink"
-              : "text-ink-muted hover:text-ink",
+            isHero
+              ? undefined
+              : cn(
+                  "rounded-pill relative z-10 min-w-[56px] px-3 text-[13px] leading-[18px] tracking-[-0.006em] before:absolute before:-inset-y-1.5 before:inset-x-0",
+                  optimistic === code
+                    ? "text-ink font-semibold"
+                    : "text-ink-muted hover:text-ink font-medium",
+                ),
           )}
         >
           {code}
         </button>
       ))}
     </div>
-    {error ? <p role="alert" className="feedback-enter text-outflow text-xs">Could not change currency. Try again.</p> : null}
+    {error ? <p role="alert" className={cn("feedback-enter text-xs", isHero ? "text-on-hero" : "text-outflow")}>Could not change currency. Try again.</p> : null}
     </div>
   );
 }

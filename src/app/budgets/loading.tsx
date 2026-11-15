@@ -1,5 +1,5 @@
-import { ListSkeleton } from "@/components/page-skeleton";
+import { BudgetsSkeleton } from "@/components/page-skeleton";
 
 export default function Loading() {
-  return <ListSkeleton hero rows={4} />;
+  return <BudgetsSkeleton />;
 }

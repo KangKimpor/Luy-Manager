@@ -3,7 +3,6 @@
 import { Delete } from "@/components/app-icon";
 import { useRef, useState, type ReactNode } from "react";
 
-import { Card, CardBody } from "@/components/ui/card";
 import { type CurrencyCode, formatMoney, parseAmount, zero, type Money } from "@/lib/money";
 import { CURRENCY_META } from "@/lib/money";
 import { cn } from "@/lib/utils";
@@ -20,11 +19,21 @@ import { cn } from "@/lib/utils";
  * places), and rules about money belong somewhere they can be tested.
  */
 
-export const KEYPAD_KEYS = [
+export const USD_KEYPAD_KEYS = [
   "1", "2", "3", "4", "5", "6", "7", "8", "9", ".", "0", "del",
 ] as const;
 
-export type KeypadKey = (typeof KEYPAD_KEYS)[number];
+export const KHR_KEYPAD_KEYS = [
+  "1", "2", "3", "4", "5", "6", "7", "8", "9", ".", "0", "000", "del",
+] as const;
+
+export const KEYPAD_KEYS = KHR_KEYPAD_KEYS;
+
+export type KeypadKey = (typeof KHR_KEYPAD_KEYS)[number];
+
+const TOP_KEYS = ["1", "2", "3", "4", "5", "6", "7", "8", "9"] as const;
+const USD_BOTTOM_KEYS = [".", "0", "del"] as const;
+const KHR_BOTTOM_KEYS = [".", "0", "000", "del"] as const;
 
 /**
  * Apply a keypress to the raw entry string.
@@ -39,6 +48,18 @@ export function pressAmountKey(
   currency: CurrencyCode,
 ): string {
   if (key === "del") return raw.slice(0, -1);
+
+  if (key === "000") {
+    if (raw.includes(".")) return raw;
+    if (raw === "" || raw === "0") return "0";
+    let next = raw;
+    for (let i = 0; i < 3; i += 1) {
+      const candidate = pressAmountKey(next, "0", currency);
+      if (candidate === next) return raw;
+      next = candidate;
+    }
+    return next;
+  }
 
   const { decimals } = CURRENCY_META[currency];
 
@@ -105,7 +126,7 @@ export function pastedAmount(input: string, currency: CurrencyCode): string {
 }
 
 const TONE_CLASS = {
-  outflow: "text-outflow",
+  outflow: "text-ink",
   inflow: "text-inflow",
   neutral: "text-ink",
 } as const;
@@ -114,12 +135,14 @@ export function AmountDisplay({
   amount,
   tone = "neutral",
   label = "Amount entered",
+  hint,
   trailing,
   onAmountChange,
 }: {
   amount: Money;
   tone?: keyof typeof TONE_CLASS;
   label?: string;
+  hint?: ReactNode;
   trailing?: ReactNode;
   onAmountChange?: (raw: string) => void;
 }) {
@@ -137,67 +160,97 @@ export function AmountDisplay({
   }
 
   return (
-    <Card className="border-0 bg-surface-container-low">
-      <CardBody className="py-5">
-        <div className="mb-3 flex items-center justify-between gap-3">
-          <p className="text-ink-faint text-xs font-semibold uppercase tracking-wider">{label}</p>
-          {onAmountChange ? <button ref={pasteButton} data-currency={amount.currency} type="button" className="text-brand min-h-11 rounded-lg px-3 text-xs font-semibold"
-            onClick={async () => {
-              try {
-                const text = await navigator.clipboard.readText();
-                if (pasteButton.current?.dataset.currency === amount.currency && !pasteButton.current.matches(":disabled")) paste(text);
-              } catch {
-                setPasteError("Clipboard access is unavailable. Focus the amount and use your device's Paste command.");
-              }
-            }}>Paste amount</button> : null}
-        </div>
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <output
-            aria-live="polite"
-            aria-label={label}
-            tabIndex={onAmountChange ? 0 : undefined}
-            onPaste={onAmountChange ? (event) => { event.preventDefault(); paste(event.clipboardData.getData("text")); } : undefined}
-            className={cn("tabular break-all text-4xl font-semibold tracking-tight", TONE_CLASS[tone])}
-          >
-            <span key={`${amount.currency}:${amount.minor}`} className="amount-tick inline-block max-w-full">{formatMoney(amount)}</span>
-          </output>
-          {trailing}
-        </div>
-        {onAmountChange && pasteError ? <p role="alert" className="text-outflow mt-2 text-xs">{pasteError}</p> : null}
-      </CardBody>
-    </Card>
+    <div className="amount-stage py-2">
+      <div className="flex w-full items-center justify-center gap-3">
+        <output
+          aria-live="polite"
+          aria-label={label}
+          tabIndex={onAmountChange ? 0 : undefined}
+          onPaste={onAmountChange ? (event) => { event.preventDefault(); paste(event.clipboardData.getData("text")); } : undefined}
+          className={cn(
+            "amount-display tabular min-w-0 text-center",
+            amount.minor === 0 ? "is-empty" : TONE_CLASS[tone],
+          )}
+        >
+          <span key={`${amount.currency}:${amount.minor}`} className="amount-tick inline-block max-w-full">{formatMoney(amount)}</span>
+        </output>
+        {trailing ? <div className="shrink-0">{trailing}</div> : null}
+      </div>
+
+      <div className="amount-converted text-center">
+        {hint}
+      </div>
+
+      {onAmountChange ? (
+        <button
+          ref={pasteButton}
+          data-currency={amount.currency}
+          type="button"
+          className="text-brand relative mt-1.5 rounded-full px-3 py-1 text-xs font-medium before:absolute before:-inset-y-2 before:inset-x-0 hover:bg-brand-soft"
+          onClick={async () => {
+            try {
+              const text = await navigator.clipboard.readText();
+              if (pasteButton.current?.dataset.currency === amount.currency && !pasteButton.current.matches(":disabled")) paste(text);
+            } catch {
+              setPasteError("Clipboard access is unavailable. Focus the amount and use your device's Paste command.");
+            }
+          }}
+        >
+          Paste amount
+        </button>
+      ) : null}
+
+      {onAmountChange && pasteError ? <p role="alert" className="text-outflow mt-2 text-center text-xs">{pasteError}</p> : null}
+    </div>
   );
 }
 
 export function AmountKeypad({
   currency,
+  raw = "",
   onPress,
 }: {
   currency: CurrencyCode;
+  raw?: string;
   onPress: (key: KeypadKey) => void;
 }) {
   const decimalDisabled = CURRENCY_META[currency].decimals === 0;
+  const tripleZeroDisabled = raw.includes(".");
+  const bottomKeys = currency === "KHR" ? KHR_BOTTOM_KEYS : USD_BOTTOM_KEYS;
+
+  function renderKey(key: KeypadKey) {
+    const disabled =
+      (key === "." && decimalDisabled) ||
+      (key === "000" && tripleZeroDisabled);
+    const isBack = key === "del";
+
+    return (
+      <button
+        key={key}
+        type="button"
+        onClick={() => onPress(key)}
+        aria-label={isBack ? "Delete last digit" : key}
+        disabled={disabled}
+        className={cn(
+          "key-btn",
+          isBack && "is-back text-ink-muted hover:text-ink",
+          key === "000" && "text-xl",
+          disabled && "opacity-30",
+        )}
+      >
+        {isBack ? <Delete size={22} aria-hidden="true" /> : key}
+      </button>
+    );
+  }
 
   return (
-    <div className="grid grid-cols-3 gap-2">
-      {KEYPAD_KEYS.map((key) => {
-        const disabled = key === "." && decimalDisabled;
-        return (
-          <button
-            key={key}
-            type="button"
-            onClick={() => onPress(key)}
-            aria-label={key === "del" ? "Delete last digit" : key}
-            disabled={disabled}
-            className={cn(
-              "bg-surface border-surface-variant hover:border-brand/30 rounded-2xl flex min-h-14 items-center justify-center border text-2xl font-medium transition-[background-color,transform,border-color] active:bg-brand-soft active:text-brand active:scale-90",
-              disabled && "opacity-30",
-            )}
-          >
-            {key === "del" ? <Delete size={20} aria-hidden="true" /> : key}
-          </button>
-        );
-      })}
+    <div className="mt-2 space-y-2" role="group" aria-label="Amount keypad">
+      <div className="grid grid-cols-3 gap-2">
+        {TOP_KEYS.map((key) => renderKey(key))}
+      </div>
+      <div className={cn("grid gap-2", currency === "KHR" ? "grid-cols-4" : "grid-cols-3")}>
+        {bottomKeys.map((key) => renderKey(key))}
+      </div>
     </div>
   );
 }

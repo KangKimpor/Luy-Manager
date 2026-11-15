@@ -4,9 +4,12 @@ import { exchangeRate, formatMoney } from "@/lib/money";
 
 import {
   budgetProgress,
+  computePaceStatus,
   currentPeriod,
+  periodPace,
   spentForBudget,
   summarizeBudgets,
+  summarizeBudgetsOverview,
   totalRemaining,
 } from "./budgets";
 import type { Budget, Transaction } from "./types";
@@ -448,5 +451,96 @@ describe("totalRemaining", () => {
     );
 
     expect(totalRemaining(progress, "USD", rate).minor).toBe(10_000);
+  });
+});
+
+describe("pace marker and elapsed share", () => {
+  it("computes elapsed days 1-indexed inside the active month", () => {
+    const window = { from: at(2026, 6, 1), to: at(2026, 7, 1) }; // 31 days in July
+    const day1 = periodPace(window, new Date("2026-07-01T05:00:00Z"), "Asia/Phnom_Penh");
+    expect(day1).toEqual({ totalDays: 31, elapsedDays: 1, elapsedShare: 1 / 31 });
+
+    const day15 = periodPace(window, new Date("2026-07-15T05:00:00Z"), "Asia/Phnom_Penh");
+    expect(day15).toEqual({ totalDays: 31, elapsedDays: 15, elapsedShare: 15 / 31 });
+
+    const lastDay = periodPace(window, new Date("2026-07-31T10:00:00Z"), "Asia/Phnom_Penh");
+    expect(lastDay).toEqual({ totalDays: 31, elapsedDays: 31, elapsedShare: 1 });
+  });
+
+  it("returns null elapsedShare for past and future periods so no pace tick renders", () => {
+    const pastWindow = { from: at(2026, 5, 1), to: at(2026, 6, 1) }; // June
+    const futureWindow = { from: at(2026, 7, 1), to: at(2026, 8, 1) }; // August
+    const midJuly = new Date("2026-07-15T05:00:00Z");
+
+    expect(periodPace(pastWindow, midJuly, "Asia/Phnom_Penh").elapsedShare).toBeNull();
+    expect(periodPace(futureWindow, midJuly, "Asia/Phnom_Penh").elapsedShare).toBeNull();
+  });
+
+  it("uses the user timezone to determine today at midnight boundaries", () => {
+    const window = { from: at(2026, 6, 1), to: at(2026, 7, 1) };
+    // 2026-07-15T20:00:00Z is July 16 in Phnom Penh (UTC+7), still July 15 in Los Angeles (UTC-7).
+    const instant = new Date("2026-07-15T20:00:00Z");
+    expect(periodPace(window, instant, "Asia/Phnom_Penh").elapsedDays).toBe(16);
+    expect(periodPace(window, instant, "America/Los_Angeles").elapsedDays).toBe(15);
+  });
+
+  it("classifies pace status across +/-10pp boundaries and over 100%", () => {
+    // At 50% elapsed: <40% under-pace, [40%, 60%] on-pace, (60%, 100%] ahead-of-pace, >100% over
+    expect(computePaceStatus(0.39, 0.5, false)).toBe("under-pace");
+    expect(computePaceStatus(0.4, 0.5, false)).toBe("on-pace");
+    expect(computePaceStatus(0.5, 0.5, false)).toBe("on-pace");
+    expect(computePaceStatus(0.6, 0.5, false)).toBe("on-pace");
+    expect(computePaceStatus(0.61, 0.5, false)).toBe("ahead-of-pace");
+    expect(computePaceStatus(1.0, 0.5, false)).toBe("ahead-of-pace");
+    expect(computePaceStatus(1.01, 0.5, true)).toBe("over");
+
+    // Float boundary at 80% elapsed: 70% is exactly 10pp under -> on-pace, 69.9% -> under-pace
+    expect(computePaceStatus(0.7, 0.8, false)).toBe("on-pace");
+    expect(computePaceStatus(0.699, 0.8, false)).toBe("under-pace");
+  });
+
+  it("populates fillRatio and paceStatus on budgetProgress and clamps fillRatio at 1", () => {
+    // 1 June to 1 July (30 days); on 15 June elapsedDays = 15, elapsedShare = 0.5.
+    const now = new Date("2026-06-15T05:00:00Z");
+    const b = budget({ startsOn: "2026-06-01", amount: 10_000 });
+
+    const under = budgetProgress(b, [txn({ amount: -2_000, occurredAt: "2026-06-10T05:00:00Z" })], rate, now, "Asia/Phnom_Penh");
+    expect(under.paceStatus).toBe("under-pace");
+    expect(under.fillRatio).toBeCloseTo(0.2, 6);
+    expect(under.elapsedShare).toBeCloseTo(0.5, 6);
+
+    const onPace = budgetProgress(b, [txn({ amount: -5_000, occurredAt: "2026-06-10T05:00:00Z" })], rate, now, "Asia/Phnom_Penh");
+    expect(onPace.paceStatus).toBe("on-pace");
+
+    const ahead = budgetProgress(b, [txn({ amount: -7_500, occurredAt: "2026-06-10T05:00:00Z" })], rate, now, "Asia/Phnom_Penh");
+    expect(ahead.paceStatus).toBe("ahead-of-pace");
+
+    const over = budgetProgress(b, [txn({ amount: -12_500, occurredAt: "2026-06-10T05:00:00Z" })], rate, now, "Asia/Phnom_Penh");
+    expect(over.paceStatus).toBe("over");
+    expect(over.fillRatio).toBe(1);
+    expect(over.remaining.minor).toBe(-2_500);
+  });
+
+  it("summarizes budgets overview across currencies without double-counting overall caps", () => {
+    const now = new Date("2026-06-15T05:00:00Z");
+    const progress = summarizeBudgets(
+      [
+        budget({ id: "b1", categoryId: "cat-groceries", startsOn: "2026-06-01", amount: 10_000 }),
+        budget({ id: "b2", categoryId: "cat-coffee", startsOn: "2026-06-01", amount: 41_000_000, currency: "KHR" }), // $100
+        budget({ id: "overall", categoryId: null, startsOn: "2026-06-01", amount: 50_000 }),
+      ],
+      [
+        txn({ amount: -5_000, categoryId: "cat-groceries", occurredAt: "2026-06-10T05:00:00Z" }),
+        txn({ amount: -20_500_000, currency: "KHR", categoryId: "cat-coffee", occurredAt: "2026-06-10T05:00:00Z" }),
+      ],
+      rate,
+      now,
+      "Asia/Phnom_Penh",
+    );
+    const overview = summarizeBudgetsOverview(progress, "USD", rate);
+    expect(overview.totalLimit.minor).toBe(20_000);
+    expect(overview.totalSpent.minor).toBe(10_000);
+    expect(overview.percent).toBe(50);
+    expect(overview.paceStatus).toBe("on-pace");
   });
 });

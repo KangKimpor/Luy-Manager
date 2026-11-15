@@ -6,9 +6,9 @@ export function Card({ className, ...props }: ComponentPropsWithoutRef<"div">) {
   return (
     <div
       className={cn(
-        // surface-variant rather than border-subtle: at this elevation the hairline
-        // only needs to separate the card from the page, not draw attention.
-        "rounded-card bg-surface-raised shadow-card border border-surface-variant min-w-0",
+        // Flat, shadowless cards separated from the page by surface contrast;
+        // card-edge stays transparent in light mode and adds a 0.5px edge in dark.
+        "rounded-card bg-surface-raised shadow-card border-card-edge min-w-0 border-[0.5px]",
         className,
       )}
       {...props}

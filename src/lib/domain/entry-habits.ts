@@ -1,4 +1,4 @@
-import { absolute, money, type Money } from "@/lib/money";
+import { absolute, CURRENCY_META, minorUnitScale, money, type Money } from "@/lib/money";
 import { resolveCategory } from "./categories";
 import { TRANSACTION_TYPES, type Category, type EntryHabitLine, type TransactionType } from "./types";
 
@@ -7,6 +7,31 @@ export interface EntryHabit {
   type: TransactionType;
   categoryId: string;
   note: string;
+}
+
+/** Stable identifier for linking an Add-again chip cleanly through `?habit=`. */
+export function entryHabitKey(habit: Pick<EntryHabit, "type" | "amount">): string {
+  return `${habit.type}:${habit.amount.currency}:${habit.amount.minor}`;
+}
+
+/** Match a `?habit=` parameter against learned habits; returns null if missing or unknown. */
+export function resolveEntryHabit(habits: readonly EntryHabit[], key: string | undefined): EntryHabit | null {
+  if (!key) return null;
+  return habits.find((habit) => entryHabitKey(habit) === key) ?? null;
+}
+
+/** Format an integer Money amount as a raw keypad string without floating-point rounding. */
+export function amountToRawString(amount: Money): string {
+  const abs = absolute(amount);
+  const decimals = CURRENCY_META[abs.currency].decimals;
+  const scale = BigInt(minorUnitScale(abs.currency));
+  const value = BigInt(abs.minor);
+  const whole = value / scale;
+  const remainder = value % scale;
+  if (abs.currency === "KHR" && remainder === BigInt(0)) {
+    return String(whole);
+  }
+  return `${whole}.${String(remainder).padStart(decimals, "0")}`;
 }
 
 /** Only repeat a clear majority from this user's recent, non-deleted entries. */
@@ -22,7 +47,7 @@ export function learnEntryHabits(transactions: readonly EntryHabitLine[], catego
     if (transaction.type === "transfer") continue;
     const amount = absolute(money(transaction.amount, transaction.currency));
     if (amount.minor === 0) continue;
-    const key = `${transaction.type}:${amount.currency}:${amount.minor}`;
+    const key = entryHabitKey({ type: transaction.type, amount });
     const group = amounts.get(key) ?? { total: 0, choices: new Map() };
     amounts.set(key, group);
     group.total++;

@@ -68,6 +68,37 @@ describe("transaction save feedback", () => {
     expect(screen.getByLabelText("Note")).toHaveValue("");
   });
 
+  it("prefills amount, matching account, category and note from initialHabit", async () => {
+    const user = userEvent.setup();
+    createTransaction.mockResolvedValue({ ok: true, data: { id: "saved" } });
+    render(
+      <QuickAddForm
+        accounts={DEMO_ACCOUNTS}
+        categories={DEMO_CATEGORIES}
+        type="expense"
+        initialHabit={{
+          type: "expense",
+          amount: { minor: 600000, currency: "KHR" },
+          categoryId: "cat-drinks",
+          note: "Coffee",
+        }}
+      />,
+    );
+    expect(screen.getByLabelText("Amount entered")).toHaveTextContent("6,000៛");
+    expect(screen.getByLabelText("Note")).toHaveValue("Coffee");
+    expect(screen.getByRole("button", { name: "Drinks" })).toHaveAttribute("aria-pressed", "true");
+    await user.click(screen.getByRole("button", { name: "Save expense" }));
+    expect(createTransaction).toHaveBeenCalledWith(
+      expect.objectContaining({
+        accountId: "acc-aba-khr",
+        currency: "KHR",
+        amount: "6000",
+        categoryId: "cat-drinks",
+        notes: "Coffee",
+      }),
+    );
+  });
+
   it("pastes and saves an exact bank amount, preserving the draft on invalid paste", async () => {
     const user = userEvent.setup(); renderForm();
     createTransaction.mockResolvedValue({ ok: false, error: "Keep the draft" });
@@ -236,5 +267,22 @@ describe("transaction save feedback", () => {
     await user.click(screen.getByRole("button", { name: "Save expense" }));
     expect(createTransaction).toHaveBeenCalledWith(expect.objectContaining({ currency: "KHR", amount: "12000", accountId: DEMO_ACCOUNTS.find(account => account.currency === "KHR")!.accountId }));
     expect(screen.getByRole("status", { name: "Save confirmation" })).toHaveTextContent("12,000៛");
+  });
+
+  it("offers the 000 key for KHR and disables it after a decimal point", async () => {
+    createTransaction.mockResolvedValue({ ok: true, data: { id: "saved" } });
+    const user = userEvent.setup();
+    renderForm();
+    expect(screen.queryByRole("button", { name: "000" })).toBeNull();
+    await user.click(screen.getByRole("button", { name: "KHR" }));
+    const tripleZero = screen.getByRole("button", { name: "000" });
+    expect(tripleZero).toBeEnabled();
+    await user.click(screen.getByRole("button", { name: "5" }));
+    await user.click(tripleZero);
+    expect(screen.getByLabelText("Amount entered")).toHaveTextContent("5,000៛");
+    await user.click(screen.getByRole("button", { name: "." }));
+    expect(screen.getByRole("button", { name: "000" })).toBeDisabled();
+    await user.click(screen.getByRole("button", { name: "Save expense" }));
+    expect(createTransaction).toHaveBeenCalledWith(expect.objectContaining({ currency: "KHR", amount: "5000." }));
   });
 });

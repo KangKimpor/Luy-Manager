@@ -1,27 +1,37 @@
 "use client";
 
-import { Plus } from "@/components/app-icon";
-import Image from "next/image";
-import { AppLink as Link } from "@/components/app-link";
 import { usePathname } from "next/navigation";
 
-import { MAIN_NAV, MORE_NAV, isNavActive } from "@/lib/navigation";
-import { cn } from "@/lib/utils";
+import { Plus } from "@/components/app-icon";
+import { AppLink as Link } from "@/components/app-link";
+import { SIDEBAR_NAV, isNavActive } from "@/lib/navigation";
 
 export function Sidebar() {
   const pathname = usePathname();
   if (pathname === "/login") return null;
+
   return (
-    <aside className="app-chrome-sidebar bg-surface border-surface-variant fixed inset-y-0 left-0 z-50 hidden w-60 flex-col border-r px-5 py-8 lg:flex">
-      <Link href="/" className="text-ink mb-10 flex items-center gap-3 px-2 text-lg font-bold tracking-tight">
-        <Image src="/icon.svg" alt="" width={40} height={40} className="shrink-0 rounded-xl" />Luy Manager
+    <aside className="app-chrome-sidebar sidebar-glass fixed inset-y-0 left-0 z-50 hidden w-60 flex-col px-4 py-6 lg:flex">
+      <Link href="/" className="text-ink mb-6 flex items-center gap-2.5 px-2 text-lg font-bold tracking-tight">
+        <span className="brand-mark-tile" aria-hidden="true">L</span>
+        <span>Luy Manager</span>
       </Link>
-      <Link href="/add" className="bg-brand text-on-action hover:bg-brand-strong hover:shadow-fab mb-8 flex min-h-12 items-center justify-center gap-2 rounded-2xl text-sm font-semibold transition-all active:scale-95"><Plus size={18} aria-hidden="true" />Add transaction</Link>
+
+      <Link href="/add" className="sidebar-add-btn mb-5">
+        <Plus size={18} aria-hidden="true" />
+        <span>Add transaction</span>
+      </Link>
+
       <nav aria-label="Main" className="space-y-1">
-        {[...MAIN_NAV.filter(item => item.href !== "/more"), ...MORE_NAV].map(({ href, label, icon: Icon }) => (
-          <Link key={href} href={href} aria-current={isNavActive(pathname, href) ? "page" : undefined}
-            className={cn("flex min-h-12 items-center gap-3 rounded-xl px-3 text-sm font-medium transition-colors", isNavActive(pathname, href) ? "bg-brand-soft text-brand" : "text-ink-muted hover:bg-surface-muted hover:text-ink")}>
-            <Icon size={19} className="nav-icon" aria-hidden="true" />{label}
+        {SIDEBAR_NAV.map(({ href, label, icon: Icon }) => (
+          <Link
+            key={href}
+            href={href}
+            aria-current={isNavActive(pathname, href) ? "page" : undefined}
+            className="side-nav-item"
+          >
+            <Icon size={19} className="nav-icon" aria-hidden="true" />
+            <span>{label}</span>
           </Link>
         ))}
       </nav>

@@ -105,7 +105,7 @@ export function EditTransactionForm({
   return (
     <form onSubmit={handleSubmit} className="page-enter space-y-5" aria-busy={pending}>
       <Card>
-        <CardBody className="space-y-3 pt-4">
+        <CardBody className="space-y-4 pt-5">
           <fieldset>
             <legend className="text-ink-muted mb-2 text-sm font-medium">
               Type
@@ -121,10 +121,10 @@ export function EditTransactionForm({
                     setCategoryId(null);
                   }}
                   className={cn(
-                    "rounded-pill min-h-9 border px-3 text-xs font-medium capitalize transition-colors",
+                    "rounded-pill min-h-9 px-4 text-xs font-medium capitalize transition-colors",
                     type === option
-                      ? "border-brand bg-brand-soft text-brand"
-                      : "border-border-subtle bg-surface text-ink-muted",
+                      ? "bg-brand text-on-action"
+                      : "bg-fill text-ink-muted",
                   )}
                 >
                   {option}
@@ -148,7 +148,7 @@ export function EditTransactionForm({
                 required
                 value={amount}
                 onChange={(event) => setAmount(event.target.value)}
-                className="border-border-subtle bg-surface rounded-card text-ink tabular min-h-11 flex-1 border px-3 text-sm"
+                className="field-input tabular flex-1 text-sm"
               />
               <CurrencyBadge currency={transaction.currency} />
             </div>
@@ -173,7 +173,7 @@ export function EditTransactionForm({
               required
               value={date}
               onChange={(event) => setDate(event.target.value)}
-              className="border-border-subtle bg-surface rounded-card text-ink min-h-11 w-full border px-3 text-sm"
+              className="field-input text-sm"
             />
           </div>
 
@@ -189,7 +189,7 @@ export function EditTransactionForm({
               type="text"
               value={notes}
               onChange={(event) => setNotes(event.target.value)}
-              className="border-border-subtle bg-surface rounded-card text-ink min-h-11 w-full border px-3 text-sm"
+              className="field-input text-sm"
             />
           </div>
         </CardBody>

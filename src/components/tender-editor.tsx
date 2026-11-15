@@ -124,10 +124,10 @@ export function TenderEditor({
                 onChange={(event) => update(tender.id, { amount: event.target.value })}
                 placeholder={tender.currency === "KHR" ? "2400" : "3.00"}
                 aria-label={`Amount in ${tender.currency}`}
-                className="border-border-subtle bg-surface rounded-card text-ink placeholder:text-ink-faint tabular min-h-11 flex-1 border px-3 text-sm"
+                className="field-input tabular min-w-0 flex-1 text-sm"
               />
 
-              <div className="flex gap-1" role="group" aria-label="Tender currency">
+              <div className="segmented-control" role="group" aria-label="Tender currency">
                 {CURRENCIES.map((code) => (
                   <button
                     key={code}
@@ -137,10 +137,10 @@ export function TenderEditor({
                       update(tender.id, { currency: code, amount: tender.amount });
                     }}
                     className={cn(
-                      "rounded-pill min-h-9 px-2.5 text-xs font-bold transition-colors",
+                      "relative z-10 min-h-8 px-2.5 text-xs whitespace-nowrap transition-colors",
                       tender.currency === code
-                        ? "bg-brand text-on-action"
-                        : "bg-surface-muted text-ink-muted",
+                        ? "text-ink font-semibold"
+                        : "text-ink-muted font-medium",
                     )}
                   >
                     {code}
@@ -171,7 +171,7 @@ export function TenderEditor({
           </button>
         ) : null}
 
-        <div className="border-border-subtle/70 flex items-baseline justify-between border-t pt-2.5">
+        <div className="border-hairline flex items-baseline justify-between border-t pt-2.5">
           <span className="text-ink-muted text-xs font-semibold tracking-wide uppercase">
             Total
           </span>

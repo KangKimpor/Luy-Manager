@@ -13,6 +13,7 @@ import {
   type ExchangeRate,
   money,
   type Money,
+  sum,
   zero,
 } from "@/lib/money";
 
@@ -167,5 +168,76 @@ export function summarizeNetWorth(
     savings: totalWhere(included, base, rate, (b) => b.type === "savings"),
     investments: totalWhere(included, base, rate, (b) => b.type === "investment"),
     liabilities: money(-liabilities.minor, base),
+  };
+}
+
+export interface CurrencyPocket {
+  currency: CurrencyCode;
+  /** Native subtotal of included accounts in this currency. */
+  subtotal: Money;
+  /** Subtotal converted into the display currency. */
+  converted: Money;
+  /** Number of included accounts holding this currency. */
+  count: number;
+  /** Positive-value share of total pockets, 0 to 1 (sum is 1 when either pocket is positive, else 0). */
+  share: number;
+  /** Rounded whole-percent share (0 to 100) for display without rounding in UI. */
+  sharePercent: number;
+}
+
+export interface CurrencyPocketsSummary {
+  base: CurrencyCode;
+  usd: CurrencyPocket;
+  khr: CurrencyPocket;
+}
+
+/**
+ * Group included accounts into USD and KHR pockets with native subtotals and converted shares.
+ *
+ * Native subtotals stay in their own currency without conversion so pocket figures match
+ * the user's real wallets, while shares convert both pockets to a single currency first.
+ */
+export function summarizeCurrencyPockets(
+  balances: readonly AccountBalance[],
+  base: CurrencyCode,
+  rate: ExchangeRate = DEFAULT_RATE,
+): CurrencyPocketsSummary {
+  const included = balances.filter((b) => b.countsTowardNetWorth);
+  const usdAccounts = included.filter((b) => b.currency === "USD");
+  const khrAccounts = included.filter((b) => b.currency === "KHR");
+
+  const usdSubtotal = sum(usdAccounts.map(balanceOf), "USD");
+  const khrSubtotal = sum(khrAccounts.map(balanceOf), "KHR");
+
+  const usdConverted = convert(usdSubtotal, base, rate);
+  const khrConverted = convert(khrSubtotal, base, rate);
+
+  const usdPositive = Math.max(0, usdConverted.minor);
+  const khrPositive = Math.max(0, khrConverted.minor);
+  const positiveSum = usdPositive + khrPositive;
+
+  const usdShare = positiveSum === 0 ? 0 : usdPositive / positiveSum;
+  const khrShare = positiveSum === 0 ? 0 : 1 - usdShare;
+  const usdPercent = positiveSum === 0 ? 0 : Math.round(usdShare * 100);
+  const khrPercent = positiveSum === 0 ? 0 : 100 - usdPercent;
+
+  return {
+    base,
+    usd: {
+      currency: "USD",
+      subtotal: usdSubtotal,
+      converted: usdConverted,
+      count: usdAccounts.length,
+      share: usdShare,
+      sharePercent: usdPercent,
+    },
+    khr: {
+      currency: "KHR",
+      subtotal: khrSubtotal,
+      converted: khrConverted,
+      count: khrAccounts.length,
+      share: khrShare,
+      sharePercent: khrPercent,
+    },
   };
 }

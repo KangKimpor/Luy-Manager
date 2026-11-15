@@ -1,15 +1,17 @@
-import { type CurrencyCode, formatMoney, type Money } from "@/lib/money";
+import { absolute, type CurrencyCode, formatMoney, type Money } from "@/lib/money";
 import { cn } from "@/lib/utils";
 
 interface MoneyAmountProps {
   amount: Money;
   /**
    * Colour the figure by direction. Off by default: a balance is not inherently
-   * good or bad, but a transaction row is.
+   * good or bad, but a net change can be.
    */
   colorBySign?: boolean;
   /** Force a leading + on positive values, for transaction lists. */
   showPlus?: boolean;
+  /** Render the magnitude without a leading - or + (e.g. transfers). */
+  showSign?: boolean;
   className?: string;
   locale?: string;
 }
@@ -25,10 +27,12 @@ export function MoneyAmount({
   amount,
   colorBySign = false,
   showPlus = false,
+  showSign = true,
   className,
   locale,
 }: MoneyAmountProps) {
-  const formatted = formatMoney(amount, { locale });
+  const renderedAmount = showSign ? amount : absolute(amount);
+  const formatted = formatMoney(renderedAmount, { locale });
   const isInflow = amount.minor > 0;
   const isOutflow = amount.minor < 0;
 
@@ -36,18 +40,18 @@ export function MoneyAmount({
     <data
       value={`${amount.minor} ${amount.currency}`}
       className={cn(
-        "tabular",
+        "font-num tabular",
         colorBySign && isInflow && "text-inflow",
         colorBySign && isOutflow && "text-outflow",
         className,
       )}
     >
-      {showPlus && isInflow ? `+${formatted}` : formatted}
+      {showSign && showPlus && isInflow ? `+${formatted}` : formatted}
     </data>
   );
 }
 
-/** A small pill marking which currency an account or amount is held in. */
+/** A plain coloured caption marking which currency an account or amount is held in. */
 export function CurrencyBadge({
   currency,
   className,
@@ -58,10 +62,9 @@ export function CurrencyBadge({
   return (
     <span
       className={cn(
-        // Dedicated currency accents, not the income/expense palette. Tinting the
-        // KHR badge green made a riel account read as a gain.
-        "rounded-pill px-2 py-0.5 text-[0.625rem] font-bold tracking-wide",
-        currency === "USD" ? "bg-usd-soft text-usd" : "bg-khr-soft text-khr",
+        // Dedicated currency accents as quiet text rather than a pill.
+        "ccy-label",
+        currency === "USD" ? "ccy-label-usd" : "ccy-label-khr",
         className,
       )}
     >

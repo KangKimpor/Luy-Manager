@@ -2,6 +2,7 @@ import { AppLink as Link } from "@/components/app-link";
 import Image from "next/image";
 
 import { LoginForm } from "@/components/login-form";
+import { buttonVariants } from "@/components/ui/button";
 import { Card, CardBody } from "@/components/ui/card";
 import { isDemoMode } from "@/lib/auth";
 
@@ -24,21 +25,21 @@ export default async function LoginPage(props: {
     <div className="login-page page-enter stagger-children space-y-8">
       <header className="pt-8 text-center">
         <Image src="/icon.svg" alt="" width={64} height={64} className="mx-auto mb-5 rounded-2xl" />
-        <p className="text-brand mb-4 text-sm font-semibold">Luy Manager</p>
-        <h1 className="text-ink text-4xl font-semibold tracking-tight">Money, made clearer.</h1>
-        <p className="text-ink-muted mt-1 text-sm">
+        <p className="text-brand mb-3 text-sm font-semibold">Luy Manager</p>
+        <h1 className="t-large-title text-ink">Money, made clearer.</h1>
+        <p className="text-ink-muted mt-2 text-sm">
           Track dollars and riel side by side.
         </p>
       </header>
 
       {isDemoMode() ? (
         <Card>
-          <CardBody className="space-y-2">
-            <p className="text-ink text-sm font-semibold">Running on demo data</p>
+          <CardBody className="space-y-4 pt-5 text-center">
+            <p className="text-ink text-base font-semibold">Running on demo data</p>
             <p className="text-ink-muted text-sm">
               Explore with sample data. Saving and sign-in are not available in this demo.
             </p>
-            <Link href="/" className="text-brand inline-block text-sm font-semibold underline">
+            <Link href="/" className={buttonVariants({ size: "full" })}>
               Continue to the demo
             </Link>
           </CardBody>

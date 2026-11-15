@@ -46,7 +46,7 @@ export function EntryChoicePicker({ label, collection, options, quickIds, select
   return (
     <fieldset className="min-w-0 space-y-2">
       <legend className="text-ink-muted mb-2 text-sm font-medium">{label}</legend>
-      <div className={cn("flex min-w-0 items-start justify-between gap-2", compact && "border-border-subtle bg-surface items-center rounded-xl border px-3")}>
+      <div className={cn("flex min-w-0 items-start justify-between gap-2", compact && "bg-fill rounded-control items-center px-3")}>
         <p key={selectedId} className="selection-label text-ink flex min-w-0 items-center gap-2 break-words text-sm font-semibold">
           {selected?.icon ? <CategoryIcon icon={selected.icon} /> : null}
           <span>
@@ -61,42 +61,56 @@ export function EntryChoicePicker({ label, collection, options, quickIds, select
         </button>
       </div>
       {open ? (
-        <div id={id} className="panel-enter border-border-subtle bg-surface-container space-y-3 rounded-2xl border p-3">
+        <div id={id} className="panel-enter bg-surface border-card-edge space-y-3 rounded-card border-[0.5px] p-3">
           <div className="relative">
             <Search size={16} className="text-ink-faint pointer-events-none absolute top-3.5 left-3" aria-hidden="true" />
             <input type="search" aria-label={`Search ${collection}`} placeholder={`Search ${collection}`}
               value={query} onChange={(event) => setQuery(event.target.value)}
-              className="border-border-subtle bg-surface text-ink placeholder:text-ink-faint min-h-11 w-full rounded-xl border py-2 pr-3 pl-9 text-sm" />
+              className="field-input py-2 pr-3 pl-9 text-sm" />
           </div>
           <div className="flex flex-wrap gap-1.5" role="group" aria-label={`Filter ${collection}`}>
             {[null, ...groups].map((name) => (
               <button key={name ?? "all"} type="button" aria-pressed={group === name} onClick={() => { setGroup(name); setQuery(""); }}
-                className={cn("min-h-11 rounded-xl px-3 text-xs font-medium transition-colors", group === name ? "bg-brand text-on-action" : "bg-surface text-ink-muted")}>
+                className={cn("rounded-pill min-h-11 px-3.5 text-xs font-medium transition-colors", group === name ? "bg-brand text-on-action" : "bg-fill text-ink-muted")}>
                 {name ?? "All"}
               </button>
             ))}
           </div>
-          <div className="grid max-h-72 grid-cols-2 gap-2 overflow-y-auto overscroll-contain">
+          <div className={cn(collection === "categories" ? "flex flex-wrap gap-2" : "grid grid-cols-2 gap-2", "max-h-72 overflow-y-auto overscroll-contain")}>
             {shown.map((option) => choice(option))}
           </div>
           {shown.length === 0 ? <p role="status" className="text-ink-muted py-3 text-center text-sm">No matches. Try a name or another group.</p> : null}
         </div>
-      ) : !compact || showQuickChoices ? <div className="grid grid-cols-2 gap-2">{shown.map((option) => choice(option))}</div> : null}
+      ) : !compact || showQuickChoices ? (
+        <div className={cn(collection === "categories" ? "flex flex-wrap gap-2" : "grid grid-cols-2 gap-2")}>
+          {shown.map((option) => choice(option))}
+        </div>
+      ) : null}
       {allowClear && selectedId ? <button type="button" onClick={() => choose(null)} className="text-ink-muted min-h-11 rounded-lg px-2 text-xs">{clearLabel}</button> : null}
     </fieldset>
   );
 
   function choice(option: EntryChoice) {
     const active = option.id === selectedId;
+    if (collection === "categories") {
+      return (
+        <button key={option.id} type="button" aria-label={option.label} aria-pressed={active} onClick={() => choose(option.id)}
+          className="cat-chip">
+          {option.icon ? <CategoryIcon icon={option.icon} size={15} /> : null}
+          <span>{option.label}</span>
+          {active ? <Check size={14} className="selection-check shrink-0" aria-hidden="true" /> : null}
+        </button>
+      );
+    }
+
     return (
       <button key={option.id} type="button" aria-label={option.label} aria-pressed={active} onClick={() => choose(option.id)}
-        className={cn("flex min-h-14 min-w-0 items-center justify-between gap-1.5 rounded-xl border px-3 py-2 text-left transition-colors", active ? "border-brand bg-brand-soft text-brand" : "border-border-subtle bg-surface text-ink-muted")}>
-        {option.icon ? <CategoryIcon icon={option.icon} /> : null}
-        <span className="min-w-0 flex-1">
-          <span className="block break-words text-sm font-medium">{option.label}</span>
-          {option.detail ? <span className="text-ink-faint mt-0.5 block break-words text-xs">{option.detail}</span> : null}
+        className="acct-chip w-full text-left">
+        <span className="flex w-full items-center justify-between gap-1.5">
+          <span className="text-ink truncate text-[13px] font-semibold leading-[18px]">{option.label}</span>
+          {active ? <Check size={14} className="selection-check text-brand shrink-0" aria-hidden="true" /> : null}
         </span>
-        {active ? <Check size={15} className="selection-check shrink-0" aria-hidden="true" /> : null}
+        {option.detail ? <span className="text-ink-faint text-xs">{option.detail}</span> : null}
       </button>
     );
   }

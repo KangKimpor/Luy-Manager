@@ -1,18 +1,21 @@
-import { categoryLabel } from "@/lib/domain/categories";
 import { Plus, Target } from "@/components/app-icon";
 import { AppLink as Link } from "@/components/app-link";
 
+import { BudgetPaceCaption, BudgetProgressBar } from "@/components/budget-progress-bar";
 import { BudgetRowActions } from "@/components/budget-row-actions";
-import { CategoryIcon } from "@/components/category-icon";
+import { CategoryIcon, categoryColorToken, RowIconTile } from "@/components/category-icon";
+import { CurrencyToggle } from "@/components/currency-toggle";
 import { MoneyAmount } from "@/components/money-amount";
 import { buttonVariants } from "@/components/ui/button";
-import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { isDemoMode } from "@/lib/auth";
 import { listBudgetProgress } from "@/lib/data/budgets";
-import { categoryLookup } from "@/lib/data/reference";
+import { categoryLookup, getProfile } from "@/lib/data/reference";
+import { listLedgerLinesInRange } from "@/lib/data/transactions";
 import { readDisplayCurrency } from "@/lib/display-currency";
-import { totalRemaining } from "@/lib/domain/budgets";
-import { absolute } from "@/lib/money";
+import { summarizeBudgetsOverview } from "@/lib/domain/budgets";
+import { categoryLabel } from "@/lib/domain/categories";
+import { spendingByCategory } from "@/lib/domain/transactions";
+import { monthPeriod } from "@/lib/period";
 import { loadUsdKhrRate } from "@/lib/rates/repository";
 import { cn } from "@/lib/utils";
 
@@ -20,165 +23,239 @@ import { cn } from "@/lib/utils";
  * Budgets, PRD Section 11.
  *
  * Each budget's window comes from its own anchor day rather than the calendar
- * month, so a budget set up on the 15th runs 15th to 14th. That means the
- * transactions loaded here cover the actual active periods, including annual
- * budgets, without reading an arbitrary year of history for every visit.
+ * month. Summary ring + per-budget bars display both spending progress and
+ * calendar elapsed pace via `summarizeBudgetsOverview` and `BudgetProgressBar`.
  */
-
-const TONE = {
-  under: { bar: "bg-inflow", label: "text-ink-muted" },
-  // The shared warning token rather than a one-off amber, so a budget nearing its
-  // limit and a stale exchange rate speak with the same colour.
-  warning: { bar: "bg-warning", label: "text-warning" },
-  over: { bar: "bg-outflow", label: "text-outflow" },
-} as const;
-
 export default async function BudgetsPage() {
   const ratePromise = loadUsdKhrRate();
-  const [displayCurrency, { rate }, progress, categories] = await Promise.all([
+  const currentMonth = monthPeriod();
+  const [displayCurrency, { rate }, profile, categories, monthLines] = await Promise.all([
     readDisplayCurrency(),
     ratePromise,
-    ratePromise.then(({ rate }) => listBudgetProgress(rate)),
+    getProfile(),
     categoryLookup(),
+    listLedgerLinesInRange(currentMonth.from, currentMonth.to),
   ]);
 
-  const remaining = totalRemaining(progress, displayCurrency, rate);
+  const progress = await listBudgetProgress(rate, new Date(), profile?.timezone);
+  const overview = summarizeBudgetsOverview(progress, displayCurrency, rate);
   const editable = !isDemoMode();
-  const categoryBudgetCount = progress.filter((entry) => entry.budget.categoryId !== null).length;
+
+  const budgetedCategoryIds = new Set(
+    progress
+      .map((entry) => entry.budget.categoryId)
+      .filter((id): id is string => id !== null),
+  );
+  const unbudgeted = spendingByCategory(monthLines, displayCurrency, rate).filter(
+    (entry) => entry.categoryId === null || !budgetedCategoryIds.has(entry.categoryId),
+  );
+
+  const ringRadius = 48;
+  const ringCircumference = 2 * Math.PI * ringRadius;
+  const ringDash = Math.min(1, overview.fillRatio) * ringCircumference;
+  const ringColor =
+    overview.paceStatus === "over"
+      ? "var(--color-outflow)"
+      : overview.paceStatus === "ahead-of-pace"
+        ? "var(--color-warning)"
+        : "var(--color-brand)";
 
   return (
-    <div className="page-enter mx-auto max-w-4xl space-y-5 sm:space-y-6">
-      <p className="text-sm leading-relaxed text-ink-muted">Give your spending a little direction.</p>
-      {/*
-        One summary figure, explicitly labelled as a conversion.
+    <div className="page-enter mx-auto max-w-4xl space-y-5">
+      <div className="flex items-center justify-between gap-3">
+        <CurrencyToggle current={displayCurrency} className="shrink-0" />
+        {editable ? (
+          <Link
+            href="/budgets/new"
+            className={cn(buttonVariants({ variant: "secondary", size: "sm" }), "px-4")}
+          >
+            <Plus size={16} aria-hidden="true" />
+            Add a budget
+          </Link>
+        ) : null}
+      </div>
 
-        The design mockup put "$445.00" and "480,000៛" together under a single
-        "Total Spent" heading with one progress ring, which sums two currencies into
-        a number that means nothing. Budgets here can be set in either currency, so
-        a combined total only exists once converted, and the label has to say so.
-      */}
-      {categoryBudgetCount > 0 ? (
-        <Card className="hero-orbit border-0 bg-hero p-6 text-on-hero sm:p-8">
-          <div className="relative flex items-center justify-between gap-2">
-            <span className="text-sm text-on-hero/70">Left in category budgets</span>
-            <Target size={20} aria-hidden="true" className="text-on-hero/60" />
+      {progress.length > 0 ? (
+        <section className="proto-card budget-summary-card" aria-label="Overall budget summary">
+          <div className="ring-wrap">
+            <svg
+              width="120"
+              height="120"
+              viewBox="0 0 120 120"
+              role="img"
+              aria-label={`Overall budget ${overview.percent} percent used`}
+            >
+              <circle
+                cx="60"
+                cy="60"
+                r={ringRadius}
+                fill="none"
+                stroke="var(--color-track)"
+                strokeWidth="10"
+              />
+              <circle
+                cx="60"
+                cy="60"
+                r={ringRadius}
+                fill="none"
+                stroke={ringColor}
+                strokeWidth="10"
+                strokeLinecap="round"
+                strokeDasharray={`${ringDash.toFixed(2)} ${ringCircumference.toFixed(2)}`}
+                transform="rotate(-90 60 60)"
+              />
+              {overview.elapsedShare !== null ? (
+                <rect
+                  x="59"
+                  y="3"
+                  width="2"
+                  height="18"
+                  rx="1"
+                  fill="var(--color-ink)"
+                  transform={`rotate(${(overview.elapsedShare * 360).toFixed(1)} 60 60)`}
+                />
+              ) : null}
+            </svg>
+            <div className="ring-center">
+              <span className="ring-pct text-ink">{overview.percent}%</span>
+              <span className="caption">used</span>
+            </div>
           </div>
-          <MoneyAmount amount={remaining} className="relative mt-3 block text-[clamp(1.9rem,7.5vw,3rem)] leading-tight font-semibold tracking-tight" />
-          <p className="relative mt-3 text-xs text-on-hero/60">
-            {categoryBudgetCount} category budget{categoryBudgetCount === 1 ? "" : "s"}, converted to {displayCurrency}
-          </p>
-        </Card>
-      ) : null}
 
-      {editable ? (
-        <Link
-          href="/budgets/new"
-          className={cn(buttonVariants({ variant: "secondary", size: "full" }), "card-interactive")}
-        >
-          <Plus size={16} aria-hidden="true" />
-          Add a budget
-        </Link>
+          <div className="min-w-0 flex-1">
+            <MoneyAmount amount={overview.totalSpent} className="numeric-lg text-ink block" />
+            <div className="caption">
+              of <MoneyAmount amount={overview.totalLimit} /> budgeted
+            </div>
+            {overview.elapsedShare !== null ? (
+              <div className="caption mt-1">
+                Day {overview.elapsedDays} of {overview.totalDays}
+              </div>
+            ) : null}
+            <p className="text-ink-muted mt-2 text-[15px] leading-[20px] tracking-[-0.014em]">
+              {overview.verdict}
+            </p>
+          </div>
+        </section>
       ) : null}
 
       {progress.length === 0 ? (
-        <Card>
-          <CardBody className="space-y-3 py-8 text-center">
-            <span className="mx-auto flex size-12 items-center justify-center rounded-2xl bg-brand-soft text-brand"><Target size={22} aria-hidden="true" /></span>
-            <p className="text-sm font-semibold text-ink">Make room for what matters</p>
-            <p className="text-ink-muted text-sm">
-              Set a spending limit for a category or for everything.
-            </p>
-          </CardBody>
-        </Card>
+        <div className="proto-card space-y-3 py-8 text-center">
+          <span className="bg-brand-soft text-brand mx-auto flex size-12 items-center justify-center rounded-2xl">
+            <Target size={22} aria-hidden="true" />
+          </span>
+          <p className="text-ink text-sm font-semibold">Make room for what matters</p>
+          <p className="text-ink-muted text-sm">
+            Set a spending limit for a category or for everything.
+          </p>
+          {editable ? (
+            <Link href="/budgets/new" className={buttonVariants({ size: "full" })}>
+              <Plus size={16} aria-hidden="true" />
+              Add a budget
+            </Link>
+          ) : null}
+        </div>
       ) : (
-        <ul className="stagger-children grid gap-4 lg:grid-cols-2">
-          {progress.map((entry) => {
-            const tone = TONE[entry.status];
-            const category = entry.budget.categoryId
-              ? categories[entry.budget.categoryId]
-              : undefined;
-            const name =
-              entry.budget.name ??
-              (entry.budget.categoryId
-                ? categoryLabel(category)
-                : "Everything");
+        <section className="sec-wrap" aria-label="Budget categories">
+          <div className="sec-head">
+            <h2 className="sec-title">Categories</h2>
+          </div>
 
-            return (
-              <li key={entry.budget.id}>
-                <Card
-                  className={cn(
-                    // An overspent budget is tinted, not just given a red bar, so
-                    // it is findable while scrolling past a list of them.
-                    entry.status === "over" && "border-outflow/30 bg-outflow-soft/40",
-                  )}
-                >
-                  <CardHeader className="flex items-start gap-3">
-                    <span
-                      aria-hidden="true"
-                      className="flex size-10 shrink-0 items-center justify-center rounded-2xl bg-brand-soft text-brand"
-                    >
-                      {category ? (
-                        <CategoryIcon category={category} size={19} />
-                      ) : (
-                        <Target size={19} aria-hidden="true" />
-                      )}
-                    </span>
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-semibold text-ink">{name}</p>
-                      <p className="text-ink-faint mt-0.5 text-xs capitalize">
-                        {entry.budget.period}
-                        {entry.budget.categoryId === null ? " · overall cap" : null}
-                        {entry.budget.rollover ? " · rolls over" : null}
-                      </p>
+          <ul className="stagger-children grid gap-4 lg:grid-cols-2">
+            {progress.map((entry) => {
+              const category = entry.budget.categoryId
+                ? categories[entry.budget.categoryId]
+                : undefined;
+              const name =
+                entry.budget.name ??
+                (entry.budget.categoryId ? categoryLabel(category) : "Everything");
+              const tileColor = category
+                ? categoryColorToken(category)
+                : "var(--color-brand)";
+
+              return (
+                <li key={entry.budget.id}>
+                  <section className="proto-card budget-row">
+                    <div className="budget-top">
+                      <div className="budget-id">
+                        <RowIconTile color={tileColor}>
+                          {category ? (
+                            <CategoryIcon category={category} size={17} />
+                          ) : (
+                            <Target size={17} aria-hidden="true" />
+                          )}
+                        </RowIconTile>
+                        <div className="min-w-0">
+                          <p className="budget-name">{name}</p>
+                          <p className="caption capitalize">
+                            {entry.budget.period}
+                            {entry.budget.categoryId === null ? " · overall cap" : null}
+                            {entry.budget.rollover ? " · rolls over" : null}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="flex shrink-0 items-center gap-1">
+                        <span className="budget-nums">
+                          <MoneyAmount amount={entry.spent} /> /{" "}
+                          <MoneyAmount amount={entry.limit} />
+                        </span>
+                        {editable ? (
+                          <BudgetRowActions budgetId={entry.budget.id} name={name} />
+                        ) : null}
+                      </div>
                     </div>
-                    {editable ? (
-                      <BudgetRowActions budgetId={entry.budget.id} name={name} />
-                    ) : null}
-                  </CardHeader>
 
-                  <CardBody className="space-y-3">
-                    <div className="flex items-baseline justify-between gap-2">
-                      <div className="min-w-0"><MoneyAmount amount={absolute(entry.remaining)} className={cn("block text-xl font-semibold tracking-tight", entry.status === "over" && "text-outflow")} /><span className="mt-1 block text-xs text-ink-faint">{entry.status === "over" ? "over budget" : "left to spend"}</span></div>
-                      <span className={cn("shrink-0 rounded-full bg-surface-container px-2.5 py-1 text-xs font-semibold", tone.label)}>
-                        {Math.round(entry.fraction * 100)}%
+                    <BudgetProgressBar entry={entry} label={`${name} budget`} />
+
+                    <div className="caption flex items-center justify-between gap-2">
+                      <BudgetPaceCaption entry={entry} />
+                      <span>
+                        {entry.daysRemaining === 0
+                          ? "Last day of this period"
+                          : `${entry.daysRemaining} day${
+                              entry.daysRemaining === 1 ? "" : "s"
+                            } left`}
                       </span>
                     </div>
-
-                    <div
-                      // surface-variant, not surface-muted: the page colour is now
-                      // almost white, so the old track was invisible on a card.
-                      className="bg-surface-variant h-2 w-full overflow-hidden rounded-full"
-                      role="progressbar"
-                      aria-valuenow={Math.min(100, Math.round(entry.fraction * 100))}
-                      aria-valuetext={`${Math.round(entry.fraction * 100)}% spent`}
-                      aria-valuemin={0}
-                      aria-valuemax={100}
-                      aria-label={`${name} budget`}
-                    >
-                      <div
-                        className={cn("progress-fill h-full rounded-full", tone.bar)}
-                        // Capped so an overspend cannot render wider than its track,
-                        // while the percentage beside it still tells the truth.
-                        style={{ width: `${Math.min(100, Math.round(entry.fraction * 100))}%` }}
-                      />
-                    </div>
-
-                    <p className="text-xs leading-relaxed text-ink-muted">
-                      <MoneyAmount amount={entry.spent} /> of <MoneyAmount amount={entry.limit} /> spent
-                      {" · "}
-                      {entry.daysRemaining === 0
-                        ? "last day of this period"
-                        : `${entry.daysRemaining} day${
-                            entry.daysRemaining === 1 ? "" : "s"
-                          } to go`}
-                    </p>
-                  </CardBody>
-                </Card>
-              </li>
-            );
-          })}
-        </ul>
+                  </section>
+                </li>
+              );
+            })}
+          </ul>
+        </section>
       )}
+
+      <section className="sec-wrap" aria-label="Unbudgeted spending">
+        <div className="sec-head">
+          <h2 className="sec-title">Unbudgeted spending</h2>
+          <span className="caption">Converted to {displayCurrency}</span>
+        </div>
+        {unbudgeted.length === 0 ? (
+          <div className="proto-card">
+            <p className="caption">No unbudgeted spending this month.</p>
+          </div>
+        ) : (
+          <ul className="group-card">
+            {unbudgeted.map((entry) => {
+              const category = entry.categoryId ? categories[entry.categoryId] : undefined;
+              const label = categoryLabel(category);
+              const color = categoryColorToken(category);
+              return (
+                <li key={entry.categoryId ?? "none"} className="insight-summary-row">
+                  <div className="flex min-w-0 items-center gap-3">
+                    <RowIconTile color={color}>
+                      <CategoryIcon category={category} size={17} />
+                    </RowIconTile>
+                    <span className="tx-title truncate">{label}</span>
+                  </div>
+                  <MoneyAmount amount={entry.total} className="numeric-md shrink-0 text-ink" />
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </section>
     </div>
   );
 }

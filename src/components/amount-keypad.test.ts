@@ -69,6 +69,19 @@ describe("pressAmountKey", () => {
     // The two-decimal cap must not be mistaken for a two-digit cap.
     expect(pressAmountKey("12000", "0", "KHR")).toBe("120000");
   });
+
+  it("appends three zeros for 000 when no decimal point is present", () => {
+    expect(pressAmountKey("5", "000", "KHR")).toBe("5000");
+    expect(pressAmountKey("12", "000", "KHR")).toBe("12000");
+    expect(pressAmountKey("", "000", "KHR")).toBe("0");
+    expect(pressAmountKey("0", "000", "KHR")).toBe("0");
+  });
+
+  it("refuses 000 after a decimal point or when minor units would overflow", () => {
+    expect(pressAmountKey("5.", "000", "KHR")).toBe("5.");
+    expect(pressAmountKey("5.2", "000", "KHR")).toBe("5.2");
+    expect(pressAmountKey("90071992547409", "000", "KHR")).toBe("90071992547409");
+  });
 });
 
 describe("truncateForCurrency", () => {

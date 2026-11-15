@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { exchangeRate, formatMoney } from "@/lib/money";
 
-import { ACCOUNT_PRESETS, ACCOUNT_TYPE_LABELS, summarizeNetWorth } from "./accounts";
+import { ACCOUNT_PRESETS, ACCOUNT_TYPE_LABELS, summarizeCurrencyPockets, summarizeNetWorth } from "./accounts";
 import { ACCOUNT_TYPES, type AccountBalance, type AccountType } from "./types";
 
 const rate = exchangeRate(4100, "USD", "KHR", new Date("2026-01-01"));
@@ -132,5 +132,62 @@ describe("summarizeNetWorth", () => {
     const summary = summarizeNetWorth([], "USD", rate);
     expect(summary.netWorth.minor).toBe(0);
     expect(summary.liabilities.minor).toBe(0);
+  });
+});
+
+describe("summarizeCurrencyPockets", () => {
+  it("groups USD and KHR pockets in native currency with converted shares summing to 1", () => {
+    const pockets = summarizeCurrencyPockets(
+      [
+        balance({ currentBalance: 75_000, currency: "USD", type: "bank" }), // $750
+        balance({ currentBalance: 5_000, currency: "USD", type: "cash" }), // $50 -> $800 USD total
+        balance({ currentBalance: 82000000, currency: "KHR", type: "ewallet" }), // 820,000៛ = $200
+        balance({ currentBalance: 100_000, currency: "USD", type: "bank", isActive: false }),
+        balance({ currentBalance: 100_000, currency: "USD", type: "savings", includeInNetWorth: false }),
+      ],
+      "USD",
+      rate,
+    );
+
+    expect(pockets.usd.subtotal).toEqual({ minor: 80_000, currency: "USD" });
+    expect(pockets.usd.count).toBe(2);
+    expect(pockets.khr.subtotal).toEqual({ minor: 82_000_000, currency: "KHR" });
+    expect(pockets.khr.count).toBe(1);
+    expect(pockets.usd.share + pockets.khr.share).toBeCloseTo(1, 10);
+    expect(pockets.usd.sharePercent).toBe(80);
+    expect(pockets.khr.sharePercent).toBe(20);
+  });
+
+  it("converts pocket comparison using the base currency", () => {
+    const pockets = summarizeCurrencyPockets(
+      [
+        balance({ currentBalance: 50_000, currency: "USD", type: "bank" }),
+        balance({ currentBalance: 205000000, currency: "KHR", type: "cash" }),
+      ],
+      "KHR",
+      rate,
+    );
+
+    expect(pockets.usd.converted).toEqual({ minor: 205_000_000, currency: "KHR" });
+    expect(pockets.khr.converted).toEqual({ minor: 205_000_000, currency: "KHR" });
+    expect(pockets.usd.sharePercent).toBe(50);
+    expect(pockets.khr.sharePercent).toBe(50);
+  });
+
+  it("returns zero shares when empty or when both pockets are non-positive", () => {
+    const empty = summarizeCurrencyPockets([], "USD", rate);
+    expect(empty.usd.share).toBe(0);
+    expect(empty.khr.share).toBe(0);
+    expect(empty.usd.sharePercent).toBe(0);
+    expect(empty.khr.sharePercent).toBe(0);
+
+    const negative = summarizeCurrencyPockets(
+      [balance({ currentBalance: -20_000, currency: "USD", type: "credit_card" })],
+      "USD",
+      rate,
+    );
+    expect(negative.usd.subtotal.minor).toBe(-20_000);
+    expect(negative.usd.share).toBe(0);
+    expect(negative.khr.share).toBe(0);
   });
 });

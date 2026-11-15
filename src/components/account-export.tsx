@@ -3,7 +3,6 @@
 import { Download, FileSpreadsheet } from "@/components/app-icon";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Card, CardBody, CardHeader, CardTitle } from "@/components/ui/card";
 
 export function AccountExport() {
   const [busy, setBusy] = useState<"mmbak" | "xlsx" | null>(null);
@@ -12,42 +11,76 @@ export function AccountExport() {
 
   async function download(format: "mmbak" | "xlsx") {
     if (busy) return;
-    setBusy(format); setFailed(false); setStatus("Preparing all your accounts and history...");
+    setBusy(format);
+    setFailed(false);
+    setStatus("Preparing all your accounts and history...");
     try {
       const response = await fetch(`/api/export?format=${format}`, { cache: "no-store" });
       const type = response.headers.get("content-type") ?? "";
       if (!response.ok || type.includes("json") || type.includes("text/html")) {
-        const result = type.includes("json") ? await response.json() as { error?: string } : null;
+        const result = type.includes("json") ? ((await response.json()) as { error?: string }) : null;
         throw new Error(result?.error ?? "Sign in again, then try the export.");
       }
       const url = URL.createObjectURL(await response.blob());
       const link = document.createElement("a");
       link.href = url;
-      link.download = response.headers.get("content-disposition")?.match(/filename="([^"]+)"/)?.[1] ?? `Luy-Manager.${format}`;
-      document.body.appendChild(link); link.click(); link.remove();
+      link.download =
+        response.headers.get("content-disposition")?.match(/filename="([^"]+)"/)?.[1] ??
+        `Luy-Manager.${format}`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
       // Revoking immediately can interrupt Safari while it opens the download.
       window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
       setStatus("Your file is ready. Check your downloads.");
     } catch (error) {
-      setFailed(true); setStatus(error instanceof Error ? error.message : "Could not download the export. Try again.");
-    } finally { setBusy(null); }
+      setFailed(true);
+      setStatus(error instanceof Error ? error.message : "Could not download the export. Try again.");
+    } finally {
+      setBusy(null);
+    }
   }
 
   return (
-    <Card>
-      <CardHeader><CardTitle>Export your accounts</CardTitle></CardHeader>
-      <CardBody className="space-y-4">
-        <p className="text-ink-muted text-sm">Download all accounts and their transaction history, including closed accounts. USD and KHR keep their original amounts.</p>
+    <section className="sec-wrap" aria-label="Export your accounts">
+      <div className="sec-head">
+        <h2 className="sec-title">Export</h2>
+      </div>
+      <div className="proto-card space-y-4">
+        <p className="caption">
+          Download all accounts and their transaction history, including closed accounts. USD and
+          KHR keep their original amounts.
+        </p>
         <div className="grid gap-3 sm:grid-cols-2">
-          <Button loading={busy === "mmbak"} variant="secondary" size="full" disabled={busy !== null} onClick={() => download("mmbak")}>
+          <Button
+            loading={busy === "mmbak"}
+            variant="secondary"
+            size="full"
+            disabled={busy !== null}
+            onClick={() => download("mmbak")}
+          >
             {busy !== "mmbak" ? <Download size={17} aria-hidden="true" /> : null}Money Manager .mmbak
           </Button>
-          <Button loading={busy === "xlsx"} variant="secondary" size="full" disabled={busy !== null} onClick={() => download("xlsx")}>
+          <Button
+            loading={busy === "xlsx"}
+            variant="secondary"
+            size="full"
+            disabled={busy !== null}
+            onClick={() => download("xlsx")}
+          >
             {busy !== "xlsx" ? <FileSpreadsheet size={17} aria-hidden="true" /> : null}Excel .xlsx
           </Button>
         </div>
-        <p key={status} role={failed ? "alert" : "status"} className={failed ? "feedback-enter text-outflow text-xs" : "feedback-enter text-ink-muted text-xs"}>{status}</p>
-      </CardBody>
-    </Card>
+        {status ? (
+          <p
+            key={status}
+            role={failed ? "alert" : "status"}
+            className={failed ? "feedback-enter text-outflow text-xs" : "feedback-enter text-ink-muted text-xs"}
+          >
+            {status}
+          </p>
+        ) : null}
+      </div>
+    </section>
   );
 }

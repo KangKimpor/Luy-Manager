@@ -15,12 +15,13 @@ vi.mock("@/lib/data/transactions", () => ({ listTransactionsInRange: mocks.trans
 import TransactionsPage from "./page";
 const rows = Array.from({ length: 26 }, (_, index) => ({ ...DEMO_TRANSACTIONS[0], id: `row-${index}`, amount: -100, currency: "USD" as const, notes: "Fuel", occurredAt: "2026-10-09T17:00:00Z" }));
 
-test("Daily renders the whole month and computes signed summaries", async () => {
+test("Daily renders the whole month and computes summaries", async () => {
   mocks.transactions.mockResolvedValue(rows);
   render(await TransactionsPage({ searchParams: Promise.resolve({ month: "2026-10" }) }));
   expect(screen.getAllByRole("link", { name: "Edit Fuel" })).toHaveLength(26);
   expect(screen.getAllByText("$26.00")).toHaveLength(2);
-  expect(screen.getByText("-$26.00")).toBeInTheDocument();
+  expect(screen.getByText("26")).toBeInTheDocument();
+  expect(screen.getByText("$0.00")).toBeInTheDocument();
   expect(screen.queryByRole("navigation", { name: "Pages" })).toBeNull();
 });
 

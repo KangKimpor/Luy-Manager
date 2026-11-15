@@ -34,7 +34,7 @@ export const listBudgets = cache(async (): Promise<Budget[]> => {
 });
 
 /** Read only the periods the active budgets actually cover, including annual anchors. */
-export async function listBudgetProgress(rate: ExchangeRate, now = new Date()) {
+export async function listBudgetProgress(rate: ExchangeRate, now = new Date(), timezone?: string) {
   const budgets = await listBudgets();
   if (budgets.length === 0) return [];
 
@@ -43,5 +43,5 @@ export async function listBudgetProgress(rate: ExchangeRate, now = new Date()) {
   // The transaction reader is inclusive; budget periods have an exclusive end.
   const to = new Date(Math.max(...periods.map((period) => period.to.getTime())) - 1);
   const transactions = await listLedgerLinesInRange(from, to);
-  return summarizeBudgets(budgets, transactions, rate, now);
+  return summarizeBudgets(budgets, transactions, rate, now, timezone);
 }

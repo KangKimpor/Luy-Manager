@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { exchangeRate, formatMoney, fromMajor, money } from "@/lib/money";
+import { monthPeriod } from "@/lib/period";
 
 import type { Transaction, TransactionType } from "./types";
 import {
@@ -10,6 +11,7 @@ import {
   buildTransaction,
   buildTransfer,
   dailyCashFlow,
+  dailySpendingBreakdown,
   netWorthHistory,
   signedAmount,
   spendingByCategory,
@@ -408,5 +410,75 @@ describe("transaction type coverage", () => {
     for (const type of types) {
       expect(() => signedAmount(type, fromMajor(1, "USD"))).not.toThrow();
     }
+  });
+});
+
+describe("dailySpendingBreakdown", () => {
+  it("computes median typicalDay, marks today and future, uses UTC+7 dates, and excludes transfers/income", () => {
+    const period = monthPeriod(new Date("2026-07-01T00:00:00.000Z"));
+    // Now is July 10 noon UTC+7
+    const now = new Date("2026-07-10T05:00:00.000Z");
+    const rows = [
+      // 2026-07-01T18:00:00Z is 2026-07-02 01:00 in UTC+7
+      txn({ type: "expense", amount: -1000, currency: "USD", occurredAt: "2026-07-01T18:00:00.000Z" }),
+      txn({ type: "expense", amount: -2000, currency: "USD", occurredAt: "2026-07-04T05:00:00.000Z" }),
+      txn({ type: "expense", amount: -3000, currency: "USD", occurredAt: "2026-07-06T05:00:00.000Z" }),
+      txn({ type: "expense", amount: -5000, currency: "USD", occurredAt: "2026-07-10T04:00:00.000Z" }),
+      // Transfer and income must not count
+      txn({ type: "transfer", amount: -99000, currency: "USD", occurredAt: "2026-07-05T05:00:00.000Z" }),
+      txn({ type: "income", amount: 50000, currency: "USD", occurredAt: "2026-07-03T05:00:00.000Z" }),
+    ];
+
+    const breakdown = dailySpendingBreakdown(rows, period, "USD", rate, now);
+    expect(breakdown.totalDays).toBe(31);
+    expect(breakdown.elapsedDays).toBe(10);
+    expect(breakdown.hasSpending).toBe(true);
+    expect(breakdown.isFuturePeriod).toBe(false);
+    // Non-zero elapsed days: [1000, 2000, 3000, 5000] -> median rounds (2000+3000)/2 = 2500
+    expect(breakdown.typicalDay).toEqual(money(2500, "USD"));
+    expect(breakdown.days[1].date).toBe("2026-07-02");
+    expect(breakdown.days[1].amount.minor).toBe(1000);
+    expect(breakdown.days[4].amount.minor).toBe(0);
+    expect(breakdown.days[4].isZero).toBe(true);
+    expect(breakdown.days[9].isToday).toBe(true);
+    expect(breakdown.days[9].isFuture).toBe(false);
+    expect(breakdown.days[10].isFuture).toBe(true);
+    expect(breakdown.days[10].heightPercent).toBe(4);
+  });
+
+  it("caps single-day outliers exceeding 2x the second-highest day at 1.2x the second day", () => {
+    const period = monthPeriod(new Date("2026-07-01T00:00:00.000Z"));
+    const now = new Date("2026-07-10T05:00:00.000Z");
+    const rows = [
+      txn({ type: "expense", amount: -45000, currency: "USD", occurredAt: "2026-07-02T05:00:00.000Z" }), // rent outlier
+      txn({ type: "expense", amount: -2000, currency: "USD", occurredAt: "2026-07-03T05:00:00.000Z" }), // second max = $20
+      txn({ type: "expense", amount: -1000, currency: "USD", occurredAt: "2026-07-04T05:00:00.000Z" }),
+    ];
+
+    const breakdown = dailySpendingBreakdown(rows, period, "USD", rate, now);
+    expect(breakdown.days[1].isCapped).toBe(true);
+    expect(breakdown.days[1].heightPercent).toBe(100);
+    // secondMax = 2000 -> chartMax = 2400 -> 2000/2400 = 83% (instead of 2000/45000 = 4%)
+    expect(breakdown.days[2].isCapped).toBe(false);
+    expect(breakdown.days[2].heightPercent).toBe(83);
+    // median of [1000, 2000, 45000] = 2000 (not distorted by rent)
+    expect(breakdown.typicalDay.minor).toBe(2000);
+  });
+
+  it("handles months with no spending and future months gracefully", () => {
+    const period = monthPeriod(new Date("2026-08-01T00:00:00.000Z"));
+    const now = new Date("2026-07-15T05:00:00.000Z");
+    const future = dailySpendingBreakdown([], period, "USD", rate, now);
+    expect(future.isFuturePeriod).toBe(true);
+    expect(future.elapsedDays).toBe(0);
+    expect(future.hasSpending).toBe(false);
+    expect(future.typicalDay).toEqual(money(0, "USD"));
+    expect(future.typicalRatio).toBe(0);
+
+    const past = dailySpendingBreakdown([], monthPeriod(new Date("2026-06-01T00:00:00.000Z")), "USD", rate, now);
+    expect(past.isFuturePeriod).toBe(false);
+    expect(past.elapsedDays).toBe(30);
+    expect(past.hasSpending).toBe(false);
+    expect(past.typicalDay).toEqual(money(0, "USD"));
   });
 });

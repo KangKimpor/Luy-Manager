@@ -1,12 +1,15 @@
 import { categoryLabel } from "@/lib/domain/categories";
-import { ArrowDownLeft, ArrowRightLeft, ArrowUpRight, Ellipsis, Pencil, Send, Trash2, Undo2 } from "@/components/app-icon";
+import { ArrowRightLeft, Ellipsis, Pencil, Send, Trash2, Undo2 } from "@/components/app-icon";
 import { AppLink as Link } from "@/components/app-link";
-import { CategoryIcon } from "@/components/category-icon";
+import { CategoryIcon, categoryColorToken, RowIconTile } from "@/components/category-icon";
 
 import { CurrencyBadge, MoneyAmount } from "@/components/money-amount";
 import type { AccountBalance, Category, Transaction } from "@/lib/domain/types";
 import { money } from "@/lib/money";
+import { CHART_COLORS } from "@/lib/theme";
 import { cn } from "@/lib/utils";
+
+const TRANSFER_ICON_COLOR = CHART_COLORS.categories[6];
 
 /**
  * One ledger row, with edit and delete.
@@ -185,57 +188,104 @@ export function TransactionRow({
     ? transferLabel
     : transferRoute(transaction, transactions, accounts);
   const isTransfer = transaction.type === "transfer";
+  const isIncome = !isTransfer && transaction.amount > 0;
+  const tileColor = isTransfer ? TRANSFER_ICON_COLOR : categoryColorToken(category);
+  const titleText =
+    merchant ??
+    transaction.notes ??
+    (category ? categoryLabel(category) : isTransfer ? "Transfer" : "Transaction");
+  const amountNode = (
+    <div className="flex shrink-0 flex-col items-end gap-0.5">
+      <MoneyAmount
+        amount={amount}
+        colorBySign={isIncome}
+        showPlus={isIncome}
+        showSign={!isTransfer}
+        className={cn(
+          "whitespace-nowrap text-[16px] leading-[21px] font-semibold tracking-[-0.014em]",
+          isTransfer && "text-ink-muted",
+          !isIncome && !isTransfer && "text-ink",
+        )}
+      />
+      <CurrencyBadge currency={transaction.currency} />
+    </div>
+  );
 
   if (activity) {
-    const contents = <>
-      <span className="flex min-w-0 flex-col items-center gap-1 text-ink-muted">
-        {isTransfer ? <ArrowRightLeft size={19} aria-hidden="true" /> : <CategoryIcon category={category} size={19} />}
-        <span className="w-full truncate text-center text-[10px]">{isTransfer ? "Transfer" : categoryLabel(category)}</span>
-      </span>
-      <span className="min-w-0">
-        <span className={cn("block truncate text-xs font-semibold text-ink", deleted && "line-through")}>{merchant ?? transaction.notes ?? (category ? categoryLabel(category) : "Transaction")}</span>
-        <span className="mt-1 block truncate text-[10px] text-ink-faint">{route ?? account?.name ?? "Account"}</span>
-      </span>
-      <MoneyAmount amount={amount} colorBySign={!isTransfer} showPlus={!isTransfer} className="whitespace-nowrap text-xs font-semibold tracking-tight" />
-    </>;
-    // 4.5rem fits the longest default label ("Transportation"), which truncated at 3.25rem.
-    const rowClass = "grid min-h-14 min-w-0 flex-1 grid-cols-[4.5rem_minmax(0,1fr)_auto] items-center gap-2 py-3";
-    return <li className="flex min-w-0 items-center gap-1">
-      {editable && !deleted && !isTransfer ? <Link href={`/transactions/${transaction.id}/edit`} className={rowClass} aria-label={`Edit ${transaction.notes ?? (category ? categoryLabel(category) : "transaction")}`}>{contents}</Link> : <div className={rowClass}>{contents}</div>}
-      {editable ? <details className="relative shrink-0">
-        <summary aria-label="Transaction actions" className="flex size-11 list-none items-center justify-center rounded-xl text-ink-faint"><Ellipsis size={18} aria-hidden="true" /></summary>
-        <div className="absolute right-0 z-10 rounded-xl border border-surface-variant bg-surface p-1 shadow-card">
-          <RowActions transactionId={transaction.id} isTransfer={isTransfer} deleted={deleted} />
+    const contents = (
+      <>
+        <div className="flex min-w-0 flex-1 items-center gap-3">
+          <RowIconTile color={tileColor}>
+            {isTransfer ? <ArrowRightLeft size={17} aria-hidden="true" /> : <CategoryIcon category={category} size={17} />}
+          </RowIconTile>
+          <div className="min-w-0 flex-1">
+            <span className={cn("tx-title block truncate", deleted && "text-ink-faint line-through")}>
+              {titleText}
+            </span>
+            <span className="caption mt-0.5 flex min-w-0 items-center gap-1.5 truncate">
+              <span className="truncate">
+                {isTransfer
+                  ? route && route !== "Account"
+                    ? `Transfer · ${route}`
+                    : "Transfer"
+                  : (route ?? account?.name ?? "Account")}
+              </span>
+              {transaction.createdVia === "telegram" ? (
+                <Send size={11} aria-label="Added via Telegram" className="text-brand shrink-0" />
+              ) : null}
+            </span>
+          </div>
         </div>
-      </details> : null}
-    </li>;
+        {amountNode}
+      </>
+    );
+    const rowClass = "flex min-w-0 flex-1 items-center justify-between gap-3";
+    return (
+      <li className="tx-activity-row flex min-w-0 items-center gap-1">
+        {editable && !deleted && !isTransfer ? (
+          <Link
+            href={`/transactions/${transaction.id}/edit`}
+            className={rowClass}
+            aria-label={`Edit ${transaction.notes ?? (category ? categoryLabel(category) : "transaction")}`}
+          >
+            {contents}
+          </Link>
+        ) : (
+          <div className={rowClass}>{contents}</div>
+        )}
+        {editable ? (
+          <details className="relative shrink-0">
+            <summary
+              aria-label="Transaction actions"
+              className="flex size-11 list-none items-center justify-center rounded-full text-ink-faint hover:text-ink"
+            >
+              <Ellipsis size={18} aria-hidden="true" />
+            </summary>
+            <div className="glass absolute right-0 z-20 rounded-2xl p-1">
+              <RowActions transactionId={transaction.id} isTransfer={isTransfer} deleted={deleted} />
+            </div>
+          </details>
+        ) : null}
+      </li>
+    );
   }
 
   return (
-    <li className={cn("grid grid-cols-[2.25rem_minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1 py-4", editable && "sm:grid-cols-[2.5rem_minmax(0,1fr)_auto_auto]")}>
-      <span
-        aria-hidden="true"
-        className={cn(
-          "flex size-9 shrink-0 items-center justify-center rounded-xl sm:size-10",
-          isTransfer ? "bg-surface-container text-ink-muted" : transaction.amount < 0 ? "bg-outflow-soft text-outflow" : "bg-inflow-soft text-inflow",
-        )}
-      >
-        {/* The tint already says which way the money moved, so the glyph is free to
-            say what it was for. A column of identical arrows told the reader nothing
-            the minus sign had not. The arrow remains for uncategorised rows. */}
-        {isTransfer ? <ArrowRightLeft size={17} /> : category ? <CategoryIcon category={category} size={17} /> : transaction.amount < 0 ? <ArrowUpRight size={17} /> : <ArrowDownLeft size={17} />}
-      </span>
+    <li className={cn("grid grid-cols-[2.25rem_minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1 py-4", editable && "sm:grid-cols-[2.25rem_minmax(0,1fr)_auto_auto]")}>
+      <RowIconTile color={tileColor}>
+        {isTransfer ? <ArrowRightLeft size={17} /> : <CategoryIcon category={category} size={17} />}
+      </RowIconTile>
 
       <div className="min-w-0">
         <p
           className={cn(
-            "truncate text-sm font-semibold",
+            "truncate text-[16px] leading-[21px] font-medium",
             deleted ? "text-ink-faint line-through" : "text-ink",
           )}
         >
           {transaction.notes ?? (category ? categoryLabel(category) : isTransfer ? "Transfer" : "Transaction")}
         </p>
-        <p className="mt-1 flex min-w-0 items-center gap-1.5 text-[11px] text-ink-faint">
+        <p className="caption mt-0.5 flex min-w-0 items-center gap-1.5">
           {showDate ? <span className="shrink-0">{formatDate(transaction.occurredAt)}</span> : null}
           {route ? (
             <span className="truncate">{showDate ? "· " : ""}{route}</span>
@@ -248,17 +298,7 @@ export function TransactionRow({
         </p>
       </div>
 
-      <div className="flex shrink-0 flex-col items-end gap-1">
-        <MoneyAmount
-          amount={amount}
-          // A transfer leg is not income or spending, so colouring it green or red
-          // would read as money gained or lost when the total did not change.
-          colorBySign={!isTransfer}
-          showPlus={!isTransfer}
-          className="whitespace-nowrap text-sm font-semibold tracking-tight"
-        />
-        <CurrencyBadge currency={transaction.currency} />
-      </div>
+      {amountNode}
 
       {editable ? (
         <div className="col-span-2 col-start-2 flex justify-end sm:col-span-1 sm:col-start-auto">

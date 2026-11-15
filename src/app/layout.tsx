@@ -9,6 +9,7 @@ import { BottomNav } from "@/components/bottom-nav";
 import { ServiceWorkerRegistration } from "@/components/service-worker";
 import { SiteHeader } from "@/components/site-header";
 import { Sidebar } from "@/components/sidebar";
+import { appearanceThemeAttribute, readAppearance } from "@/lib/appearance";
 import { APP_COLORS } from "@/lib/theme";
 
 import "./globals.css";
@@ -16,6 +17,7 @@ import "./globals.css";
 const inter = Inter({
   variable: "--font-inter",
   subsets: ["latin"],
+  preload: false,
 });
 
 /**
@@ -56,21 +58,28 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: APP_COLORS.background,
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: APP_COLORS.background },
+    { media: "(prefers-color-scheme: dark)", color: APP_COLORS.backgroundDark },
+  ],
   width: "device-width",
   initialScale: 1,
   interactiveWidget: "resizes-content",
   viewportFit: "cover",
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const appearance = await readAppearance();
+  const dataTheme = appearanceThemeAttribute(appearance);
+
   return (
     <html
       lang="en"
+      data-theme={dataTheme}
       className={`${inter.variable} ${khmer.variable} h-full antialiased`}
     >
       <body className="font-sans min-h-full">
@@ -82,29 +91,22 @@ export default function RootLayout({
           Skip to content
         </a>
 
-        <SiteHeader />
         <Sidebar />
 
         {/*
-          Top padding clears the fixed app bar plus the notch; bottom padding
-          clears the nav (4.5rem) plus the centre action that sits above it, so
-          neither the first nor the last row of content is ever trapped under
-          fixed chrome.
+          Top and bottom paddings in .app-main clear the floating phone bar,
+          floating dock and safe areas while keeping desktop Mac-like.
         */}
-        <main
-          id="main"
-          className="app-main safe-gutters mx-auto min-w-0 max-w-xl px-5 pb-28 lg:mr-0 lg:ml-60 lg:max-w-none lg:px-10 lg:pb-12 xl:px-14"
-          style={{
-            paddingTop: "calc(var(--spacing-appbar) + env(safe-area-inset-top, 0px) + 1rem)",
-          }}
-        >
+        <main id="main" className="app-main min-w-0">
+          <SiteHeader />
+
           {/*
             Only navigations started from a link fade. A refresh, a server action
             or the back button carries no "nav" type and so swaps in place: the
             ledger re-rendering after a save must not blink the whole screen.
           */}
           <ViewTransition default={{ nav: "page", default: "none" }}>
-            <div className="mx-auto max-w-6xl">{children}</div>
+            <div className="mx-auto max-w-[1120px]">{children}</div>
           </ViewTransition>
         </main>
 

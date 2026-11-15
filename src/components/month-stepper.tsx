@@ -28,12 +28,12 @@ export function MonthStepper({
 }) {
   if (compact) {
     return (
-      <div className="-mr-2 flex items-center">
-        <Link href={prevHref} aria-label={`Previous period, ${label}`} rel="prev" className="text-ink-muted hover:bg-surface-container flex size-11 items-center justify-center rounded-xl transition-colors">
+      <div className="month-head-left">
+        <Link href={prevHref} aria-label={`Previous period, ${label}`} rel="prev" className="stepper-btn">
           <ChevronLeft size={18} aria-hidden="true" />
         </Link>
-        <span key={label} className="selection-label text-ink min-w-24 text-center text-sm font-semibold">{label}</span>
-        <Link href={nextHref} aria-label={`Next period, ${label}`} rel="next" className="text-ink-muted hover:bg-surface-container flex size-11 items-center justify-center rounded-xl transition-colors">
+        <h2 key={label} className="selection-label sec-title">{label}</h2>
+        <Link href={nextHref} aria-label={`Next period, ${label}`} rel="next" className="stepper-btn">
           <ChevronRight size={18} aria-hidden="true" />
         </Link>
       </div>
@@ -41,12 +41,12 @@ export function MonthStepper({
   }
 
   return (
-    <div className="rounded-card border-surface-variant bg-surface shadow-card flex items-center justify-between border p-1">
+    <div className="rounded-card border-card-edge bg-surface shadow-card flex items-center justify-between border-[0.5px] p-1">
       <Link
         href={prevHref}
         aria-label={`Previous period, ${label}`}
         rel="prev"
-        className="text-ink-muted hover:bg-surface-container flex size-11 items-center justify-center rounded-xl transition-colors"
+        className="text-brand hover:bg-fill flex size-11 items-center justify-center rounded-full transition-colors"
       >
         <ChevronLeft size={20} aria-hidden="true" />
       </Link>
@@ -60,7 +60,7 @@ export function MonthStepper({
         href={nextHref}
         aria-label={`Next period, ${label}`}
         rel="next"
-        className="text-ink-muted hover:bg-surface-container flex size-11 items-center justify-center rounded-xl transition-colors"
+        className="text-brand hover:bg-fill flex size-11 items-center justify-center rounded-full transition-colors"
       >
         <ChevronRight size={20} aria-hidden="true" />
       </Link>

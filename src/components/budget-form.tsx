@@ -79,7 +79,7 @@ export function BudgetForm({
   return (
     <form onSubmit={handleSubmit} className="page-enter space-y-5" aria-busy={pending}>
       <Card>
-        <CardBody className="space-y-3 pt-4">
+        <CardBody className="space-y-4 pt-5">
           <CategoryPicker categories={spendingCategories} selectedId={categoryId} onSelect={setCategoryId}
             emptyLabel="Everything (one overall cap)" clearLabel="Use an overall cap" />
 
@@ -99,9 +99,9 @@ export function BudgetForm({
                 value={amount}
                 onChange={(event) => setAmount(event.target.value)}
                 placeholder={currency === "KHR" ? "400000" : "150.00"}
-                className="border-border-subtle bg-surface rounded-card text-ink placeholder:text-ink-faint tabular min-h-11 flex-1 border px-3 text-sm"
+                className="field-input tabular min-w-0 flex-1 text-sm"
               />
-              <div className="flex gap-1" role="group" aria-label="Budget currency">
+              <div className="segmented-control shrink-0" role="group" aria-label="Budget currency">
                 {CURRENCIES.map((code) => (
                   <button
                     key={code}
@@ -111,10 +111,10 @@ export function BudgetForm({
                       setCurrency(code);
                     }}
                     className={cn(
-                      "rounded-pill min-h-9 px-3 text-xs font-bold transition-colors",
+                      "relative z-10 min-h-8 px-3 text-xs whitespace-nowrap transition-colors",
                       currency === code
-                        ? "bg-brand text-on-action"
-                        : "bg-surface-muted text-ink-muted",
+                        ? "text-ink font-semibold"
+                        : "text-ink-muted font-medium",
                     )}
                   >
                     {code}
@@ -136,10 +136,10 @@ export function BudgetForm({
                   aria-pressed={period === option}
                   onClick={() => setPeriod(option)}
                   className={cn(
-                    "rounded-pill min-h-9 border px-3 text-xs font-medium capitalize transition-colors",
+                    "rounded-pill min-h-9 px-4 text-xs font-medium capitalize transition-colors",
                     period === option
-                      ? "border-brand bg-brand-soft text-brand"
-                      : "border-border-subtle bg-surface text-ink-muted",
+                      ? "bg-brand text-on-action"
+                      : "bg-fill text-ink-muted",
                   )}
                 >
                   {option}
@@ -160,7 +160,7 @@ export function BudgetForm({
               type="date"
               value={startsOn}
               onChange={(event) => setStartsOn(event.target.value)}
-              className="border-border-subtle bg-surface rounded-card text-ink min-h-11 w-full border px-3 text-sm"
+              className="field-input text-sm"
             />
             <p className="text-ink-faint mt-1.5 text-xs">
               The period repeats from this day. A monthly budget starting on the 15th
@@ -183,7 +183,7 @@ export function BudgetForm({
               step={5}
               value={threshold}
               onChange={(event) => setThreshold(Number(event.target.value))}
-              className="w-full"
+              className="w-full accent-[var(--color-brand)]"
             />
           </div>
 
@@ -192,7 +192,7 @@ export function BudgetForm({
               type="checkbox"
               checked={rollover}
               onChange={(event) => setRollover(event.target.checked)}
-              className="size-4"
+              className="size-4 accent-[var(--color-brand)]"
             />
             <span className="text-ink">Carry anything unspent into the next period</span>
           </label>

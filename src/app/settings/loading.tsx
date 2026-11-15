@@ -1,5 +1,5 @@
-import { ListSkeleton } from "@/components/page-skeleton";
+import { SettingsSkeleton } from "@/components/page-skeleton";
 
 export default function Loading() {
-  return <ListSkeleton rows={4} />;
+  return <SettingsSkeleton />;
 }
