@@ -12,7 +12,7 @@ export function Sidebar() {
 
   return (
     <aside className="app-chrome-sidebar sidebar-glass fixed inset-y-0 left-0 z-50 hidden w-60 flex-col px-4 py-6 lg:flex">
-      <Link href="/" className="text-ink mb-6 flex items-center gap-2.5 px-2 text-lg font-bold tracking-tight">
+      <Link href="/" className="text-ink mb-6 flex items-center gap-2.5 rounded-xl px-2 py-1 text-lg font-bold tracking-tight">
         <span className="brand-mark-tile" aria-hidden="true">L</span>
         <span>Luy Manager</span>
       </Link>

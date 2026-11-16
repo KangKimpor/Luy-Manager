@@ -48,7 +48,7 @@ export function RecentActivityDays({
           </span>
           <p className="font-semibold text-ink">A fresh start</p>
           <p className="mt-1 text-sm text-ink-muted">Your transactions will appear here.</p>
-          <Link href="/add" className="mt-4 inline-flex min-h-11 items-center text-sm font-semibold text-brand">
+          <Link href="/add" className="mt-4 inline-flex min-h-11 items-center rounded-lg px-2 text-sm font-semibold text-brand">
             Add a transaction
           </Link>
         </div>

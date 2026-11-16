@@ -21,14 +21,29 @@ function renderForm() {
 }
 
 describe("transaction save feedback", () => {
-  it("places a compact account selector between the date and note", () => {
+  it("orders account row, category row, note-date-more row, keypad and pinned save button", () => {
     renderForm();
-    const picker = screen.getByRole("group", { name: "Account" });
-    expect(screen.getByLabelText("Date").compareDocumentPosition(picker) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(picker.compareDocumentPosition(screen.getByLabelText("Note")) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(within(picker).getAllByRole("button")).toHaveLength(3);
-    expect(within(picker).getByRole("button", { name: "ABA USD" })).toBeVisible();
-    expect(within(picker).getByRole("button", { name: "ABA KHR" })).toBeVisible();
+    const accountsRow = screen.getByRole("group", { name: "Account" });
+    const categoriesRow = screen.getByRole("group", { name: "Category" });
+    const noteInput = screen.getByLabelText("Note");
+    const dateButton = screen.getByRole("button", { name: "Date: Today" });
+    const moreButton = screen.getByRole("button", { name: "More options" });
+    const keypad = screen.getByRole("group", { name: "Amount keypad" });
+    const saveButton = screen.getByRole("button", { name: "Enter an amount" });
+
+    expect(accountsRow.compareDocumentPosition(categoriesRow) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(categoriesRow.compareDocumentPosition(noteInput) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(noteInput.compareDocumentPosition(dateButton) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(dateButton.compareDocumentPosition(moreButton) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(moreButton.compareDocumentPosition(keypad) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(keypad.compareDocumentPosition(saveButton) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+
+    // USD mode shows only USD accounts inline plus the "All accounts" trigger.
+    expect(within(accountsRow).getAllByRole("button")).toHaveLength(6);
+    expect(within(accountsRow).getByRole("button", { name: "ABA USD" })).toBeVisible();
+    expect(within(accountsRow).getByRole("button", { name: "All accounts" })).toBeVisible();
+    expect(within(accountsRow).queryByRole("button", { name: "ABA KHR" })).toBeNull();
+    expect(saveButton).toBeDisabled();
   });
 
   it("fills Drinks and Coffee for the learned KHR amount and keeps user edits", async () => {
@@ -38,18 +53,21 @@ describe("transaction save feedback", () => {
       amount: -600000, categoryId: "cat-drinks", notes: "Coffee" };
     render(<QuickAddForm accounts={DEMO_ACCOUNTS} categories={DEMO_CATEGORIES} type="expense"
       habits={learnEntryHabits([coffee, coffee, coffee], DEMO_CATEGORIES)} />);
-    await user.click(screen.getByRole("button", { name: "ABA KHR" }));
+    await user.click(screen.getByRole("button", { name: "KHR" }));
     for (const digit of "6000") await user.click(screen.getByRole("button", { name: digit }));
     expect(screen.getByLabelText("Note")).toHaveValue("Coffee");
-    expect(screen.getByText("Suggested from your usual entries. You can change the note or category.")).toBeVisible();
-    await user.click(screen.getByRole("button", { name: "Save expense" }));
+    expect(screen.getByText("Suggested from your usual entries. You can change the note or category.")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: /^Save expense, 6,000/ }));
     expect(createTransaction.mock.lastCall?.[0]).toMatchObject({ accountId: "acc-aba-khr", amount: "6000", currency: "KHR", categoryId: "cat-drinks", notes: "Coffee" });
     await user.clear(screen.getByLabelText("Note"));
     await user.type(screen.getByLabelText("Note"), "Lunch");
-    await user.click(screen.getByRole("button", { name: "Clear category" }));
-    await user.click(screen.getByRole("button", { name: "ABA USD" }));
+    const categoriesRow = screen.getByRole("group", { name: "Category" });
+    expect(within(categoriesRow).getByRole("button", { name: "Food" })).toHaveAttribute("aria-pressed", "true");
+    await user.click(within(categoriesRow).getByRole("button", { name: "Food" }));
+    expect(within(categoriesRow).getByRole("button", { name: "Food" })).toHaveAttribute("aria-pressed", "false");
+    await user.click(screen.getByRole("button", { name: "USD" }));
     expect(screen.getByLabelText("Note")).toHaveValue("Lunch");
-    await user.click(screen.getByRole("button", { name: "Save expense" }));
+    await user.click(screen.getByRole("button", { name: "Save expense, $6,000.00" }));
     expect(createTransaction.mock.lastCall?.[0]).toMatchObject({ currency: "USD", notes: "Lunch", categoryId: null });
   });
 
@@ -57,12 +75,12 @@ describe("transaction save feedback", () => {
     const user = userEvent.setup();
     render(<QuickAddForm accounts={DEMO_ACCOUNTS} categories={DEMO_CATEGORIES} type="expense"
       habits={[{ type: "expense", amount: { minor: 600000, currency: "KHR" }, categoryId: "cat-drinks", note: "Coffee" }]} />);
-    await user.click(screen.getByRole("button", { name: "ABA KHR" }));
+    await user.click(screen.getByRole("button", { name: "KHR" }));
     for (const digit of "6000") await user.click(screen.getByRole("button", { name: digit }));
     expect(screen.getByLabelText("Note")).toHaveValue("Coffee");
-    await user.click(screen.getByRole("button", { name: "ABA USD" }));
+    await user.click(screen.getByRole("button", { name: "USD" }));
     expect(screen.getByLabelText("Note")).toHaveValue("");
-    await user.click(screen.getByRole("button", { name: "ABA KHR" }));
+    await user.click(screen.getByRole("button", { name: "KHR" }));
     expect(screen.getByLabelText("Note")).toHaveValue("Coffee");
     await user.click(screen.getByRole("button", { name: "1" }));
     expect(screen.getByLabelText("Note")).toHaveValue("");
@@ -87,7 +105,7 @@ describe("transaction save feedback", () => {
     expect(screen.getByLabelText("Amount entered")).toHaveTextContent("6,000៛");
     expect(screen.getByLabelText("Note")).toHaveValue("Coffee");
     expect(screen.getByRole("button", { name: "Drinks" })).toHaveAttribute("aria-pressed", "true");
-    await user.click(screen.getByRole("button", { name: "Save expense" }));
+    await user.click(screen.getByRole("button", { name: /^Save expense, 6,000/ }));
     expect(createTransaction).toHaveBeenCalledWith(
       expect.objectContaining({
         accountId: "acc-aba-khr",
@@ -108,7 +126,7 @@ describe("transaction save feedback", () => {
     clipboard.mockResolvedValue("1.234");
     await user.click(screen.getByRole("button", { name: "Paste amount" }));
     expect(screen.getByRole("alert")).toHaveTextContent("up to two decimal places");
-    await user.click(screen.getByRole("button", { name: "Save expense" }));
+    await user.click(screen.getByRole("button", { name: "Save expense, $1,234.56" }));
     expect(createTransaction.mock.lastCall?.[0]).toMatchObject({ amount: "1234.56", currency: "USD" });
     clipboard.mockRestore();
   });
@@ -130,14 +148,14 @@ describe("transaction save feedback", () => {
     createTransaction.mockResolvedValue({ ok: false, error: "Keep the draft" });
     const user = userEvent.setup(); renderForm();
     await user.type(screen.getByLabelText("Note"), "Brown coffee");
-    expect(screen.getByText("Suggested from your note. Choose another category or clear it.")).toBeVisible();
+    expect(screen.getByText("Suggested from your note. Choose another category or clear it.")).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "5" }));
-    await user.click(screen.getByRole("button", { name: "Save expense" }));
+    await user.click(screen.getByRole("button", { name: "Save expense, $5.00" }));
     expect(createTransaction.mock.lastCall?.[0]).toMatchObject({ categoryId: "cat-drinks" });
-    await user.click(screen.getByRole("button", { name: "Clear category" }));
+    await user.click(within(screen.getByRole("group", { name: "Category" })).getByRole("button", { name: "Drinks" }));
     await user.clear(screen.getByLabelText("Note"));
     await user.type(screen.getByLabelText("Note"), "Rent");
-    await user.click(screen.getByRole("button", { name: "Save expense" }));
+    await user.click(screen.getByRole("button", { name: "Save expense, $5.00" }));
     expect(createTransaction.mock.lastCall?.[0]).toMatchObject({ categoryId: null });
   });
 
@@ -147,7 +165,7 @@ describe("transaction save feedback", () => {
     await user.click(screen.getByRole("button", { name: "Groceries" }));
     await user.type(screen.getByLabelText("Note"), "Coffee");
     await user.click(screen.getByRole("button", { name: "5" }));
-    await user.click(screen.getByRole("button", { name: "Save expense" }));
+    await user.click(screen.getByRole("button", { name: "Save expense, $5.00" }));
     expect(createTransaction.mock.lastCall?.[0]).toMatchObject({ categoryId: "cat-groceries" });
   });
 
@@ -157,11 +175,14 @@ describe("transaction save feedback", () => {
     render(<QuickAddForm accounts={DEMO_ACCOUNTS} categories={DEMO_CATEGORIES} type="expense" initialDate="2026-10-11" />);
     expect(screen.getByLabelText("Note").closest("details")).toBeNull();
     await user.type(screen.getByLabelText("Note"), "Dinner with family");
+    await user.click(screen.getByRole("button", { name: "Date: Today" }));
     await user.click(screen.getByRole("button", { name: "Yesterday" }));
+    expect(screen.getByRole("button", { name: "Date: Yesterday" })).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "5" }));
-    await user.click(screen.getByRole("button", { name: "Save expense" }));
+    await user.click(screen.getByRole("button", { name: "Save expense, $5.00" }));
     expect(createTransaction).toHaveBeenCalledWith(expect.objectContaining({ notes: "Dinner with family", occurredAt: "2026-10-10T05:00:00.000Z" }));
     expect(screen.getByLabelText("Note")).toHaveValue("");
+    await user.click(screen.getByRole("button", { name: /^Date:/ }));
     expect(screen.getByLabelText("Date")).toHaveValue(calendarDate(new Date()));
   });
 
@@ -169,24 +190,38 @@ describe("transaction save feedback", () => {
     const user = userEvent.setup(); renderForm();
     await user.click(screen.getByRole("button", { name: "5" }));
     await user.type(screen.getByLabelText("Note"), "Keep me");
+    await user.click(screen.getByRole("button", { name: "Date: Today" }));
     fireEvent.change(screen.getByLabelText("Date"), { target: { value: "" } });
-    expect(screen.getByRole("button", { name: "Save expense" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Save expense, $5.00" })).toBeDisabled();
     expect(screen.getByLabelText("Note")).toHaveValue("Keep me");
     expect(createTransaction).not.toHaveBeenCalled();
   });
 
-  it("searches a distant KHR wallet and a category instead of scrolling through either list", async () => {
+  it("searches a distant KHR wallet and a category in dialog sheets and returns focus when dismissed", async () => {
     createTransaction.mockResolvedValue({ ok: true, data: { id: "saved" } });
     const user = userEvent.setup(); renderForm();
-    await user.click(screen.getByRole("button", { name: "All accounts" }));
-    await user.type(screen.getByRole("searchbox", { name: "Search accounts" }), "TrueMoney");
-    await user.click(screen.getByRole("button", { name: "TrueMoney" }));
+    const allAccountsTrigger = screen.getByRole("button", { name: "All accounts" });
+    await user.click(allAccountsTrigger);
+    const accountDialog = screen.getByRole("dialog", { name: "Account" });
+    await user.type(within(accountDialog).getByRole("searchbox", { name: "Search accounts" }), "TrueMoney");
+    await user.click(within(accountDialog).getByRole("button", { name: "TrueMoney" }));
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "." })).toBeEnabled();
-    await user.click(screen.getByRole("button", { name: "All categories" }));
-    await user.type(screen.getByRole("searchbox", { name: "Search categories" }), "Health");
-    await user.click(screen.getByRole("button", { name: "Health" }));
+
+    const searchCategoriesTrigger = screen.getByRole("button", { name: "Search categories" });
+    await user.click(searchCategoriesTrigger);
+    const categoryDialog = screen.getByRole("dialog", { name: "Category" });
+    expect(categoryDialog).toBeInTheDocument();
+    await user.keyboard("{Escape}");
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(searchCategoriesTrigger).toHaveFocus();
+
+    await user.click(searchCategoriesTrigger);
+    const reopenedDialog = screen.getByRole("dialog", { name: "Category" });
+    await user.type(within(reopenedDialog).getByRole("searchbox", { name: "Search categories" }), "Health");
+    await user.click(within(reopenedDialog).getByRole("button", { name: "Health" }));
     for (const digit of "6000") await user.click(screen.getByRole("button", { name: digit }));
-    await user.click(screen.getByRole("button", { name: "Save expense" }));
+    await user.click(screen.getByRole("button", { name: /^Save expense, 6,000/ }));
     expect(createTransaction).toHaveBeenCalledWith(expect.objectContaining({ accountId: "acc-truemoney", currency: "KHR", amount: "6000", categoryId: "cat-health" }));
   });
 
@@ -194,7 +229,7 @@ describe("transaction save feedback", () => {
     createTransaction.mockResolvedValue({ ok: true, data: { id: "saved" } });
     const user = userEvent.setup(); renderForm();
     await user.click(screen.getByRole("button", { name: "5" }));
-    await user.click(screen.getByText("More options"));
+    await user.click(screen.getByRole("button", { name: "More options" }));
     await user.click(screen.getByRole("button", { name: "Split it" }));
     await user.type(screen.getByLabelText("Split 1 amount"), "2");
     await user.type(screen.getByLabelText("Split 2 amount"), "3");
@@ -204,17 +239,18 @@ describe("transaction save feedback", () => {
       await user.type(picker.getByRole("searchbox", { name: "Search categories" }), name);
       await user.click(picker.getByRole("button", { name }));
     }
-    await user.click(screen.getByRole("button", { name: "Save expense" }));
+    await user.click(screen.getByRole("button", { name: "Save expense, $5.00" }));
     expect(createTransaction).toHaveBeenCalledWith(expect.objectContaining({
       splits: [{ categoryId: "cat-health", amount: "2", notes: null }, { categoryId: "cat-groceries", amount: "3", notes: null }],
     }));
   });
+
   it("confirms the saved amount after clearing the keypad", async () => {
     createTransaction.mockResolvedValue({ ok: true, data: { id: "saved" } });
     const user = userEvent.setup();
     renderForm();
     await user.click(screen.getByRole("button", { name: "5" }));
-    await user.click(screen.getByRole("button", { name: "Save expense" }));
+    await user.click(screen.getByRole("button", { name: "Save expense, $5.00" }));
     expect(screen.getByRole("status", { name: "Save confirmation" })).toHaveTextContent("Saved $5.00");
     expect(screen.getByLabelText("Amount entered")).toHaveTextContent("$0.00");
   });
@@ -224,10 +260,10 @@ describe("transaction save feedback", () => {
     const user = userEvent.setup();
     renderForm();
     await user.click(screen.getByRole("button", { name: "5" }));
-    await user.click(screen.getByRole("button", { name: "Save expense" }));
+    await user.click(screen.getByRole("button", { name: "Save expense, $5.00" }));
     expect(screen.getByRole("alert")).toHaveTextContent("Please try again.");
     expect(screen.getByLabelText("Amount entered")).toHaveTextContent("$5.00");
-    await user.click(screen.getByRole("button", { name: "Save expense" }));
+    await user.click(screen.getByRole("button", { name: "Save expense, $5.00" }));
     expect(createTransaction).toHaveBeenCalledTimes(2);
     expect(screen.getByRole("status", { name: "Save confirmation" })).toHaveTextContent("Saved $5.00");
   });
@@ -237,9 +273,9 @@ describe("transaction save feedback", () => {
     const user = userEvent.setup();
     renderForm();
     await user.click(screen.getByRole("button", { name: "5" }));
-    await user.click(screen.getByRole("button", { name: "Save expense" }));
+    await user.click(screen.getByRole("button", { name: "Save expense, $5.00" }));
     expect(screen.getByRole("alert")).toHaveTextContent("Check Activity");
-    expect(screen.getByRole("button", { name: "Save expense" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Save expense, $5.00" })).toBeEnabled();
     expect(screen.getByLabelText("Amount entered")).toHaveTextContent("$5.00");
   });
 
@@ -249,7 +285,7 @@ describe("transaction save feedback", () => {
     const user = userEvent.setup();
     renderForm();
     await user.click(screen.getByRole("button", { name: "5" }));
-    await user.click(screen.getByRole("button", { name: "Save expense" }));
+    await user.click(screen.getByRole("button", { name: "Save expense, $5.00" }));
     expect(screen.getByRole("button", { name: "Saving..." })).toBeDisabled();
     expect(screen.getByRole("button", { name: "1" })).toBeDisabled();
     expect(createTransaction).toHaveBeenCalledTimes(1);
@@ -264,7 +300,7 @@ describe("transaction save feedback", () => {
     await user.click(screen.getByRole("button", { name: "KHR" }));
     expect(screen.getByRole("button", { name: "." })).toBeEnabled();
     for (const digit of "12000") await user.click(screen.getByRole("button", { name: digit }));
-    await user.click(screen.getByRole("button", { name: "Save expense" }));
+    await user.click(screen.getByRole("button", { name: /^Save expense, 12,000/ }));
     expect(createTransaction).toHaveBeenCalledWith(expect.objectContaining({ currency: "KHR", amount: "12000", accountId: DEMO_ACCOUNTS.find(account => account.currency === "KHR")!.accountId }));
     expect(screen.getByRole("status", { name: "Save confirmation" })).toHaveTextContent("12,000៛");
   });
@@ -282,7 +318,7 @@ describe("transaction save feedback", () => {
     expect(screen.getByLabelText("Amount entered")).toHaveTextContent("5,000៛");
     await user.click(screen.getByRole("button", { name: "." }));
     expect(screen.getByRole("button", { name: "000" })).toBeDisabled();
-    await user.click(screen.getByRole("button", { name: "Save expense" }));
+    await user.click(screen.getByRole("button", { name: /^Save expense, 5,000/ }));
     expect(createTransaction).toHaveBeenCalledWith(expect.objectContaining({ currency: "KHR", amount: "5000." }));
   });
 });

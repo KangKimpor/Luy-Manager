@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 
 import { Plus } from "@/components/app-icon";
 import { AppLink as Link } from "@/components/app-link";
-import { MAIN_NAV, isNavActive } from "@/lib/navigation";
+import { MAIN_NAV, isFormRoute, isNavActive } from "@/lib/navigation";
 import { cn } from "@/lib/utils";
 
 export function BottomNav() {
@@ -14,7 +14,7 @@ export function BottomNav() {
   const lastYRef = useRef(0);
 
   useEffect(() => {
-    if (pathname === "/login") return;
+    if (pathname === "/login" || isFormRoute(pathname)) return;
     if (typeof window === "undefined") return;
 
     const reduceMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
@@ -48,7 +48,7 @@ export function BottomNav() {
     };
   }, [pathname]);
 
-  if (pathname === "/login") return null;
+  if (pathname === "/login" || isFormRoute(pathname)) return null;
 
   const activeIndex = MAIN_NAV.findIndex((item) => isNavActive(pathname, item.href));
 

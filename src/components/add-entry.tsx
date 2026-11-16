@@ -13,10 +13,9 @@ import { cn } from "@/lib/utils";
  * Chooses what kind of entry is being made.
  *
  * Expense, Income and Transfer sit in one segmented control because they are the
- * same decision, made once. Transfer is a genuinely different form (two accounts
- * and a conversion instead of one account and a category), so it gets its own
- * component rather than a pile of conditionals inside the transaction form. What
- * they share, the keypad and amount rules, is shared as `amount-keypad`.
+ * same decision, made once. Note persists across mode switches and the active
+ * form reports whether "More options" is expanded so the container can unlock
+ * scrolling when advanced editors are open.
  */
 
 const MODES = [
@@ -50,11 +49,19 @@ export function AddEntry({
   initialDate?: string;
 }) {
   const [mode, setMode] = useState<EntryMode>(initialMode);
+  const [note, setNote] = useState<string | null>(() => initialHabit?.note ?? null);
+  const [expanded, setExpanded] = useState(false);
+
+  function switchMode(nextMode: EntryMode) {
+    if (nextMode === mode) return;
+    setExpanded(false);
+    setMode(nextMode);
+  }
 
   return (
-    <div className="mx-auto max-w-2xl space-y-5">
+    <div className={cn("add-screen-shell mx-auto max-w-2xl", expanded && "is-expanded")}>
       <div
-        className="segmented-control segmented-control-three segmented-control-full"
+        className="segmented-control segmented-control-three segmented-control-full shrink-0"
         role="group"
         aria-label="Entry type"
       >
@@ -63,9 +70,9 @@ export function AddEntry({
             key={option.value}
             type="button"
             aria-pressed={mode === option.value}
-            onClick={() => setMode(option.value)}
+            onClick={() => switchMode(option.value)}
             className={cn(
-              "relative z-10 min-h-8 text-[13px] leading-[18px] tracking-[-0.006em] whitespace-nowrap before:absolute before:-inset-y-1.5 before:inset-x-0",
+              "relative z-10 min-h-8 text-[13px] leading-[18px] tracking-[-0.006em] whitespace-nowrap",
               mode === option.value ? "text-ink font-semibold" : "text-ink-muted font-medium",
             )}
           >
@@ -74,15 +81,19 @@ export function AddEntry({
         ))}
       </div>
 
-      <div key={mode} className="form-enter">
       {mode === "transfer" ? (
-        <TransferForm accounts={accounts} rate={rate} readOnly={readOnly} timezone={timezone} initialDate={initialDate} />
+        <TransferForm
+          accounts={accounts}
+          rate={rate}
+          readOnly={readOnly}
+          timezone={timezone}
+          initialDate={initialDate}
+          note={note ?? ""}
+          onNoteChange={(next) => setNote(next === "" ? null : next)}
+          onExpandedChange={setExpanded}
+        />
       ) : (
-        // Keyed by mode so switching between expense and income resets the form.
-        // Categories differ per type, and a category carried across would no
-        // longer apply to the entry being made.
         <QuickAddForm
-          key={mode}
           timezone={timezone}
           initialDate={initialDate}
           type={mode}
@@ -92,9 +103,11 @@ export function AddEntry({
           initialHabit={initialHabit?.type === mode ? initialHabit : null}
           rate={rate}
           readOnly={readOnly}
+          note={note}
+          onNoteChange={setNote}
+          onExpandedChange={setExpanded}
         />
       )}
-      </div>
     </div>
   );
 }

@@ -67,8 +67,7 @@ export default async function AddTransactionPage({
         : "expense";
 
   return (
-    <div className="page-enter mx-auto max-w-2xl space-y-5">
-      <p className="text-ink-muted text-sm">A few taps, and your money is up to date.</p>
+    <div className="page-enter">
       <AddEntry
         key={`${initialMode}:${initialHabit ? entryHabitKey(initialHabit) : ""}`}
         initialMode={initialMode}

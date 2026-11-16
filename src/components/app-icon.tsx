@@ -38,6 +38,26 @@ export const CheckCircle2 = icon("check-ring");
 export const ChevronDown = icon("expand-down");
 export const ChevronLeft = icon("expand-left");
 export const ChevronRight = icon("expand-right");
+export function Clipboard({ size = 24, ...props }: AppIconProps) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={1.85}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden={props["aria-label"] ? undefined : true}
+      role={props["aria-label"] ? "img" : undefined}
+      {...(props as React.SVGProps<SVGSVGElement>)}
+    >
+      <rect x="8" y="2.5" width="8" height="4" rx="1.25" />
+      <path d="M16 4.5h2a2 2 0 0 1 2 2v13a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-13a2 2 0 0 1 2-2h2" />
+    </svg>
+  );
+}
 export const Coffee = icon("drink");
 export const CreditCard = icon("credit-card");
 export const Delete = icon("back");

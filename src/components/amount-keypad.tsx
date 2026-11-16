@@ -1,6 +1,6 @@
 "use client";
 
-import { Delete } from "@/components/app-icon";
+import { Clipboard, Delete } from "@/components/app-icon";
 import { useRef, useState, type ReactNode } from "react";
 
 import { type CurrencyCode, formatMoney, parseAmount, zero, type Money } from "@/lib/money";
@@ -31,7 +31,9 @@ export const KEYPAD_KEYS = KHR_KEYPAD_KEYS;
 
 export type KeypadKey = (typeof KHR_KEYPAD_KEYS)[number];
 
-const TOP_KEYS = ["1", "2", "3", "4", "5", "6", "7", "8", "9"] as const;
+const ROW_1_KEYS = ["1", "2", "3"] as const;
+const ROW_2_KEYS = ["4", "5", "6"] as const;
+const ROW_3_KEYS = ["7", "8", "9"] as const;
 const USD_BOTTOM_KEYS = [".", "0", "del"] as const;
 const KHR_BOTTOM_KEYS = [".", "0", "000", "del"] as const;
 
@@ -136,6 +138,8 @@ export function AmountDisplay({
   tone = "neutral",
   label = "Amount entered",
   hint,
+  errorText,
+  statusNode,
   trailing,
   onAmountChange,
 }: {
@@ -143,6 +147,8 @@ export function AmountDisplay({
   tone?: keyof typeof TONE_CLASS;
   label?: string;
   hint?: ReactNode;
+  errorText?: string | null;
+  statusNode?: ReactNode;
   trailing?: ReactNode;
   onAmountChange?: (raw: string) => void;
 }) {
@@ -159,48 +165,62 @@ export function AmountDisplay({
     }
   }
 
+  const activeError = (onAmountChange ? pasteError : null) ?? errorText;
+
   return (
-    <div className="amount-stage py-2">
-      <div className="flex w-full items-center justify-center gap-3">
-        <output
-          aria-live="polite"
-          aria-label={label}
-          tabIndex={onAmountChange ? 0 : undefined}
-          onPaste={onAmountChange ? (event) => { event.preventDefault(); paste(event.clipboardData.getData("text")); } : undefined}
-          className={cn(
-            "amount-display tabular min-w-0 text-center",
-            amount.minor === 0 ? "is-empty" : TONE_CLASS[tone],
-          )}
-        >
-          <span key={`${amount.currency}:${amount.minor}`} className="amount-tick inline-block max-w-full">{formatMoney(amount)}</span>
-        </output>
-        {trailing ? <div className="shrink-0">{trailing}</div> : null}
+    <div className="amount-stage">
+      <div className="flex w-full items-center gap-2">
+        <div className="min-w-0 flex-1" aria-hidden="true" />
+        <div className="flex min-w-0 items-center justify-center gap-2">
+          <output
+            aria-live="polite"
+            aria-label={label}
+            tabIndex={onAmountChange ? 0 : undefined}
+            onPaste={onAmountChange ? (event) => { event.preventDefault(); paste(event.clipboardData.getData("text")); } : undefined}
+            className={cn(
+              "amount-display tabular min-w-0 text-center",
+              amount.minor === 0 ? "is-empty" : TONE_CLASS[tone],
+            )}
+          >
+            <span key={`${amount.currency}:${amount.minor}`} className="amount-tick inline-block max-w-full">{formatMoney(amount)}</span>
+          </output>
+          {trailing ? <div className="shrink-0">{trailing}</div> : null}
+        </div>
+        <div className="flex min-w-9 flex-1 justify-end">
+          {onAmountChange ? (
+            <button
+              ref={pasteButton}
+              data-currency={amount.currency}
+              type="button"
+              aria-label="Paste amount"
+              title="Paste amount"
+              className="bg-fill text-brand hover:bg-brand-soft flex size-9 shrink-0 items-center justify-center rounded-full transition-colors"
+              onClick={async () => {
+                try {
+                  const text = await navigator.clipboard.readText();
+                  if (pasteButton.current?.dataset.currency === amount.currency && !pasteButton.current.matches(":disabled")) paste(text);
+                } catch {
+                  setPasteError("Clipboard access is unavailable. Focus the amount and use your device's Paste command.");
+                }
+              }}
+            >
+              <Clipboard size={17} aria-hidden="true" />
+            </button>
+          ) : null}
+        </div>
       </div>
 
       <div className="amount-converted text-center">
-        {hint}
+        {activeError ? (
+          <p role="alert" className="text-outflow truncate">
+            {activeError}
+          </p>
+        ) : hint ? (
+          <span className="block truncate">{hint}</span>
+        ) : (
+          statusNode ?? null
+        )}
       </div>
-
-      {onAmountChange ? (
-        <button
-          ref={pasteButton}
-          data-currency={amount.currency}
-          type="button"
-          className="text-brand relative mt-1.5 rounded-full px-3 py-1 text-xs font-medium before:absolute before:-inset-y-2 before:inset-x-0 hover:bg-brand-soft"
-          onClick={async () => {
-            try {
-              const text = await navigator.clipboard.readText();
-              if (pasteButton.current?.dataset.currency === amount.currency && !pasteButton.current.matches(":disabled")) paste(text);
-            } catch {
-              setPasteError("Clipboard access is unavailable. Focus the amount and use your device's Paste command.");
-            }
-          }}
-        >
-          Paste amount
-        </button>
-      ) : null}
-
-      {onAmountChange && pasteError ? <p role="alert" className="text-outflow mt-2 text-center text-xs">{pasteError}</p> : null}
     </div>
   );
 }
@@ -244,9 +264,15 @@ export function AmountKeypad({
   }
 
   return (
-    <div className="mt-2 space-y-2" role="group" aria-label="Amount keypad">
+    <div className="add-keypad-grid" role="group" aria-label="Amount keypad">
       <div className="grid grid-cols-3 gap-2">
-        {TOP_KEYS.map((key) => renderKey(key))}
+        {ROW_1_KEYS.map((key) => renderKey(key))}
+      </div>
+      <div className="grid grid-cols-3 gap-2">
+        {ROW_2_KEYS.map((key) => renderKey(key))}
+      </div>
+      <div className="grid grid-cols-3 gap-2">
+        {ROW_3_KEYS.map((key) => renderKey(key))}
       </div>
       <div className={cn("grid gap-2", currency === "KHR" ? "grid-cols-4" : "grid-cols-3")}>
         {bottomKeys.map((key) => renderKey(key))}

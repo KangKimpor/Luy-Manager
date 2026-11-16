@@ -198,25 +198,41 @@ export function InsightsSkeleton() {
 export function AddSkeleton() {
   return (
     <SkeletonReveal>
-      <div className="mx-auto max-w-md space-y-4" aria-busy="true" aria-live="polite">
+      <div className="add-screen-shell mx-auto max-w-2xl" aria-busy="true" aria-live="polite">
         <span className="sr-only">Loading entry form...</span>
-        <div className="space-y-4" aria-hidden="true">
-          <Bar className="rounded-pill h-9 w-full" />
-          <div className="amount-stage gap-2 py-2">
-            <Bar className="h-11 w-40 rounded-xl" />
-            <Bar className="h-4 w-28" />
+        <div className="add-form-col" aria-hidden="true">
+          <div className="add-form-fieldset">
+            <Bar className="rounded-pill h-9 w-full shrink-0" />
+            <div className="amount-stage shrink-0">
+              <Bar className="h-11 w-44 rounded-xl" />
+              <div className="amount-converted" />
+            </div>
+            <div className="flex shrink-0 gap-2 overflow-hidden">
+              {[104, 96, 64].map((w, i) => (
+                <div key={i} className="skeleton h-11 shrink-0 rounded-2xl" style={{ width: w }} />
+              ))}
+            </div>
+            <div className="flex shrink-0 gap-2 overflow-hidden">
+              {[84, 96, 78, 86].map((w, i) => (
+                <div key={i} className="skeleton rounded-pill h-9 shrink-0" style={{ width: w }} />
+              ))}
+            </div>
+            <div className="flex shrink-0 gap-2">
+              <Bar className="rounded-control h-11 flex-1" />
+              <Bar className="rounded-control h-11 w-24" />
+              <Bar className="size-11 shrink-0 rounded-full" />
+            </div>
+            <div className="add-keypad-grid">
+              {[0, 1, 2, 3].map((row) => (
+                <div key={row} className="grid grid-cols-3 gap-2">
+                  {[0, 1, 2].map((col) => (
+                    <Bar key={col} className="rounded-pill h-full max-h-[60px] min-h-[40px] w-full" />
+                  ))}
+                </div>
+              ))}
+            </div>
           </div>
-          <div className="flex gap-2 overflow-hidden">
-            {[96, 88, 100].map((w, i) => (
-              <div key={i} className="skeleton rounded-pill h-9 shrink-0" style={{ width: w }} />
-            ))}
-          </div>
-          <div className="grid grid-cols-3 gap-2">
-            {Array.from({ length: 12 }, (_, idx) => (
-              <Bar key={idx} className="rounded-pill h-12 w-full" />
-            ))}
-          </div>
-          <Bar className="rounded-pill h-[50px] w-full" />
+          <Bar className="rounded-pill h-[50px] w-full shrink-0" />
         </div>
       </div>
     </SkeletonReveal>

@@ -20,3 +20,15 @@ export function isNavActive(pathname: string, href: string): boolean {
   if (href === "/") return pathname === "/";
   return pathname === href || pathname.startsWith(`${href}/`);
 }
+
+const FORM_ROUTE_PATTERNS: readonly RegExp[] = [
+  /^\/add$/,
+  /^\/transactions\/[^/]+\/edit$/,
+  /^\/accounts\/new$/,
+  /^\/accounts\/[^/]+\/edit$/,
+  /^\/budgets\/new$/,
+];
+
+export function isFormRoute(pathname: string): boolean {
+  return FORM_ROUTE_PATTERNS.some((pattern) => pattern.test(pathname));
+}

@@ -401,16 +401,26 @@
     }
   }
 
+  *,
+  *::before,
+  *::after {
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  :focus:not(:focus-visible) {
+    outline: none;
+  }
+
+  [tabindex="-1"]:focus,
+  [tabindex="-1"]:focus-visible,
+  dialog:focus,
+  dialog:focus-visible {
+    outline: none;
+  }
+
   :focus-visible {
     outline: 2px solid var(--color-brand);
     outline-offset: 2px;
-  }
-
-  button,
-  a,
-  summary,
-  select {
-    -webkit-tap-highlight-color: transparent;
   }
 
   button:not(:disabled),
@@ -430,10 +440,15 @@
     transition: border-color 150ms, box-shadow 150ms;
   }
 
-  input:focus,
-  select:focus,
+  input:not([type="checkbox"]):not([type="radio"]):focus,
   textarea:focus {
     border-color: var(--color-brand);
+  }
+
+  .field-input:focus,
+  .search-input:focus,
+  .num-input:focus {
+    box-shadow: inset 0 0 0 1.5px var(--color-brand);
   }
 
   input,
@@ -569,8 +584,10 @@
   pointer-events: none;
 }
 
-.topbar.is-scrolled .topbar-inline-title {
+.topbar.is-scrolled .topbar-inline-title,
+.topbar.is-compact .topbar-inline-title {
   opacity: 1;
+  pointer-events: auto;
 }
 
 .topbar-actions {
@@ -688,6 +705,7 @@
   position: relative;
   z-index: 1;
   min-height: 44px;
+  border-radius: var(--radius-pill);
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -871,10 +889,18 @@
 }
 
 @media (min-width: 1024px) {
-  .topbar,
+  .topbar:not(.is-compact),
   .scroll-edge,
   .floating-dock {
     display: none;
+  }
+
+  .topbar.is-compact {
+    position: static;
+    height: 44px;
+    max-width: 42rem;
+    margin: 0 auto 12px;
+    padding: 0;
   }
 }
 
@@ -912,6 +938,7 @@
   min-height: 44px;
   padding: 0 4px;
   margin: -10px -4px;
+  border-radius: 8px;
   font-size: 15px;
   line-height: 20px;
   font-weight: 400;
@@ -1009,6 +1036,7 @@
   min-width: 44px;
   height: 28px;
   padding: 0 10px;
+  border-radius: var(--radius-pill);
   font-size: 13px;
   letter-spacing: -0.006em;
   font-weight: 500;
@@ -1020,6 +1048,7 @@
   content: "";
   position: absolute;
   inset: -8px 0;
+  border-radius: inherit;
 }
 
 .hero-seg button[aria-pressed="true"] {
@@ -1255,6 +1284,7 @@
   gap: 8px;
   overflow-x: auto;
   scroll-snap-type: x proximity;
+  scroll-padding-inline: var(--gutter);
   scrollbar-width: none;
   margin-inline: calc(var(--gutter) * -1);
   padding-inline: var(--gutter);
@@ -2176,10 +2206,53 @@
 }
 
 /* Add / entry screen & keypad */
+.add-screen-shell {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.add-form-col {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  gap: 8px;
+}
+
+.add-form-fieldset {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  gap: 8px;
+}
+
+@media (max-width: 1023px) and (min-height: 480px) and (min-width: 340px) {
+  .add-screen-shell:not(.is-expanded) {
+    height: calc(100dvh - 44px - env(safe-area-inset-top, 0px) - 4px - max(8px, env(safe-area-inset-bottom, 0px)));
+    overflow-x: visible;
+    overflow-y: clip;
+  }
+
+  /*
+   * Spare height goes to the amount, the way a calculator gives it to the
+   * display. Every control then sits together above Save, inside thumb reach,
+   * and the keypad only gives up height once the amount has none left to give.
+   */
+  .add-screen-shell:not(.is-expanded) .amount-stage {
+    flex: 1 0 auto;
+  }
+
+  .add-screen-shell:not(.is-expanded) .add-keypad-grid {
+    flex: 0 1 280px;
+  }
+}
+
 .amount-stage {
   position: relative;
-  margin: 6px 0 4px;
-  min-height: 60px;
+  margin: 0;
+  min-height: 0;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -2188,11 +2261,13 @@
 
 .amount-display {
   font-family: var(--font-numeric);
-  font-size: clamp(32px, 6.2vw, 44px);
-  line-height: 1.08;
+  font-size: clamp(34px, 6.5dvh, 56px);
+  line-height: 1.18;
   font-weight: 700;
   letter-spacing: 0.011em;
   font-variant-numeric: tabular-nums;
+  border-radius: var(--radius-control);
+  padding-inline: 4px;
   max-width: 100%;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -2206,10 +2281,20 @@
 .amount-converted {
   min-height: 16px;
   margin-top: 2px;
+  max-width: 100%;
   font-size: 12px;
   line-height: 16px;
   color: var(--color-ink-muted);
   font-variant-numeric: tabular-nums;
+}
+
+.add-ccy-switch {
+  height: 32px;
+  --segment-inset: 2px;
+}
+
+.add-ccy-switch > button {
+  min-height: 28px;
 }
 
 .ccy-flip-btn {
@@ -2235,6 +2320,29 @@
   color: var(--color-khr);
 }
 
+.add-chip-row {
+  padding-block: 2px;
+  gap: 8px;
+}
+
+@media (min-width: 680px) {
+  .add-chip-row {
+    margin-inline: 0;
+    padding-inline: 0;
+  }
+}
+
+.add-row-caption {
+  font-size: 11px;
+  line-height: 14px;
+  font-weight: 600;
+  color: var(--color-ink-faint);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding-right: 2px;
+  flex-shrink: 0;
+}
+
 .acct-chip {
   height: 52px;
   padding: 6px 14px;
@@ -2248,6 +2356,21 @@
   flex-shrink: 0;
   scroll-snap-align: start;
   transition: background-color var(--dur-fade) ease, scale 350ms var(--ease-spring);
+}
+
+.acct-chip.add-acct-chip {
+  height: 44px;
+  padding: 4px 12px;
+  border-radius: 14px;
+  gap: 0;
+}
+
+.acct-chip.add-row-more-chip {
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  padding: 0 14px;
 }
 
 .acct-chip[aria-pressed="true"] {
@@ -2279,6 +2402,19 @@
   color: var(--color-on-action);
 }
 
+.add-keypad-grid {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-rows: repeat(4, minmax(40px, 1fr));
+  gap: 8px;
+}
+
+.add-keypad-grid > div {
+  height: 100%;
+  min-height: 0;
+}
+
 .key-btn {
   height: clamp(46px, 5.8dvh, 54px);
   border-radius: var(--radius-pill);
@@ -2296,6 +2432,27 @@
   transition: background-color 250ms ease, scale 350ms var(--ease-spring);
 }
 
+.add-keypad-grid .key-btn {
+  height: 100%;
+  min-height: 40px;
+  max-height: 64px;
+  align-self: center;
+}
+
+@media (min-width: 1024px) {
+  .add-keypad-grid {
+    flex: 0 0 auto;
+    grid-template-rows: repeat(4, 52px);
+  }
+}
+
+@media (max-width: 339px), (max-height: 479px) {
+  .add-keypad-grid {
+    flex: 0 0 auto;
+    grid-template-rows: repeat(4, 48px);
+  }
+}
+
 .key-btn.is-back {
   background: transparent;
 }
@@ -2304,6 +2461,63 @@
   background: var(--color-surface-container);
   scale: 0.94;
   transition-duration: 0ms;
+}
+
+.add-save-btn {
+  min-height: 50px;
+  height: 50px;
+}
+
+/* Native dialog sheet for searchable account and category pickers. */
+.picker-dialog {
+  margin: auto 0 0 0;
+  padding: 0;
+  border: 0;
+  width: 100%;
+  max-width: 100%;
+  max-height: 82dvh;
+  background: transparent;
+  color: var(--color-ink);
+  overflow: visible;
+}
+
+.picker-dialog::backdrop {
+  background: rgb(0 0 0 / 0.36);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+}
+
+.picker-dialog-panel {
+  background: var(--color-surface);
+  border-top: 0.5px solid var(--color-card-edge);
+  border-radius: 26px 26px 0 0;
+  padding: 16px max(var(--gutter), env(safe-area-inset-left, 0px)) max(20px, env(safe-area-inset-bottom, 0px)) max(var(--gutter), env(safe-area-inset-right, 0px));
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-height: 80dvh;
+  overflow: hidden;
+  box-shadow: var(--shadow-float);
+}
+
+.picker-dialog-list {
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding-bottom: 4px;
+}
+
+@media (min-width: 640px) {
+  .picker-dialog {
+    margin: auto;
+    max-width: 32rem;
+  }
+
+  .picker-dialog-panel {
+    border: 0.5px solid var(--color-card-edge);
+    border-radius: 26px;
+    padding: 20px;
+  }
 }
 
 .field-input {
@@ -2364,10 +2578,6 @@ summary:active {
 
 .amount-tick {
   animation: amount-in 100ms var(--motion-ease);
-}
-
-button[aria-pressed="true"] {
-  animation: choice-in 220ms var(--motion-ease);
 }
 
 /* Segmented control: capsule track, neutral thumb, sliding highlight. */
@@ -2438,10 +2648,7 @@ button[aria-pressed="true"] {
 .segmented-control > * {
   position: relative;
   z-index: 1;
-}
-
-.segmented-control > button {
-  animation: none;
+  border-radius: var(--radius-pill);
 }
 
 .selection-check {
@@ -2476,7 +2683,7 @@ fieldset {
   position: relative;
 }
 
-.row-actions::after {
+.row-actions[aria-busy="true"]::after {
   content: "";
   position: absolute;
   inset-inline: 0.5rem;
@@ -2484,13 +2691,8 @@ fieldset {
   height: 2px;
   border-radius: var(--radius-pill);
   background: var(--color-brand);
-  opacity: 0;
-  pointer-events: none;
-}
-
-.row-actions[aria-busy="true"]::after {
-  opacity: 1;
   animation: working-track 900ms ease-in-out infinite alternate;
+  pointer-events: none;
 }
 
 .pending-status {
@@ -2519,36 +2721,7 @@ fieldset {
   transition-delay: 120ms;
 }
 
-.tap-feedback {
-  position: relative;
-  overflow: hidden;
-}
-
-.tap-feedback::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  background: currentColor;
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity var(--motion-quick) var(--motion-ease);
-}
-
-.tap-feedback:active::after {
-  opacity: 0.06;
-}
-
 @keyframes amount-in {
-  from {
-    translate: 0 1px;
-  }
-  to {
-    translate: 0 0;
-  }
-}
-
-@keyframes choice-in {
   from {
     translate: 0 1px;
   }
@@ -2897,6 +3070,17 @@ details[open] summary .disclosure-icon {
   padding: calc(44px + env(safe-area-inset-top, 0px) + 8px) max(var(--gutter), env(safe-area-inset-right, 0px)) calc(110px + env(safe-area-inset-bottom, 0px)) max(var(--gutter), env(safe-area-inset-left, 0px));
 }
 
+@media (max-width: 1023px) {
+  .app-main:has(.topbar.is-compact):not(:has(.add-screen-shell)) {
+    padding-bottom: max(16px, env(safe-area-inset-bottom, 0px));
+  }
+
+  .app-main:has(.add-screen-shell) {
+    padding-top: calc(44px + env(safe-area-inset-top, 0px) + 4px);
+    padding-bottom: max(8px, env(safe-area-inset-bottom, 0px));
+  }
+}
+
 @media (min-width: 1024px) {
   .app-main {
     margin-left: 15rem;
@@ -2922,6 +3106,12 @@ body:has(.login-page) .app-main {
 }
 
 @media (hover: none) and (pointer: coarse) {
+  :focus-visible {
+    outline: none;
+  }
+  .link-pending {
+    border-color: transparent;
+  }
   .page-enter,
   .form-enter,
   .panel-enter,

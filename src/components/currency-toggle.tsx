@@ -75,7 +75,7 @@ export function CurrencyToggle({
             isHero
               ? undefined
               : cn(
-                  "rounded-pill relative z-10 min-w-[56px] px-3 text-[13px] leading-[18px] tracking-[-0.006em] before:absolute before:-inset-y-1.5 before:inset-x-0",
+                  "rounded-pill relative z-10 min-w-[56px] px-3 text-[13px] leading-[18px] tracking-[-0.006em] before:absolute before:-inset-y-1.5 before:inset-x-0 before:rounded-pill",
                   optimistic === code
                     ? "text-ink font-semibold"
                     : "text-ink-muted hover:text-ink font-medium",

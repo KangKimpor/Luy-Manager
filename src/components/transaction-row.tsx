@@ -124,7 +124,7 @@ function RowActions({
           data-transaction-action="restore"
           data-transaction-id={transactionId}
           aria-label="Restore this transaction"
-          className="flex size-11 items-center justify-center text-ink-faint hover:text-inflow"
+          className="flex size-11 items-center justify-center rounded-full text-ink-faint hover:text-inflow"
         >
           <Undo2 size={14} aria-hidden="true" />
         </button>
@@ -134,7 +134,7 @@ function RowActions({
             <Link
               href={`/transactions/${transactionId}/edit`}
               aria-label="Edit this transaction"
-              className="flex size-11 items-center justify-center text-ink-faint hover:text-ink"
+              className="flex size-11 items-center justify-center rounded-full text-ink-faint hover:text-ink"
             >
               <Pencil size={14} aria-hidden="true" />
             </Link>
@@ -145,7 +145,7 @@ function RowActions({
             data-transaction-id={transactionId}
             data-transaction-transfer={isTransfer ? "true" : "false"}
             aria-label="Delete this transaction"
-            className="flex size-11 items-center justify-center text-ink-faint hover:text-outflow"
+            className="flex size-11 items-center justify-center rounded-full text-ink-faint hover:text-outflow"
           >
             <Trash2 size={14} aria-hidden="true" />
           </button>
@@ -239,7 +239,7 @@ export function TransactionRow({
         {amountNode}
       </>
     );
-    const rowClass = "flex min-w-0 flex-1 items-center justify-between gap-3";
+    const rowClass = "flex min-w-0 flex-1 items-center justify-between gap-3 rounded-xl";
     return (
       <li className="tx-activity-row flex min-w-0 items-center gap-1">
         {editable && !deleted && !isTransfer ? (

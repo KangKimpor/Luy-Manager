@@ -105,7 +105,7 @@ export default async function TransactionsPage({ searchParams }: {
             href={activityHref(params, { view: value })}
             aria-current={view === value ? "page" : undefined}
             className={cn(
-              "relative z-10 flex min-h-8 items-center justify-center text-[13px] leading-[18px] tracking-[-0.006em] whitespace-nowrap",
+              "rounded-pill relative z-10 flex min-h-8 items-center justify-center text-[13px] leading-[18px] tracking-[-0.006em] whitespace-nowrap",
               view === value ? "text-ink font-semibold" : "text-ink-muted font-medium",
             )}
           >

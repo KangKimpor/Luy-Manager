@@ -85,22 +85,24 @@ async function typeAmount(user: ReturnType<typeof userEvent.setup>, digits: stri
 }
 
 describe("account selection", () => {
-  it("offers a From and a To side", () => {
+  it("offers a From and a To side and reveals Swap in More options", async () => {
+    const user = userEvent.setup();
     render(<TransferForm accounts={[usd, khr, cashUsd]} rate={rate} />);
 
-    expect(screen.getByText("From")).toBeInTheDocument();
-    expect(screen.getByText("To")).toBeInTheDocument();
+    expect(screen.getByRole("group", { name: "From" })).toBeInTheDocument();
+    expect(screen.getByRole("group", { name: "To" })).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "More options" }));
     expect(screen.getByRole("button", { name: /swap the two accounts/i })).toBeInTheDocument();
   });
 
   it("defaults the destination to an account in the other currency", async () => {
     const user = userEvent.setup();
-    render(<TransferForm accounts={[usd, khr, cashUsd]} rate={rate} />);
+    const { container } = render(<TransferForm accounts={[usd, khr, cashUsd]} rate={rate} />);
 
-    // Exchanging is the common case here, so the preview should be reachable
-    // without first re-picking the destination.
     await typeAmount(user, "1");
+    expect(container.querySelector(".amount-converted")).toHaveTextContent(/Wing receives ~ 4,100/);
 
+    await user.click(screen.getByRole("button", { name: "More options" }));
     expect(screen.getByText("Arrives in Wing")).toBeInTheDocument();
   });
 
@@ -114,12 +116,14 @@ describe("account selection", () => {
 describe("cross-currency preview", () => {
   it("converts across the minor-unit scale gap", async () => {
     const user = userEvent.setup();
-    render(<TransferForm accounts={[usd, khr]} rate={rate} />);
+    const { container } = render(<TransferForm accounts={[usd, khr]} rate={rate} />);
 
     await typeAmount(user, "100");
+    expect(container.querySelector(".amount-converted")).toHaveTextContent(/Wing receives ~ 410,000/);
 
+    await user.click(screen.getByRole("button", { name: "More options" }));
     // $100 at 4,100 is 410,000៛, not 41,000,000. KHR has no subunit.
-    expect(screen.getByText("410,000៛")).toBeDefined();
+    expect(screen.getAllByText("410,000៛")).toHaveLength(2);
     expect(screen.getByText(/4,100៛ per \$1/)).toBeDefined();
   });
 
@@ -128,6 +132,7 @@ describe("cross-currency preview", () => {
     render(<TransferForm accounts={[usd, khr]} rate={rate} />);
 
     await typeAmount(user, "100");
+    await user.click(screen.getByRole("button", { name: "More options" }));
 
     // 184,250 - 10,000 = 174,250 cents; 385,000 + 410,000 = 795,000 riel.
     expect(screen.getByText("$1,742.50")).toBeDefined();
@@ -139,6 +144,7 @@ describe("cross-currency preview", () => {
     render(<TransferForm accounts={[usd, khr]} rate={rate} />);
 
     await typeAmount(user, "100");
+    await user.click(screen.getByRole("button", { name: "More options" }));
     await user.type(screen.getByLabelText(/amount received/i), "400000");
 
     // The user's figure wins, and the rate shown is the one they actually got.
@@ -153,6 +159,7 @@ describe("cross-currency preview", () => {
 
     // Both accounts are USD, so there is nothing to convert.
     await typeAmount(user, "50");
+    await user.click(screen.getByRole("button", { name: "More options" }));
 
     expect(screen.queryByText(/arrives in/i)).toBeNull();
     expect(screen.queryByLabelText(/amount received/i)).toBeNull();
@@ -166,6 +173,7 @@ describe("warnings", () => {
 
     // Cash USD holds $20; moving $50 overdraws it.
     await typeAmount(user, "50");
+    await user.click(screen.getByRole("button", { name: "More options" }));
 
     expect(screen.getByText(/would go below zero/i)).toBeDefined();
   });
@@ -176,7 +184,7 @@ describe("warnings", () => {
 
     await typeAmount(user, "50");
 
-    expect(screen.getByRole("button", { name: /transfer/i })).not.toBeDisabled();
+    expect(screen.getByRole("button", { name: "Move $50.00" })).not.toBeDisabled();
   });
 
   it("flags a received amount far from the current rate", async () => {
@@ -184,6 +192,7 @@ describe("warnings", () => {
     render(<TransferForm accounts={[usd, khr]} rate={rate} />);
 
     await typeAmount(user, "100");
+    await user.click(screen.getByRole("button", { name: "More options" }));
     // 41,000 instead of 410,000: a decimal slip when typing riel.
     await user.type(screen.getByLabelText(/amount received/i), "41000");
 
@@ -197,20 +206,22 @@ describe("saving", () => {
     let finish!: (value: { ok: true; data: typeof historical }) => void;
     readEntryRate.mockReturnValue(new Promise((resolve) => { finish = resolve; }));
     const user = userEvent.setup();
-    render(<TransferForm accounts={[usd, khr]} rate={rate} initialDate="2026-10-11" />);
+    const { container } = render(<TransferForm accounts={[usd, khr]} rate={rate} initialDate="2026-10-11" />);
     await typeAmount(user, "100");
+    await user.click(screen.getByRole("button", { name: "Date: Today" }));
     await user.click(screen.getByRole("button", { name: "Yesterday" }));
-    expect(screen.getByRole("button", { name: "Exchange and transfer" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Move $100.00" })).toBeDisabled();
     const { act } = await import("@testing-library/react");
     await act(async () => finish({ ok: true, data: historical }));
-    expect(screen.getByText("400,000៛")).toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "Exchange and transfer" }));
+    expect(container.querySelector(".amount-converted")).toHaveTextContent(/Wing receives ~ 400,000/);
+    await user.click(screen.getByRole("button", { name: "Move $100.00" }));
     expect(createTransfer).toHaveBeenCalledWith(expect.objectContaining({ occurredAt: "2026-10-10T05:00:00.000Z" }));
   });
+
   it("cannot save a zero amount", () => {
     render(<TransferForm accounts={[usd, khr]} rate={rate} />);
 
-    expect(screen.getByRole("button", { name: /exchange and transfer|transfer/i })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Enter an amount" })).toBeDisabled();
   });
 
   it("sends the accounts and the typed amount to the action", async () => {
@@ -218,7 +229,7 @@ describe("saving", () => {
     render(<TransferForm accounts={[usd, khr]} rate={rate} />);
 
     await typeAmount(user, "100");
-    await user.click(screen.getByRole("button", { name: /exchange and transfer/i }));
+    await user.click(screen.getByRole("button", { name: "Move $100.00" }));
 
     expect(createTransfer).toHaveBeenCalledOnce();
     expect(createTransfer).toHaveBeenCalledWith(
@@ -236,8 +247,9 @@ describe("saving", () => {
     render(<TransferForm accounts={[usd, khr]} rate={rate} />);
 
     await typeAmount(user, "100");
+    await user.click(screen.getByRole("button", { name: "More options" }));
     await user.type(screen.getByLabelText(/amount received/i), "400000");
-    await user.click(screen.getByRole("button", { name: /exchange and transfer/i }));
+    await user.click(screen.getByRole("button", { name: "Move $100.00" }));
 
     expect(createTransfer).toHaveBeenCalledWith(
       expect.objectContaining({ receivedAmount: "400000" }),
@@ -251,7 +263,7 @@ describe("saving", () => {
     render(<TransferForm accounts={[usd, khr]} rate={rate} />);
 
     await typeAmount(user, "100");
-    await user.click(screen.getByRole("button", { name: /exchange and transfer/i }));
+    await user.click(screen.getByRole("button", { name: "Move $100.00" }));
 
     expect(await screen.findByText("Wing is closed.")).toBeDefined();
   });
@@ -261,7 +273,7 @@ describe("saving", () => {
     render(<TransferForm accounts={[usd, khr]} rate={rate} />);
 
     await typeAmount(user, "100");
-    await user.click(screen.getByRole("button", { name: /exchange and transfer/i }));
+    await user.click(screen.getByRole("button", { name: "Move $100.00" }));
 
     // Queried by its text, not by role: the amount display is an <output>, which
     // also carries an implicit role of "status", so the role alone is ambiguous.
@@ -278,9 +290,9 @@ describe("saving", () => {
     const user = userEvent.setup();
     render(<TransferForm accounts={[usd, khr]} rate={rate} />);
     await typeAmount(user, "100");
-    await user.click(screen.getByRole("button", { name: /exchange and transfer/i }));
+    await user.click(screen.getByRole("button", { name: "Move $100.00" }));
     expect(screen.getByRole("alert")).toHaveTextContent("Check Activity");
-    expect(screen.getByRole("button", { name: /exchange and transfer/i })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Move $100.00" })).toBeEnabled();
     expect(screen.getByLabelText("Amount to transfer")).toHaveTextContent("$100.00");
   });
 
@@ -290,7 +302,7 @@ describe("saving", () => {
 
     await typeAmount(user, "100");
 
-    expect(screen.getByRole("button", { name: /exchange and transfer/i })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Move $100.00" })).toBeDisabled();
     expect(createTransfer).not.toHaveBeenCalled();
   });
 });

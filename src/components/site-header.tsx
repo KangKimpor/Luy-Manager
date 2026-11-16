@@ -5,6 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 
 import { ChevronLeft, Settings } from "@/components/app-icon";
 import { AppLink as Link } from "@/components/app-link";
+import { isFormRoute } from "@/lib/navigation";
 import { cn } from "@/lib/utils";
 
 /**
@@ -13,7 +14,9 @@ import { cn } from "@/lib/utils";
  * Phone screens use a transparent top bar carrying circular glass controls
  * (Back on sub routes, Settings on the right everywhere except /settings) plus a
  * headline inline title that fades in once the in-flow large title scrolls under
- * the bar. Only one <h1> renders per screen, here, inside the page flow.
+ * the bar. Form routes use a compact variant with only the Back button and the
+ * centered headline <h1>, omitting the large title and Settings gear. Only one
+ * <h1> renders per screen.
  */
 
 const ROOT_TITLES: Record<string, string> = {
@@ -54,9 +57,10 @@ export function SiteHeader() {
   const titleRef = useRef<HTMLDivElement>(null);
 
   const resolved = resolveTitle(pathname);
+  const compact = resolved !== null && isFormRoute(pathname);
 
   useEffect(() => {
-    if (!resolved) return;
+    if (!resolved || compact) return;
 
     function updateFromScroll() {
       const target = titleRef.current;
@@ -71,33 +75,43 @@ export function SiteHeader() {
     updateFromScroll();
     window.addEventListener("scroll", updateFromScroll, { passive: true });
     return () => window.removeEventListener("scroll", updateFromScroll);
-  }, [pathname, resolved]);
+  }, [pathname, resolved, compact]);
 
   if (!resolved) return null;
 
   const { title, isRoot } = resolved;
-  const showSettingsButton = pathname !== "/settings";
+  const showSettingsButton = !compact && pathname !== "/settings";
+
+  const backButton = !isRoot ? (
+    <button
+      type="button"
+      onClick={() =>
+        window.history.length > 1
+          ? router.back()
+          : router.push(pathname === "/reports/overall" ? "/reports" : "/")
+      }
+      aria-label="Go back"
+      className="icon-btn"
+    >
+      <ChevronLeft size={20} aria-hidden="true" />
+    </button>
+  ) : null;
+
+  if (compact) {
+    return (
+      <header className="topbar app-chrome-header is-compact">
+        <div className="topbar-left">{backButton}</div>
+        <h1 className="topbar-inline-title">{title}</h1>
+        <div className="topbar-actions" />
+      </header>
+    );
+  }
 
   return (
     <>
       <div className={cn("scroll-edge", scrolled && "is-scrolled")} aria-hidden="true" />
       <header className={cn("topbar app-chrome-header", scrolled && "is-scrolled")}>
-        <div className="topbar-left">
-          {!isRoot ? (
-            <button
-              type="button"
-              onClick={() =>
-                window.history.length > 1
-                  ? router.back()
-                  : router.push(pathname === "/reports/overall" ? "/reports" : "/")
-              }
-              aria-label="Go back"
-              className="icon-btn"
-            >
-              <ChevronLeft size={20} aria-hidden="true" />
-            </button>
-          ) : null}
-        </div>
+        <div className="topbar-left">{backButton}</div>
 
         <span className="topbar-inline-title" aria-hidden="true">
           {title}
