@@ -1,7 +1,7 @@
 import { expect, test } from "vitest";
 import { DEMO_RATE, DEMO_TRANSACTIONS } from "@/lib/demo-data";
 import { monthFromParam } from "@/lib/period";
-import { activityCalendar, activityDays, filterActivity, limitActivityDays, weekdayLabels, weekStart } from "./activity";
+import { activityCalendar, activityDays, collapseTransfers, filterActivity, limitActivityDays, weekdayLabels, weekStart } from "./activity";
 
 const row = DEMO_TRANSACTIONS[0];
 test("Cambodia midnight groups, orders, converts, and excludes both transfer legs", () => {
@@ -20,6 +20,21 @@ test("Cambodia midnight groups, orders, converts, and excludes both transfer leg
   expect(days[0].date).toBe("2026-09-28");
   expect(days).toHaveLength(35);
   expect(days.find(day => day.date === "2026-10-10")).toMatchObject({ today: true, count: 4, flow: groups[0].flow });
+});
+test("a transfer is listed once, as the leg that left an account", () => {
+  const out = { ...row, id: "out", type: "transfer" as const, amount: -10000, currency: "USD" as const, transferGroupId: "g1" };
+  const incoming = { ...row, id: "in", type: "transfer" as const, amount: 41000000, currency: "KHR" as const, transferGroupId: "g1" };
+  const shop = { ...row, id: "shop", type: "expense" as const, amount: -100, currency: "USD" as const };
+
+  // The credit often sorts first; the withdrawal is still the row shown, because
+  // it names the account the money left and the figure the user handed over.
+  expect(collapseTransfers([incoming, shop, out]).map(transaction => transaction.id)).toEqual(["shop", "out"]);
+  // Filtered to the destination account, only the credit survives the filter, and
+  // dropping it would erase the transfer from that account's history.
+  expect(collapseTransfers([incoming]).map(transaction => transaction.id)).toEqual(["in"]);
+  // A list with no transfer groups is returned as is.
+  const plain = [shop];
+  expect(collapseTransfers(plain)).toBe(plain);
 });
 test("leap years, month boundaries, and the saved start of week do not depend on host timezone", () => {
   const feb = activityCalendar(monthFromParam("2024-02"), [], "KHR", 0);

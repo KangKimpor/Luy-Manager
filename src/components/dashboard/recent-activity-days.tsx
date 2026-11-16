@@ -3,7 +3,7 @@ import { AppLink as Link } from "@/components/app-link";
 import { CategoryIcon, categoryColorToken, RowIconTile } from "@/components/category-icon";
 import { CurrencyBadge, MoneyAmount } from "@/components/money-amount";
 import { transferRoutesFor } from "@/components/transaction-row";
-import { activityDays } from "@/lib/domain/activity";
+import { activityDays, collapseTransfers } from "@/lib/domain/activity";
 import { categoryLabel } from "@/lib/domain/categories";
 import type { AccountBalance, Category, Transaction } from "@/lib/domain/types";
 import { DEFAULT_RATE, isZero, money, type CurrencyCode, type ExchangeRate } from "@/lib/money";
@@ -27,7 +27,9 @@ export function RecentActivityDays({
   limit?: number;
 }) {
   const routes = transferRoutesFor(transactions, accounts);
-  const shown = [...transactions]
+  // Collapse first so the limit counts entries, not ledger rows. The routes above
+  // still see both legs, which is how a surviving leg knows its counterpart.
+  const shown = [...collapseTransfers(transactions)]
     .sort((a, b) => b.occurredAt.localeCompare(a.occurredAt) || b.id.localeCompare(a.id))
     .slice(0, limit);
   const days = activityDays(shown, displayCurrency, rate);

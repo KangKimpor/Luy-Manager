@@ -30,9 +30,46 @@ export function filterActivity(transactions: readonly Transaction[], filter: Act
   });
 }
 
+/**
+ * A transfer is two ledger rows but one event.
+ *
+ * Storage needs both legs: money leaves one account and arrives in another,
+ * possibly in a different currency, and each account holds a single currency.
+ * The activity list is about what the user did, not how the ledger is shaped, so
+ * a transfer that listed twice read as a payment followed by an unrelated
+ * windfall in another account.
+ *
+ * The outflow leg is the one kept. It names the source account and the amount
+ * that actually left, which is the figure the user recognises. When a filter
+ * leaves only the incoming leg (filtering to the destination account, say), that
+ * survivor is kept rather than the transfer disappearing from its own history.
+ */
+export function collapseTransfers(transactions: readonly Transaction[]): readonly Transaction[] {
+  const legsByGroup = new Map<string, Transaction[]>();
+  for (const transaction of transactions) {
+    if (!transaction.transferGroupId) continue;
+    const legs = legsByGroup.get(transaction.transferGroupId);
+    if (legs) legs.push(transaction);
+    else legsByGroup.set(transaction.transferGroupId, [transaction]);
+  }
+
+  if (legsByGroup.size === 0) return transactions;
+
+  const shown = new Map<string, Transaction>();
+  for (const [groupId, legs] of legsByGroup) {
+    shown.set(groupId, legs.find(leg => leg.amount < 0) ?? legs[0]);
+  }
+
+  return transactions.filter(
+    transaction =>
+      transaction.transferGroupId === null ||
+      shown.get(transaction.transferGroupId) === transaction,
+  );
+}
+
 export function activityDays(transactions: readonly Transaction[], base: CurrencyCode, rate: ExchangeRate) {
   const buckets = new Map<string, Transaction[]>();
-  for (const transaction of transactions) {
+  for (const transaction of collapseTransfers(transactions)) {
     const date = cambodiaDate(new Date(transaction.occurredAt));
     const bucket = buckets.get(date) ?? [];
     bucket.push(transaction); buckets.set(date, bucket);

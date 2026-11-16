@@ -44,6 +44,17 @@ test("deleted rows are fetched only when requested and can be restored", async (
   expect(screen.getByRole("button", { name: "Restore this transaction" })).toBeInTheDocument();
 });
 
+test("a transfer renders as one row, not one per leg", async () => {
+  const legs = DEMO_TRANSACTIONS.filter(transaction => transaction.transferGroupId === "tg-0001");
+  expect(legs).toHaveLength(2);
+  mocks.transactions.mockResolvedValue(legs);
+  render(await TransactionsPage({ searchParams: Promise.resolve({ month: "2026-07" }) }));
+
+  // One title, one amount, and one entry counted. The credit leg is not listed.
+  expect(screen.getAllByText("Top up Wing")).toHaveLength(1);
+  expect(screen.getAllByText("$100.00")).toHaveLength(1);
+  expect(within(screen.getByLabelText("Filtered totals")).getByText("1")).toBeInTheDocument();
+});
 test("an account filter names the account and links back to all accounts", async () => {
   mocks.transactions.mockResolvedValue(rows);
   const account = DEMO_ACCOUNTS.find(candidate => candidate.accountId !== rows[0].accountId)!;

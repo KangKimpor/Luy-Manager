@@ -54,6 +54,9 @@ export default async function TransactionsPage({ searchParams }: {
   const filtered = filterActivity(transactions, params);
   const filteredDeleted = filterActivity(deleted, params);
   const days = activityDays(filtered, currency, rate);
+  // A transfer is one entry even though it is two ledger rows. `activityDays`
+  // collapses each pair, so count what the list actually shows.
+  const entryCount = days.reduce((count, day) => count + day.transactions.length, 0);
   const flow = summarizeCashFlow(filtered, currency, rate);
   const selectedDays = view === "calendar" ? days.filter(group => group.date === params.day) : days;
   // Render a bounded page of whole days. The month totals above still cover every
@@ -138,7 +141,7 @@ export default async function TransactionsPage({ searchParams }: {
       <dl className="stat-group" aria-label="Filtered totals">
         <div className="stat-cell">
           <dt className="stat-label">Entries</dt>
-          <dd className="stat-val tabular">{filtered.length}</dd>
+          <dd className="stat-val tabular">{entryCount}</dd>
         </div>
         <div className="stat-cell">
           <dt className="stat-label">Spent</dt>
