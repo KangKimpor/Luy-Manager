@@ -7,6 +7,7 @@ import { MoneyAmount } from "@/components/money-amount";
 import type { Money } from "@/lib/money";
 import { cn } from "@/lib/utils";
 import { CategoryIcon } from "@/components/category-icon";
+import { ChipScroll } from "@/components/chip-scroll";
 
 export interface EntryChoice {
   id: string;
@@ -226,7 +227,7 @@ export function HorizontalChoiceRow({
 
   return (
     <div className="min-w-0">
-      <div className="chip-scroll add-chip-row" role="group" aria-label={label}>
+      <ChipScroll className="add-chip-row" role="group" aria-label={label}>
         {leadingCaption ? (
           <span className="add-row-caption">{leadingCaption}</span>
         ) : null}
@@ -301,7 +302,7 @@ export function HorizontalChoiceRow({
           {collection === "categories" ? <Shapes size={14} aria-hidden="true" /> : null}
           <span>{triggerText}</span>
         </button>
-      </div>
+      </ChipScroll>
 
       <dialog
         ref={dialogRef}

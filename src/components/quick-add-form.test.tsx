@@ -45,7 +45,7 @@ describe("transaction save feedback", () => {
     expect(saveButton).toBeDisabled();
   });
 
-  it("shows the six most used categories plus an All categories button", async () => {
+  it("shows the four most used categories plus an All categories button", async () => {
     const user = userEvent.setup();
     render(
       <QuickAddForm
@@ -58,14 +58,32 @@ describe("transaction save feedback", () => {
 
     const categoriesRow = screen.getByRole("group", { name: "Category" });
     const chips = within(categoriesRow).getAllByRole("button");
-    expect(chips).toHaveLength(7);
+    expect(chips).toHaveLength(5);
     expect(chips[0]).toHaveAccessibleName("Health");
     expect(chips[1]).toHaveAccessibleName("Drinks");
     expect(within(categoriesRow).getByRole("button", { name: "All categories" })).toBeInTheDocument();
 
     await user.click(within(categoriesRow).getByRole("button", { name: "All categories" }));
     const dialog = screen.getByRole("dialog", { name: "Category" });
-    expect(within(dialog).getByRole("button", { name: "Housing" })).toBeInTheDocument();
+    await user.click(within(dialog).getByRole("button", { name: "Housing" }));
+    const updatedChips = within(categoriesRow).getAllByRole("button");
+    expect(updatedChips).toHaveLength(5);
+    expect(updatedChips[0]).toHaveAccessibleName("Housing");
+  });
+
+  it("scrolls horizontal chip rows on desktop with the mouse wheel or click-and-drag", () => {
+    renderForm();
+    const accountsRow = screen.getByRole("group", { name: "Account" });
+    Object.defineProperty(accountsRow, "clientWidth", { configurable: true, value: 300 });
+    Object.defineProperty(accountsRow, "scrollWidth", { configurable: true, value: 700 });
+
+    fireEvent.wheel(accountsRow, { deltaY: 120, deltaX: 0 });
+    expect(accountsRow.scrollLeft).toBe(120);
+
+    fireEvent.pointerDown(accountsRow, { pointerType: "mouse", button: 0, clientX: 200 });
+    fireEvent.pointerMove(window, { pointerType: "mouse", clientX: 120 });
+    expect(accountsRow.scrollLeft).toBe(200);
+    fireEvent.pointerUp(window, { pointerType: "mouse", clientX: 120 });
   });
 
   it("fills Drinks and Coffee for the learned KHR amount and keeps user edits", async () => {
@@ -184,11 +202,11 @@ describe("transaction save feedback", () => {
   it("keeps a manually selected category when the note suggests another", async () => {
     createTransaction.mockResolvedValue({ ok: true, data: { id: "saved" } });
     const user = userEvent.setup(); renderForm();
-    await user.click(screen.getByRole("button", { name: "Groceries" }));
+    await user.click(screen.getByRole("button", { name: "Shopping" }));
     await user.type(screen.getByLabelText("Note"), "Coffee");
     await user.click(screen.getByRole("button", { name: "5" }));
     await user.click(screen.getByRole("button", { name: "Save expense, $5.00" }));
-    expect(createTransaction.mock.lastCall?.[0]).toMatchObject({ categoryId: "cat-groceries" });
+    expect(createTransaction.mock.lastCall?.[0]).toMatchObject({ categoryId: "cat-shopping" });
   });
 
   it("saves a chosen date and visible note without opening a picker, then returns to today", async () => {

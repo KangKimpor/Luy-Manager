@@ -6,6 +6,7 @@ import { useOptimistic, useState, useTransition } from "react";
 
 import type { AccountBalance, Category } from "@/lib/domain/types";
 import { activityHref, type ActivityParams } from "@/lib/activity-url";
+import { ChipScroll } from "@/components/chip-scroll";
 import { categoryLabel, groupedCategories } from "@/lib/domain/categories";
 
 /**
@@ -97,7 +98,7 @@ export function TransactionFilters({
         </button>
       </form>
 
-      <div className="chip-scroll" role="group" aria-label="Filter transactions">
+      <ChipScroll role="group" aria-label="Filter transactions">
         {TYPE_CHIPS.map((chip) => {
           const active = (optimistic.type ?? "") === chip.value;
           return (
@@ -159,7 +160,7 @@ export function TransactionFilters({
             Clear
           </button>
         ) : null}
-      </div>
+      </ChipScroll>
 
       {pending ? (
         <p role="status" data-pending={pending || undefined} className="pending-status text-brand px-1 text-xs">

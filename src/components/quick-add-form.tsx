@@ -50,7 +50,7 @@ import { cn } from "@/lib/utils";
  */
 
 /** How many category chips stay visible before the All categories button. */
-const FAVORITE_CATEGORY_LIMIT = 6;
+const FAVORITE_CATEGORY_LIMIT = 4;
 const NO_CATEGORY_USAGE: Readonly<Record<string, number>> = {};
 
 function categoryChoiceOf(category: Category) {
@@ -215,6 +215,9 @@ export function QuickAddForm({
     const favorites = ranked.slice(0, FAVORITE_CATEGORY_LIMIT);
     const selected = relevantCategories.find((category) => category.id === resolvedCategoryId);
     if (selected && !favorites.some((category) => category.id === selected.id)) {
+      if (favorites.length >= FAVORITE_CATEGORY_LIMIT) {
+        favorites.pop();
+      }
       favorites.unshift(selected);
     }
     return favorites.map(categoryChoiceOf);

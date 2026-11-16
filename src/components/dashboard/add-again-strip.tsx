@@ -1,5 +1,6 @@
 import { AppLink as Link } from "@/components/app-link";
 import { CategoryIcon, categoryColorToken } from "@/components/category-icon";
+import { ChipScroll } from "@/components/chip-scroll";
 import { MoneyAmount } from "@/components/money-amount";
 import { entryHabitKey, type EntryHabit } from "@/lib/domain/entry-habits";
 import type { Category } from "@/lib/domain/types";
@@ -21,7 +22,7 @@ export function AddAgainStrip({
       <div className="sec-head">
         <h2 className="sec-title">Add again</h2>
       </div>
-      <div className="chip-scroll">
+      <ChipScroll>
         {shown.map((habit) => {
           const category = categories[habit.categoryId];
           const color = categoryColorToken(category);
@@ -52,7 +53,7 @@ export function AddAgainStrip({
             </Link>
           );
         })}
-      </div>
+      </ChipScroll>
     </section>
   );
 }
