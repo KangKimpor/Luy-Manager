@@ -1,7 +1,7 @@
 "use client";
 
-import { Check, Layers, SlidersHorizontal, TriangleAlert, Wallet } from "@/components/app-icon";
-import { useEffect, useMemo, useState } from "react";
+import { Check } from "@/components/app-icon";
+import { useMemo, useState } from "react";
 
 import {
   AmountDisplay,
@@ -13,19 +13,6 @@ import {
 } from "@/components/amount-keypad";
 import { HorizontalChoiceRow } from "@/components/entry-choice-picker";
 import { MoneyAmount } from "@/components/money-amount";
-import {
-  newSplit,
-  parseSplits,
-  type SplitDraft,
-  SplitEditor,
-} from "@/components/split-editor";
-import {
-  newTender,
-  parseTenders,
-  type TenderDraft,
-  TenderEditor,
-  tenderTotal,
-} from "@/components/tender-editor";
 import { Button } from "@/components/ui/button";
 import {
   categoryDefinition,
@@ -56,21 +43,36 @@ import { cn } from "@/lib/utils";
 /**
  * Fast one-screen transaction entry.
  *
- * Every primary entry control (type, amount + currency + paste, account chips,
- * category chips, note + date + more options, keypad, save) fits inside one
- * phone viewport without scrolling. Searchable pickers open in native <dialog>
- * bottom sheets, and split/mixed-payment editors live behind the More options
- * toggle.
+ * Every primary entry control (type, amount + currency, account chips,
+ * frequent category chips, note + date, keypad, save) fits inside one
+ * phone viewport without scrolling. Searchable pickers open in native
+ * <dialog> bottom sheets.
  */
+
+/** How many category chips stay visible before the All categories button. */
+const FAVORITE_CATEGORY_LIMIT = 6;
+const NO_CATEGORY_USAGE: Readonly<Record<string, number>> = {};
+
+function categoryChoiceOf(category: Category) {
+  return {
+    id: category.id,
+    label: categoryLabel(category),
+    group: categoryGroup(category),
+    icon: categoryIconKey(category),
+    keywords: categoryKeywords(category),
+  };
+}
 
 interface QuickAddFormProps {
   accounts: readonly AccountBalance[];
   categories: readonly Category[];
   habits?: readonly EntryHabit[];
+  /** How often each category has been picked, so the visible row stays the frequent ones. */
+  categoryUsage?: Readonly<Record<string, number>>;
   /** Server-resolved habit from `/add?habit=...`, prefilling amount, account, category and note. */
   initialHabit?: EntryHabit | null;
   type: TransactionType;
-  /** The rate in force, for showing what a mixed-currency payment comes to. */
+  /** The rate in force, for showing what the amount comes to in the other currency. */
   rate?: ExchangeRate;
   /** Demo mode cannot persist, so the form says so instead of failing on submit. */
   readOnly?: boolean;
@@ -79,13 +81,13 @@ interface QuickAddFormProps {
   /** Optional controlled note so switching entry type keeps what the user typed. */
   note?: string | null;
   onNoteChange?: (note: string | null) => void;
-  onExpandedChange?: (expanded: boolean) => void;
 }
 
 export function QuickAddForm({
   accounts,
   categories,
   habits = [],
+  categoryUsage = NO_CATEGORY_USAGE,
   initialHabit = null,
   type,
   rate: initialRate = DEFAULT_RATE,
@@ -94,7 +96,6 @@ export function QuickAddForm({
   initialDate = calendarDate(new Date(), timezone),
   note: controlledNote,
   onNoteChange,
-  onExpandedChange,
 }: QuickAddFormProps) {
   const { date, selectDate, rate, ratePending, dateError } = useEntryDate(initialDate, initialRate, readOnly);
   const prefilledAccount = initialHabit
@@ -118,18 +119,11 @@ export function QuickAddForm({
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
 
-  const [moreOpen, setMoreOpen] = useState(false);
-  const [tenders, setTenders] = useState<TenderDraft[] | null>(null);
-  const [splits, setSplits] = useState<SplitDraft[] | null>(null);
-
   if (prevType !== type) {
     setPrevType(type);
     setSaved(null);
     setError(null);
     setCategoryId(undefined);
-    setTenders(null);
-    setSplits(null);
-    setMoreOpen(false);
   }
 
   const note = controlledNote !== undefined ? controlledNote : internalNote;
@@ -166,27 +160,19 @@ export function QuickAddForm({
   }, [habits, relevantCategories, type]);
 
   const keypadAmount = useMemo(() => parseKeypadAmount(raw, currency), [raw, currency]);
-  const mixedAmount = tenders ? tenderTotal(tenders, currency, rate) : null;
-  const amount = mixedAmount ?? keypadAmount;
+  const amount = keypadAmount;
   const otherCurrency: CurrencyCode = currency === "USD" ? "KHR" : "USD";
   const converted = useMemo(
     () => (amount.minor > 0 ? convert(amount, otherCurrency, rate) : null),
     [amount, otherCurrency, rate],
   );
 
-  const habit = !tenders && !splits ? habits.find((h) => h.type === type && h.amount.currency === currency && h.amount.minor === amount.minor) : undefined;
+  const habit = habits.find((h) => h.type === type && h.amount.currency === currency && h.amount.minor === amount.minor);
   const resolvedNote = note ?? habit?.note ?? "";
   const suggestedCategoryId = note === null && habit ? habit.categoryId : resolveCategory(relevantCategories, resolvedNote)?.id;
   const resolvedCategoryId = categoryId === undefined
     ? relevantCategories.find((category) => category.id === suggestedCategoryId)?.id ?? null
     : relevantCategories.some((category) => category.id === categoryId) ? categoryId : null;
-
-  const hasAdvancedState = tenders !== null || splits !== null || Boolean(dateError);
-  const isExpanded = moreOpen || hasAdvancedState;
-
-  useEffect(() => {
-    onExpandedChange?.(isExpanded);
-  }, [isExpanded, onExpandedChange]);
 
   const currencyAccounts = useMemo(
     () => accounts.filter((account) => account.currency === currency),
@@ -211,16 +197,28 @@ export function QuickAddForm({
     [currencyAccounts],
   );
   const categoryChoices = useMemo(
-    () =>
-      orderedCategories.map((category) => ({
-        id: category.id,
-        label: categoryLabel(category),
-        group: categoryGroup(category),
-        icon: categoryIconKey(category),
-        keywords: categoryKeywords(category),
-      })),
+    () => orderedCategories.map(categoryChoiceOf),
     [orderedCategories],
   );
+
+  /**
+   * The visible chips are the categories this user actually picks, capped so
+   * the row stays one swipe. Usage leads, then the curated quick order, and a
+   * category picked from the full list stays visible so it can be cleared.
+   */
+  const favoriteCategoryChoices = useMemo(() => {
+    const curatedRank = new Map(orderedCategories.map((category, index) => [category.id, index]));
+    const ranked = [...relevantCategories].sort((a, b) =>
+      (categoryUsage[b.id] ?? 0) - (categoryUsage[a.id] ?? 0)
+      || (curatedRank.get(a.id) ?? Number.MAX_SAFE_INTEGER) - (curatedRank.get(b.id) ?? Number.MAX_SAFE_INTEGER),
+    );
+    const favorites = ranked.slice(0, FAVORITE_CATEGORY_LIMIT);
+    const selected = relevantCategories.find((category) => category.id === resolvedCategoryId);
+    if (selected && !favorites.some((category) => category.id === selected.id)) {
+      favorites.unshift(selected);
+    }
+    return favorites.map(categoryChoiceOf);
+  }, [categoryUsage, orderedCategories, relevantCategories, resolvedCategoryId]);
 
   const canSave = !readOnly && amount.minor > 0 && accountId !== "" && isCalendarDate(date) && !ratePending && !dateError;
 
@@ -253,15 +251,10 @@ export function QuickAddForm({
         categoryId: resolvedCategoryId,
         occurredAt: transactionDate(date, timezone).toISOString(),
         notes: resolvedNote.trim() === "" ? null : resolvedNote.trim(),
-        tenders: tenders ? parseTenders(tenders) : undefined,
-        splits: splits ? parseSplits(splits) : undefined,
       });
 
       if (!result.ok) {
         setError(result.error);
-        if (/split|tender|currenc/i.test(result.error) && (splits || tenders)) {
-          setMoreOpen(true);
-        }
         return;
       }
 
@@ -270,9 +263,6 @@ export function QuickAddForm({
       updateNote(null);
       void selectDate(calendarDate(new Date(), timezone));
       setCategoryId(undefined);
-      setTenders(null);
-      setSplits(null);
-      setMoreOpen(false);
     } catch {
       setError("Could not confirm the save. Check Activity before trying again.");
     } finally {
@@ -301,7 +291,7 @@ export function QuickAddForm({
       <fieldset disabled={pending} className="add-form-fieldset disabled:opacity-70">
         <AmountDisplay
           amount={amount}
-          onAmountChange={tenders || pending ? undefined : (next) => { setRaw(next); setSaved(null); setError(null); }}
+          onAmountChange={pending ? undefined : (next) => { setRaw(next); setSaved(null); setError(null); }}
           tone={type === "expense" ? "outflow" : "inflow"}
           errorText={dateError ?? error}
           hint={converted ? <>~ <MoneyAmount amount={converted} /> at {rate.rate.toLocaleString("en-US", { maximumFractionDigits: 0 })}&#x17DB;</> : null}
@@ -349,25 +339,24 @@ export function QuickAddForm({
           searchLabel="Search accounts"
         />
 
-        {!splits ? (
-          <HorizontalChoiceRow
-            label="Category"
-            collection="categories"
-            rowOptions={categoryChoices}
-            selectedId={resolvedCategoryId}
-            allowClear
-            clearLabel="Clear category"
-            onSelect={(id) => {
-              setSaved(null);
-              setCategoryId(id);
-            }}
-            triggerText="Search"
-            triggerLabel="Search categories"
-            searchLabel="Search categories"
-          />
-        ) : null}
+        <HorizontalChoiceRow
+          label="Category"
+          collection="categories"
+          rowOptions={favoriteCategoryChoices}
+          dialogOptions={categoryChoices}
+          selectedId={resolvedCategoryId}
+          allowClear
+          clearLabel="Clear category"
+          onSelect={(id) => {
+            setSaved(null);
+            setCategoryId(id);
+          }}
+          triggerText="All"
+          triggerLabel="All categories"
+          searchLabel="Search categories"
+        />
 
-        {!splits && categoryId === undefined && resolvedCategoryId ? (
+        {categoryId === undefined && resolvedCategoryId ? (
           <p role="status" className="sr-only">
             {note === null && habit
               ? "Suggested from your usual entries. You can change the note or category."
@@ -398,115 +387,9 @@ export function QuickAddForm({
               void selectDate(next);
             }}
           />
-          <button
-            type="button"
-            aria-label="More options"
-            aria-expanded={isExpanded}
-            onClick={() => setMoreOpen((open) => !open)}
-            className={cn(
-              "flex size-11 shrink-0 items-center justify-center rounded-full transition-colors",
-              isExpanded || tenders !== null || splits !== null
-                ? "bg-brand text-on-action"
-                : "bg-fill text-ink-muted hover:text-ink",
-            )}
-          >
-            <SlidersHorizontal size={18} aria-hidden="true" />
-          </button>
         </div>
 
-        {isExpanded ? (
-          <div className="panel-enter space-y-3">
-            <div className="rounded-card bg-surface border-card-edge space-y-3 border-[0.5px] p-4">
-              <div className="flex flex-wrap gap-2">
-                <button
-                  type="button"
-                  aria-pressed={tenders !== null}
-                  onClick={() => {
-                    setSaved(null);
-                    setError(null);
-                    setTenders(
-                      tenders
-                        ? null
-                        : [
-                            { ...newTender(currency), amount: raw.trim() },
-                            newTender(currency === "USD" ? "KHR" : "USD"),
-                          ],
-                    );
-                  }}
-                  className={cn(
-                    "rounded-pill flex min-h-11 flex-1 items-center justify-center gap-1.5 px-4 text-xs font-medium transition-colors",
-                    tenders !== null
-                      ? "bg-brand text-on-action"
-                      : "bg-fill text-ink-muted",
-                  )}
-                >
-                  <Wallet size={14} aria-hidden="true" />
-                  Two currencies
-                </button>
-
-                <button
-                  type="button"
-                  aria-pressed={splits !== null}
-                  onClick={() => {
-                    setSaved(null);
-                    setError(null);
-                    setSplits(splits ? null : [newSplit(), newSplit()]);
-                  }}
-                  className={cn(
-                    "rounded-pill flex min-h-11 flex-1 items-center justify-center gap-1.5 px-4 text-xs font-medium transition-colors",
-                    splits !== null
-                      ? "bg-brand text-on-action"
-                      : "bg-fill text-ink-muted",
-                  )}
-                >
-                  <Layers size={14} aria-hidden="true" />
-                  Split it
-                </button>
-              </div>
-            </div>
-
-            {tenders ? (
-              <TenderEditor
-                tenders={tenders}
-                targetCurrency={currency}
-                rate={rate}
-                onChange={(next) => {
-                  setSaved(null);
-                  setError(null);
-                  setTenders(next.length === 0 ? null : next);
-                }}
-              />
-            ) : null}
-
-            {splits ? (
-              <SplitEditor
-                splits={splits}
-                parentAmount={amount}
-                categories={relevantCategories}
-                onChange={(next) => {
-                  setSaved(null);
-                  setError(null);
-                  setSplits(next.length === 0 ? null : next);
-                }}
-              />
-            ) : null}
-
-            {error ? (
-              <p role="alert" className="feedback-enter bg-outflow-soft text-outflow flex items-start gap-2 rounded-2xl p-4 text-sm">
-                <TriangleAlert size={15} className="mt-0.5 shrink-0" aria-hidden="true" />
-                {error}
-              </p>
-            ) : null}
-
-            {readOnly ? (
-              <p className="text-ink-faint text-center text-xs">
-                Sample data. Saving is available when your account is connected.
-              </p>
-            ) : null}
-          </div>
-        ) : null}
-
-        {!tenders ? <AmountKeypad currency={currency} raw={raw} onPress={press} /> : null}
+        <AmountKeypad currency={currency} raw={raw} onPress={press} />
       </fieldset>
 
       <Button

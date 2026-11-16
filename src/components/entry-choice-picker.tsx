@@ -1,6 +1,6 @@
 "use client";
 
-import { Check, ChevronDown, Search, X } from "@/components/app-icon";
+import { Check, ChevronDown, Search, Shapes, X } from "@/components/app-icon";
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 
 import { MoneyAmount } from "@/components/money-amount";
@@ -298,7 +298,7 @@ export function HorizontalChoiceRow({
             "text-brand font-semibold",
           )}
         >
-          {collection === "categories" ? <Search size={14} aria-hidden="true" /> : null}
+          {collection === "categories" ? <Shapes size={14} aria-hidden="true" /> : null}
           <span>{triggerText}</span>
         </button>
       </div>

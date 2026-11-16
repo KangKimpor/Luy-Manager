@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
+import Image from "next/image";
 
 import { ChevronLeft, Settings } from "@/components/app-icon";
 import { AppLink as Link } from "@/components/app-link";
@@ -12,11 +13,11 @@ import { cn } from "@/lib/utils";
  * Navigation bar and in-flow large screen title.
  *
  * Phone screens use a transparent top bar carrying circular glass controls
- * (Back on sub routes, Settings on the right everywhere except /settings) plus a
- * headline inline title that fades in once the in-flow large title scrolls under
- * the bar. Form routes use a compact variant with only the Back button and the
- * centered headline <h1>, omitting the large title and Settings gear. Only one
- * <h1> renders per screen.
+ * (the app mark on root routes at phone width, Back on sub routes, Settings on
+ * the right everywhere except /settings) plus a headline inline title that
+ * fades in once the in-flow large title scrolls under the bar. Form routes use
+ * a compact variant with only the Back button and the centered headline <h1>,
+ * omitting the large title and Settings gear. Only one <h1> renders per screen.
  */
 
 const ROOT_TITLES: Record<string, string> = {
@@ -111,7 +112,20 @@ export function SiteHeader() {
     <>
       <div className={cn("scroll-edge", scrolled && "is-scrolled")} aria-hidden="true" />
       <header className={cn("topbar app-chrome-header", scrolled && "is-scrolled")}>
-        <div className="topbar-left">{backButton}</div>
+        <div className="topbar-left">
+          {isRoot ? (
+            <Image
+              src="/icon.svg"
+              alt="Luy Manager"
+              width={34}
+              height={34}
+              priority
+              className="lg:hidden shrink-0 rounded-[10px]"
+            />
+          ) : (
+            backButton
+          )}
+        </div>
 
         <span className="topbar-inline-title" aria-hidden="true">
           {title}

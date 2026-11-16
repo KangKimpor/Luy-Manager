@@ -21,21 +21,19 @@ function renderForm() {
 }
 
 describe("transaction save feedback", () => {
-  it("orders account row, category row, note-date-more row, keypad and pinned save button", () => {
+  it("orders account row, category row, note-date row, keypad and pinned save button", () => {
     renderForm();
     const accountsRow = screen.getByRole("group", { name: "Account" });
     const categoriesRow = screen.getByRole("group", { name: "Category" });
     const noteInput = screen.getByLabelText("Note");
     const dateButton = screen.getByRole("button", { name: "Date: Today" });
-    const moreButton = screen.getByRole("button", { name: "More options" });
     const keypad = screen.getByRole("group", { name: "Amount keypad" });
     const saveButton = screen.getByRole("button", { name: "Enter an amount" });
 
     expect(accountsRow.compareDocumentPosition(categoriesRow) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(categoriesRow.compareDocumentPosition(noteInput) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(noteInput.compareDocumentPosition(dateButton) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(dateButton.compareDocumentPosition(moreButton) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(moreButton.compareDocumentPosition(keypad) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(dateButton.compareDocumentPosition(keypad) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(keypad.compareDocumentPosition(saveButton) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
 
     // USD mode shows only USD accounts inline plus the "All accounts" trigger.
@@ -43,7 +41,31 @@ describe("transaction save feedback", () => {
     expect(within(accountsRow).getByRole("button", { name: "ABA USD" })).toBeVisible();
     expect(within(accountsRow).getByRole("button", { name: "All accounts" })).toBeVisible();
     expect(within(accountsRow).queryByRole("button", { name: "ABA KHR" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "More options" })).toBeNull();
     expect(saveButton).toBeDisabled();
+  });
+
+  it("shows the six most used categories plus an All categories button", async () => {
+    const user = userEvent.setup();
+    render(
+      <QuickAddForm
+        accounts={DEMO_ACCOUNTS}
+        categories={DEMO_CATEGORIES}
+        type="expense"
+        categoryUsage={{ "cat-health": 40, "cat-drinks": 30 }}
+      />,
+    );
+
+    const categoriesRow = screen.getByRole("group", { name: "Category" });
+    const chips = within(categoriesRow).getAllByRole("button");
+    expect(chips).toHaveLength(7);
+    expect(chips[0]).toHaveAccessibleName("Health");
+    expect(chips[1]).toHaveAccessibleName("Drinks");
+    expect(within(categoriesRow).getByRole("button", { name: "All categories" })).toBeInTheDocument();
+
+    await user.click(within(categoriesRow).getByRole("button", { name: "All categories" }));
+    const dialog = screen.getByRole("dialog", { name: "Category" });
+    expect(within(dialog).getByRole("button", { name: "Housing" })).toBeInTheDocument();
   });
 
   it("fills Drinks and Coffee for the learned KHR amount and keeps user edits", async () => {
@@ -169,7 +191,7 @@ describe("transaction save feedback", () => {
     expect(createTransaction.mock.lastCall?.[0]).toMatchObject({ categoryId: "cat-groceries" });
   });
 
-  it("saves a chosen date and visible note without opening More options, then returns to today", async () => {
+  it("saves a chosen date and visible note without opening a picker, then returns to today", async () => {
     createTransaction.mockResolvedValue({ ok: true, data: { id: "saved" } });
     const user = userEvent.setup();
     render(<QuickAddForm accounts={DEMO_ACCOUNTS} categories={DEMO_CATEGORIES} type="expense" initialDate="2026-10-11" />);
@@ -208,7 +230,7 @@ describe("transaction save feedback", () => {
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "." })).toBeEnabled();
 
-    const searchCategoriesTrigger = screen.getByRole("button", { name: "Search categories" });
+    const searchCategoriesTrigger = screen.getByRole("button", { name: "All categories" });
     await user.click(searchCategoriesTrigger);
     const categoryDialog = screen.getByRole("dialog", { name: "Category" });
     expect(categoryDialog).toBeInTheDocument();
@@ -223,26 +245,6 @@ describe("transaction save feedback", () => {
     for (const digit of "6000") await user.click(screen.getByRole("button", { name: digit }));
     await user.click(screen.getByRole("button", { name: /^Save expense, 6,000/ }));
     expect(createTransaction).toHaveBeenCalledWith(expect.objectContaining({ accountId: "acc-truemoney", currency: "KHR", amount: "6000", categoryId: "cat-health" }));
-  });
-
-  it("searches categories independently for each split and keeps the chosen IDs when saving", async () => {
-    createTransaction.mockResolvedValue({ ok: true, data: { id: "saved" } });
-    const user = userEvent.setup(); renderForm();
-    await user.click(screen.getByRole("button", { name: "5" }));
-    await user.click(screen.getByRole("button", { name: "More options" }));
-    await user.click(screen.getByRole("button", { name: "Split it" }));
-    await user.type(screen.getByLabelText("Split 1 amount"), "2");
-    await user.type(screen.getByLabelText("Split 2 amount"), "3");
-    for (const [index, name] of ["Health", "Groceries"].entries()) {
-      const picker = within(screen.getByRole("group", { name: `Split ${index + 1} category` }));
-      await user.click(picker.getByRole("button", { name: "All categories" }));
-      await user.type(picker.getByRole("searchbox", { name: "Search categories" }), name);
-      await user.click(picker.getByRole("button", { name }));
-    }
-    await user.click(screen.getByRole("button", { name: "Save expense, $5.00" }));
-    expect(createTransaction).toHaveBeenCalledWith(expect.objectContaining({
-      splits: [{ categoryId: "cat-health", amount: "2", notes: null }, { categoryId: "cat-groceries", amount: "3", notes: null }],
-    }));
   });
 
   it("confirms the saved amount after clearing the keypad", async () => {

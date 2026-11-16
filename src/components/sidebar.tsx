@@ -1,6 +1,7 @@
 "use client";
 
 import { usePathname } from "next/navigation";
+import Image from "next/image";
 
 import { Plus } from "@/components/app-icon";
 import { AppLink as Link } from "@/components/app-link";
@@ -13,7 +14,7 @@ export function Sidebar() {
   return (
     <aside className="app-chrome-sidebar sidebar-glass fixed inset-y-0 left-0 z-50 hidden w-60 flex-col px-4 py-6 lg:flex">
       <Link href="/" className="text-ink mb-6 flex items-center gap-2.5 rounded-xl px-2 py-1 text-lg font-bold tracking-tight">
-        <span className="brand-mark-tile" aria-hidden="true">L</span>
+        <Image src="/icon.svg" alt="" width={30} height={30} className="shrink-0 rounded-lg" />
         <span>Luy Manager</span>
       </Link>
 

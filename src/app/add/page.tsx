@@ -6,7 +6,7 @@ import { listActiveAccountBalances } from "@/lib/data/accounts";
 import { calendarDate, validTimezone } from "@/lib/calendar";
 import { getProfile, listCategories } from "@/lib/data/reference";
 import { listEntryHabitLines } from "@/lib/data/transactions";
-import { entryHabitKey, learnEntryHabits, resolveEntryHabit } from "@/lib/domain/entry-habits";
+import { countCategoryUsage, entryHabitKey, learnEntryHabits, resolveEntryHabit } from "@/lib/domain/entry-habits";
 import { loadUsdKhrRate } from "@/lib/rates/repository";
 import { AppLink as Link } from "@/components/app-link";
 
@@ -54,6 +54,7 @@ export default async function AddTransactionPage({
   }
 
   const habits = learnEntryHabits(history, categories);
+  const categoryUsage = countCategoryUsage(history);
   const resolvedHabit = resolveEntryHabit(habits, habit);
   const initialHabit =
     resolvedHabit && (resolvedHabit.type === "expense" || resolvedHabit.type === "income")
@@ -75,6 +76,7 @@ export default async function AddTransactionPage({
         accounts={accounts}
         categories={categories}
         habits={habits}
+        categoryUsage={categoryUsage}
         rate={rate}
         readOnly={isDemoMode()}
         timezone={validTimezone(profile?.timezone)}

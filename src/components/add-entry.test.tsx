@@ -39,7 +39,7 @@ describe("AddEntry", () => {
     expect(screen.getByLabelText("Note")).toHaveValue("Shared note");
   });
 
-  it("toggles More options and collapses it when switching entry types", async () => {
+  it("collapses the transfer advanced options when switching entry types", async () => {
     const user = userEvent.setup();
     const { container } = render(
       <AddEntry accounts={DEMO_ACCOUNTS} categories={DEMO_CATEGORIES} rate={DEFAULT_RATE} />,
@@ -47,16 +47,16 @@ describe("AddEntry", () => {
     const shell = container.querySelector(".add-screen-shell");
     expect(shell).not.toHaveClass("is-expanded");
 
+    await user.click(screen.getByRole("button", { name: "Transfer" }));
     const moreButton = screen.getByRole("button", { name: "More options" });
     expect(moreButton).toHaveAttribute("aria-expanded", "false");
     await user.click(moreButton);
     expect(moreButton).toHaveAttribute("aria-expanded", "true");
     expect(shell).toHaveClass("is-expanded");
-    expect(screen.getByRole("button", { name: "Two currencies" })).toBeInTheDocument();
 
-    await user.click(screen.getByRole("button", { name: "Transfer" }));
+    await user.click(screen.getByRole("button", { name: "Expense" }));
     expect(shell).not.toHaveClass("is-expanded");
-    expect(screen.getByRole("button", { name: "More options" })).toHaveAttribute("aria-expanded", "false");
+    expect(screen.queryByRole("button", { name: "More options" })).toBeNull();
   });
 
   it("closes the picker dialog when its backdrop is clicked", async () => {

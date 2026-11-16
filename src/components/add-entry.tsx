@@ -13,9 +13,9 @@ import { cn } from "@/lib/utils";
  * Chooses what kind of entry is being made.
  *
  * Expense, Income and Transfer sit in one segmented control because they are the
- * same decision, made once. Note persists across mode switches and the active
- * form reports whether "More options" is expanded so the container can unlock
- * scrolling when advanced editors are open.
+ * same decision, made once. Note persists across mode switches and the transfer
+ * form reports whether its advanced options are expanded so the container can
+ * unlock scrolling while they are open.
  */
 
 const MODES = [
@@ -30,6 +30,7 @@ export function AddEntry({
   accounts,
   categories,
   habits,
+  categoryUsage,
   rate = DEFAULT_RATE,
   readOnly = false,
   initialMode = "expense",
@@ -39,6 +40,7 @@ export function AddEntry({
 }: {
   accounts: readonly AccountBalance[];
   habits?: readonly EntryHabit[];
+  categoryUsage?: Readonly<Record<string, number>>;
   categories: readonly Category[];
   rate?: ExchangeRate;
   /** Demo mode: the forms render but cannot persist. */
@@ -100,12 +102,12 @@ export function AddEntry({
           accounts={accounts}
           categories={categories}
           habits={habits}
+          categoryUsage={categoryUsage}
           initialHabit={initialHabit?.type === mode ? initialHabit : null}
           rate={rate}
           readOnly={readOnly}
           note={note}
           onNoteChange={setNote}
-          onExpandedChange={setExpanded}
         />
       )}
     </div>

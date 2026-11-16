@@ -34,6 +34,22 @@ export function amountToRawString(amount: Money): string {
   return `${whole}.${String(remainder).padStart(decimals, "0")}`;
 }
 
+/**
+ * Count how often each category was picked in recent entries.
+ *
+ * The Add screen keeps only a handful of category chips visible, so the order
+ * has to reflect this user's own history rather than the catalogue. Transfers
+ * and uncategorised lines carry no pick to count.
+ */
+export function countCategoryUsage(transactions: readonly EntryHabitLine[]): Record<string, number> {
+  const counts: Record<string, number> = {};
+  for (const transaction of transactions) {
+    if (transaction.type === "transfer" || !transaction.categoryId) continue;
+    counts[transaction.categoryId] = (counts[transaction.categoryId] ?? 0) + 1;
+  }
+  return counts;
+}
+
 /** Only repeat a clear majority from this user's recent, non-deleted entries. */
 export function learnEntryHabits(transactions: readonly EntryHabitLine[], categories: readonly Category[]): EntryHabit[] {
   const byType = new Map<TransactionType, { list: Category[]; byId: Map<string, Category> }>();

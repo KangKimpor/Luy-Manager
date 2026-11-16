@@ -2,7 +2,7 @@ import { expect, test } from "vitest";
 import { DEMO_ACCOUNTS, DEMO_CATEGORIES, DEMO_TRANSACTIONS } from "@/lib/demo-data";
 import { money } from "@/lib/money";
 import type { Transaction } from "./types";
-import { amountToRawString, entryHabitKey, learnEntryHabits, resolveEntryHabit } from "./entry-habits";
+import { amountToRawString, countCategoryUsage, entryHabitKey, learnEntryHabits, resolveEntryHabit } from "./entry-habits";
 import { quickEntryAccounts } from "./entry-choices";
 
 function coffee(overrides: Partial<Transaction> = {}): Transaction {
@@ -45,6 +45,15 @@ test("resolves habit keys and formats amounts cleanly without floats", () => {
   expect(amountToRawString(money(-123455, "KHR"))).toBe("1234.55");
   expect(amountToRawString(money(-350, "USD"))).toBe("3.50");
   expect(amountToRawString(money(50, "USD"))).toBe("0.50");
+});
+
+test("counts how often each category was picked and ignores transfers and uncategorised rows", () => {
+  const history = [
+    coffee(), coffee({ categoryId: "cat-food" }), coffee({ categoryId: "cat-food" }),
+    coffee({ categoryId: null }), coffee({ type: "transfer", categoryId: "cat-drinks" }),
+    coffee({ type: "income", categoryId: "cat-drinks" }),
+  ];
+  expect(countCategoryUsage(history)).toEqual({ "cat-drinks": 2, "cat-food": 2 });
 });
 
 test("quick entry offers ABA checking in both currencies ahead of savings or other wallets", () => {
