@@ -1,19 +1,32 @@
 <resources>
     <!-- Mirrors the design tokens in src/app/globals.css. Change both together. -->
-    <color name="surface_container_low">#eef3f0</color>
-    <color name="surface_container">#e9efeb</color>
-    <color name="surface_variant">#dfe8e4</color>
-    <color name="border_subtle">#c7d6d0</color>
-    <color name="faint">#607477</color>
-    <color name="brand_strong">#086660</color>
+    <color name="surface_container_low">#f2f2f7</color>
+    <color name="surface_container">#e9e9ee</color>
+    <color name="surface_variant">#d9d9de</color>
+    <color name="fill">#ececf0</color>
+    <color name="track">#e5e5ea</color>
+    <color name="border_subtle">#c6c6c8</color>
+    <color name="faint">#67676c</color>
+    <color name="brand_strong">#04524e</color>
     <color name="brand_fixed">#bce5d7</color>
-    <color name="inflow_soft">#e7f5ec</color>
-    <color name="outflow_soft">#fcece8</color>
-    <color name="usd">#386a92</color>
-    <color name="usd_soft">#eaf2fa</color>
-    <color name="khr">#946126</color>
-    <color name="khr_soft">#faf0dd</color>
-    <color name="chart_other">#687d80</color>
+    <color name="inflow_soft">#e4f4ea</color>
+    <color name="outflow_soft">#fdebe9</color>
+    <color name="warning">#9a5b00</color>
+    <color name="warning_soft">#fdf1d9</color>
+    <color name="usd">#2f6fb0</color>
+    <color name="usd_soft">#e6f0fb</color>
+    <color name="khr">#9a580b</color>
+    <color name="khr_soft">#fbefdc</color>
+    <color name="hero_2">#0a4b49</color>
+    <color name="hero_usd">#8fc4f0</color>
+    <color name="hero_khr">#f0bd75</color>
+    <color name="chart_1">#06756f</color>
+    <color name="chart_2">#2f6fb0</color>
+    <color name="chart_3">#c07a1c</color>
+    <color name="chart_4">#7a55c7</color>
+    <color name="chart_5">#c72f24</color>
+    <color name="chart_6">#1a7f45</color>
+    <color name="chart_other">#8e8e93</color>
     <style name="AppTheme" parent="android:style/Theme.Material.Light.NoActionBar">
         <item name="android:fontFamily">sans-serif</item>
         <item name="android:colorAccent">@color/brand</item>
@@ -21,7 +34,7 @@
         <item name="android:windowLightStatusBar">true</item>
         <item name="android:windowLightNavigationBar">true</item>
         <item name="android:statusBarColor">@color/surface</item>
-        <item name="android:navigationBarColor">@color/surface_raised</item>
+        <item name="android:navigationBarColor">@color/surface</item>
         <item name="android:windowBackground">@color/surface</item>
     </style>
 </resources>

@@ -4,11 +4,13 @@ import android.content.Context;
 import android.content.res.ColorStateList;
 import android.graphics.Canvas;
 import android.graphics.ColorFilter;
+import android.graphics.LinearGradient;
 import android.graphics.Paint;
 import android.graphics.Path;
 import android.graphics.PixelFormat;
 import android.graphics.Rect;
 import android.graphics.RectF;
+import android.graphics.Shader;
 import android.graphics.Typeface;
 import android.graphics.drawable.Drawable;
 import android.graphics.drawable.GradientDrawable;
@@ -44,6 +46,15 @@ final class Ui {
 
   static int alpha(int color, float alpha) {
     return (Math.round(alpha * 255) << 24) | (color & 0xffffff);
+  }
+
+  /** Blend `fg` into `bg` by `ratio` (0..1), matching CSS `color-mix(in srgb, fg P%, bg)`. */
+  static int mix(int fg, int bg, float ratio) {
+    float inv = 1f - ratio;
+    int r = Math.round(((fg >> 16) & 0xff) * ratio + ((bg >> 16) & 0xff) * inv);
+    int g = Math.round(((fg >> 8) & 0xff) * ratio + ((bg >> 8) & 0xff) * inv);
+    int b = Math.round((fg & 0xff) * ratio + (bg & 0xff) * inv);
+    return 0xff000000 | (r << 16) | (g << 8) | b;
   }
 
   GradientDrawable round(int fill, float radius) {
@@ -129,14 +140,20 @@ final class Ui {
     return id;
   }
 
-  /** A square tile holding an icon, the `flex size-10 rounded-2xl bg-*-soft` pattern. */
+  /** A square tile holding an icon, the `.row-icon-tile` (`36dp`, `11dp` radius) pattern. */
   LinearLayout tile(String name, float size, float iconSize, int fill, int tint, float rotation) {
     LinearLayout box = new LinearLayout(context);
     box.setGravity(Gravity.CENTER);
-    box.setBackground(round(fill, size >= 40 ? 16 : 12));
+    box.setBackground(round(fill, size >= 44 ? 14 : 11));
     box.addView(icon(name, iconSize, tint, rotation));
     box.setLayoutParams(new LinearLayout.LayoutParams(dp(size), dp(size)));
     return box;
+  }
+
+  /** RowIconTile on the web: `color-mix(in srgb, color 16%, var(--color-surface))`. */
+  LinearLayout rowIconTile(String iconName, int tintColor) {
+    int fill = mix(tintColor, color(R.color.surface_raised), 0.16f);
+    return tile(iconName, 36, 17, fill, tintColor, 0);
   }
 
   LinearLayout row() {
@@ -152,10 +169,10 @@ final class Ui {
     return c;
   }
 
-  /** `rounded-card bg-surface-raised border border-surface-variant`. */
+  /** `.proto-card` / `.group-card`: `rounded-[22px] bg-surface-raised border border-surface-variant`. */
   LinearLayout card() {
     LinearLayout box = column();
-    box.setBackground(round(color(R.color.surface_raised), 24, color(R.color.surface_variant)));
+    box.setBackground(round(color(R.color.surface_raised), 22, color(R.color.surface_variant)));
     box.setClipToOutline(true);
     return box;
   }
@@ -219,7 +236,7 @@ final class Ui {
     return view;
   }
 
-  /** `buttonVariants`: primary, secondary, outline. Full width at 52dp, like size "full". */
+  /** `buttonVariants`: primary, secondary, outline. Full width at 52dp, pill radius like the web. */
   LinearLayout button(String label, String icon, String variant, Runnable action) {
     int fill, ink, stroke = 0;
     switch (variant) {
@@ -240,7 +257,7 @@ final class Ui {
     b.setGravity(Gravity.CENTER);
     b.setMinimumHeight(dp(52));
     b.setPadding(dp(24), dp(8), dp(24), dp(8));
-    b.setBackground(round(fill, 16, stroke));
+    b.setBackground(round(fill, 999, stroke));
     b.setContentDescription(label);
     if (icon != null) b.addView(icon(icon, 18, ink));
     TextView t = text(label, 16, ink, 600);
@@ -248,13 +265,12 @@ final class Ui {
     return press(b, 0.97f, action);
   }
 
-  /** A text link with a trailing arrow, like "View all" and "Add income". */
+  /** A text link, like "All activity", "See all" and "Open insights". */
   LinearLayout link(String label, int ink, float sp, Runnable action) {
     LinearLayout l = row();
-    l.setMinimumHeight(dp(44));
+    l.setMinimumHeight(dp(36));
     l.setContentDescription(label);
-    l.addView(text(label, sp, ink, 600));
-    l.addView(icon("arrow-top", 14, ink, 45), start(new LinearLayout.LayoutParams(dp(14), dp(14)), 4));
+    l.addView(text(label, sp, ink, 500));
     return press(l, 0.985f, action);
   }
 
@@ -268,9 +284,27 @@ final class Ui {
     return t;
   }
 
-  /** The bordered single-line input the web uses for notes and search. */
+  /** `.field-input`: `bg-fill rounded-[12px]`. */
   GradientDrawable inputBackground() {
-    return round(color(R.color.surface_raised), 12, color(R.color.border_subtle));
+    return round(color(R.color.fill), 12);
+  }
+
+  static final int[] CHART_COLOR_RES = {
+    R.color.chart_1,
+    R.color.chart_2,
+    R.color.chart_3,
+    R.color.chart_4,
+    R.color.chart_5,
+    R.color.chart_6
+  };
+
+  /** Mirrors `categoryColorToken` in `src/components/category-icon.tsx`. */
+  int categoryColor(JSONObject category) {
+    if (category == null || "Other".equals(category.optString("name"))) {
+      return color(R.color.chart_other);
+    }
+    int sortOrder = Math.abs(category.optInt("sort_order", 0));
+    return color(CHART_COLOR_RES[sortOrder % CHART_COLOR_RES.length]);
   }
 
   static int parseColor(JSONObject row, int fallback) {
@@ -283,20 +317,33 @@ final class Ui {
   }
 
   /**
-   * The dark net worth card with the two faint rings in its corner, the `.hero-orbit`
-   * pseudo-elements in globals.css.
+   * The `.hero-panel` gradient card (`linear-gradient(155deg, hero 0%, hero-2 100%)`,
+   * `32dp` radius) from `src/app/globals.css`.
    */
   static final class Hero extends Drawable {
-    final Paint fill = new Paint(Paint.ANTI_ALIAS_FLAG), ring = new Paint(Paint.ANTI_ALIAS_FLAG);
-    final float radius, density;
+    final Paint fill = new Paint(Paint.ANTI_ALIAS_FLAG);
+    final int c1, c2;
+    final float radius;
 
     Hero(Ui ui) {
-      density = ui.context.getResources().getDisplayMetrics().density;
-      radius = 24 * density;
-      fill.setColor(ui.color(R.color.hero));
-      ring.setStyle(Paint.Style.STROKE);
-      ring.setStrokeWidth(density);
-      ring.setColor(alpha(ui.color(R.color.brand_fixed), 0.15f));
+      float density = ui.context.getResources().getDisplayMetrics().density;
+      radius = 32 * density;
+      c1 = ui.color(R.color.hero);
+      c2 = ui.color(R.color.hero_2);
+    }
+
+    @Override
+    protected void onBoundsChange(Rect bounds) {
+      super.onBoundsChange(bounds);
+      fill.setShader(
+          new LinearGradient(
+              bounds.left,
+              bounds.top,
+              bounds.right * 0.45f,
+              bounds.bottom,
+              c1,
+              c2,
+              Shader.TileMode.CLAMP));
     }
 
     @Override
@@ -304,13 +351,7 @@ final class Ui {
       Rect b = getBounds();
       Path clip = new Path();
       clip.addRoundRect(new RectF(b), radius, radius, Path.Direction.CW);
-      canvas.save();
-      canvas.clipPath(clip);
       canvas.drawPath(clip, fill);
-      float r = 152 * density;
-      canvas.drawCircle(b.right - 24 * density, b.top + 8 * density, r, ring);
-      canvas.drawCircle(b.right - 88 * density, b.top + 72 * density, r, ring);
-      canvas.restore();
     }
 
     @Override
@@ -331,6 +372,7 @@ final class Ui {
   }
 
   static final HashMap<String, String> CATEGORY_ICONS = new HashMap<>();
+  static final HashMap<String, Integer> QUICK_PRIORITIES = new HashMap<>();
 
   static {
     String[] catalog = {
@@ -358,18 +400,35 @@ final class Ui {
       String[] parts = pair.split("=");
       CATEGORY_ICONS.put(parts[0], parts[1]);
     }
+    QUICK_PRIORITIES.put("food", 0);
+    QUICK_PRIORITIES.put("drinks", 1);
+    QUICK_PRIORITIES.put("transportation", 2);
+    QUICK_PRIORITIES.put("shopping", 3);
+    QUICK_PRIORITIES.put("groceries", 4);
+    QUICK_PRIORITIES.put("other", 5);
+    QUICK_PRIORITIES.put("salary", 0);
+    QUICK_PRIORITIES.put("freelance", 1);
+  }
+
+  static String normCategoryKey(JSONObject category) {
+    if (category == null) return "";
+    return category
+        .optString("name", "")
+        .toLowerCase(Locale.ROOT)
+        .replaceAll("[^\\p{L}\\p{N}]+", " ")
+        .trim();
+  }
+
+  static int quickPriority(JSONObject category) {
+    if (category == null) return 1000;
+    Integer prio = QUICK_PRIORITIES.get(normCategoryKey(category));
+    return prio != null ? prio : 1000 + category.optInt("sort_order", 0);
   }
 
   /** categoryIconKey on the web: catalog name first, then the stored icon, then the grid. */
   static String categoryIcon(JSONObject category) {
     if (category == null) return "widget";
-    String key =
-        category
-            .optString("name", "")
-            .toLowerCase(Locale.ROOT)
-            .replaceAll("[^\\p{L}\\p{N}]+", " ")
-            .trim();
-    String known = CATEGORY_ICONS.get(key);
+    String known = CATEGORY_ICONS.get(normCategoryKey(category));
     return known != null ? known : category.optString("icon", "widget");
   }
 }

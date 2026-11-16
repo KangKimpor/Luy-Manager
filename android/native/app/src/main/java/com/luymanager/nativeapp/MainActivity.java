@@ -52,7 +52,7 @@ public final class MainActivity extends Activity {
   static final DateTimeFormatter WEEKDAY_FORMAT =
       DateTimeFormatter.ofPattern("EEE", Locale.ENGLISH);
   static final String[] TITLES = {
-    "Home", "Activity", "Add transaction", "Accounts", "More", "Budgets"
+    "Home", "Activity", "Add transaction", "Accounts", "Settings", "Budgets"
   };
   static final String[] MODES = {"expense", "income", "transfer"};
   static final String[] ACCOUNT_TYPES = {
@@ -94,10 +94,11 @@ public final class MainActivity extends Activity {
   private int loadedVersion = -1;
   /** True between onResume and onPause, so a pull from elsewhere never redraws a hidden screen. */
   private boolean visible;
-  String shown = "USD", accountFilter = null, search = "";
+  String shown = "USD", accountFilter = null, categoryFilter = null, typeFilter = "", search = "";
   EditText amount, note, received, keypadTarget;
   Spinner account, category, destination;
   LocalDate date = LocalDate.now(CAMBODIA);
+  boolean transferMoreOpen = false;
 
   SharedPreferences draft() {
     return getSharedPreferences("draft-" + owner(), 0);
@@ -424,7 +425,7 @@ public final class MainActivity extends Activity {
     LinearLayout chrome = ui.column();
     chrome.setBackgroundColor(color(R.color.surface));
     root.addView(chrome);
-    chrome.addView(appBar(), new LinearLayout.LayoutParams(-1, dp(80)));
+    chrome.addView(appBar(), ui.fill());
     banner = ui.row();
     banner.setPadding(dp(16), dp(12), dp(16), dp(12));
     banner.setBackground(
@@ -435,7 +436,7 @@ public final class MainActivity extends Activity {
     status = ui.text("", 12, color(R.color.brand), 500);
     banner.addView(status, ui.start(ui.weight(1), 8));
     LinearLayout.LayoutParams bannerSpace = ui.fill();
-    bannerSpace.setMargins(dp(20), 0, dp(20), dp(8));
+    bannerSpace.setMargins(dp(16), 0, dp(16), dp(8));
     chrome.addView(banner, bannerSpace);
     updateStatus();
 
@@ -444,7 +445,7 @@ public final class MainActivity extends Activity {
     scroll.setClipToPadding(false);
     root.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1));
     body = ui.column();
-    body.setPadding(dp(20), dp(4), dp(20), dp(28));
+    body.setPadding(dp(16), dp(4), dp(16), dp(tab == 2 ? 16 : 28));
     scroll.addView(body);
     try {
       switch (tab) {
@@ -496,101 +497,153 @@ public final class MainActivity extends Activity {
           root.setPadding(left, 0, right, typing ? ime : 0);
           chrome.setPadding(0, top, 0, 0);
           nav.setVisibility(typing ? View.GONE : View.VISIBLE);
-          nav.setPadding(dp(8), 0, dp(8), bottom);
+          nav.setPadding(dp(16), dp(6), dp(16), Math.max(dp(10), bottom + dp(6)));
           return insets;
         });
     root.requestApplyInsets();
   }
 
-  /** SiteHeader: app mark, "LUY MANAGER" and the screen name; a back arrow below the top level. */
+  /**
+   * SiteHeader:
+   * - Form route (`tab == 2`): compact top bar with circular `<` back button and centered 17sp title.
+   * - Other routes: top bar with app glyph on root routes (`Home`, `Activity`, `Budgets`) or circular
+   *   back button on sub-routes (`Accounts`, `Settings`), circular Settings button on the right, and
+   *   large in-flow 34sp bold screen title below.
+   */
   LinearLayout appBar() {
-    header = ui.row();
-    header.setPadding(dp(20), 0, dp(20), 0);
-    boolean top = tab != 2 && tab != 5;
-    if (top) {
+    header = ui.column();
+    boolean compact = tab == 2;
+    boolean isRoot = tab == 0 || tab == 1 || tab == 5;
+    LinearLayout topRow = ui.row();
+    topRow.setPadding(dp(16), dp(8), dp(16), dp(compact ? 8 : 4));
+    topRow.setMinimumHeight(dp(56));
+
+    if (isRoot) {
       ImageView logo = new ImageView(this);
       logo.setImageResource(R.drawable.ic_logo);
       logo.setContentDescription("Luy Manager");
-      header.addView(logo, new LinearLayout.LayoutParams(dp(40), dp(40)));
+      topRow.addView(logo, new LinearLayout.LayoutParams(dp(34), dp(34)));
     } else {
-      LinearLayout back = ui.tile("arrow-left", 44, 20, 0, color(R.color.muted), 0);
-      back.setBackground(null);
-      back.setContentDescription("Go back");
-      LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(dp(44), dp(44));
-      p.setMarginStart(-dp(8));
-      header.addView(ui.press(back, 0.94f, this::goBack), p);
+      LinearLayout back =
+          ui.tile(
+              "expand-left",
+              40,
+              20,
+              color(R.color.surface_raised),
+              color(R.color.ink),
+              0);
+      back.setBackground(
+          ui.round(color(R.color.surface_raised), 999, color(R.color.surface_variant)));
+      back.setContentDescription("Home");
+      topRow.addView(ui.press(back, 0.94f, this::goBack), new LinearLayout.LayoutParams(dp(40), dp(40)));
     }
-    LinearLayout titles = ui.column();
-    titles.addView(ui.caps("Luy Manager", 10, color(R.color.faint), 0.15f));
-    TextView title = ui.truncate(ui.text(TITLES[tab], 20, color(R.color.ink), 600));
-    title.setLetterSpacing(-0.015f);
-    titles.addView(title, ui.top(ui.wrap(), 3));
-    header.addView(titles, ui.start(ui.weight(1), top ? 12 : 4));
-    if (top) {
-      LinearLayout settings = ui.tile("setting-line", 44, 19, 0, color(R.color.muted), 0);
+
+    if (compact) {
+      TextView inlineTitle = ui.truncate(ui.text(TITLES[tab], 17, color(R.color.ink), 600));
+      inlineTitle.setGravity(Gravity.CENTER);
+      inlineTitle.setLetterSpacing(-0.025f);
+      topRow.addView(inlineTitle, ui.weight(1));
+      View spacer = new View(this);
+      topRow.addView(spacer, new LinearLayout.LayoutParams(dp(40), dp(40)));
+      header.addView(topRow, ui.fill());
+      return header;
+    }
+
+    topRow.addView(new View(this), ui.weight(1));
+    if (tab != 4) {
+      LinearLayout settings =
+          ui.tile(
+              "setting-line",
+              40,
+              19,
+              color(R.color.surface_raised),
+              color(R.color.ink),
+              0);
       settings.setBackground(
-          ui.round(color(R.color.surface_raised), 16, color(R.color.surface_variant)));
-      settings.setContentDescription("Settings");
-      header.addView(ui.press(settings, 0.97f, () -> go(4)));
+          ui.round(color(R.color.surface_raised), 999, color(R.color.surface_variant)));
+      settings.setContentDescription("More");
+      topRow.addView(ui.press(settings, 0.96f, () -> go(4)), new LinearLayout.LayoutParams(dp(40), dp(40)));
     }
+    header.addView(topRow, ui.fill());
+
+    LinearLayout flowHead = ui.row();
+    flowHead.setPadding(dp(16), dp(2), dp(16), dp(8));
+    TextView largeTitle = ui.truncate(ui.text(TITLES[tab], 34, color(R.color.ink), 700));
+    largeTitle.setLetterSpacing(-0.028f);
+    flowHead.addView(largeTitle, ui.weight(1));
+    header.addView(flowHead, ui.fill());
     return header;
   }
 
-  /** BottomNav: four destinations around the raised Add button. */
+  /**
+   * BottomNav: floating capsule with 4 tabs (`Home`, `Activity`, `Budgets`, `Accounts`) +
+   * separate circular `Add transaction` button on the right, matching `.floating-dock`.
+   */
   LinearLayout bottomNav() {
-    LinearLayout nav = ui.row();
-    GradientDrawable bg = new GradientDrawable();
-    bg.setColor(color(R.color.surface_raised));
-    float r = dp(24);
-    bg.setCornerRadii(new float[] {r, r, r, r, 0, 0, 0, 0});
-    bg.setStroke(dp(1), color(R.color.surface_variant));
-    nav.setBackground(bg);
-    nav.setElevation(dp(10));
-    nav.setOutlineSpotShadowColor(Ui.alpha(color(R.color.ink), 0.35f));
-    nav.setOutlineAmbientShadowColor(Ui.alpha(color(R.color.ink), 0.15f));
+    LinearLayout dock = ui.row();
+    dock.setGravity(Gravity.CENTER_VERTICAL);
+    dock.setPadding(dp(16), dp(6), dp(16), dp(12));
+
+    LinearLayout capsule = ui.row();
+    capsule.setPadding(dp(4), dp(4), dp(4), dp(4));
+    capsule.setBackground(
+        ui.round(color(R.color.surface_raised), 999, color(R.color.surface_variant)));
+    capsule.setElevation(dp(8));
+    capsule.setOutlineSpotShadowColor(Ui.alpha(color(R.color.ink), 0.25f));
+    capsule.setOutlineAmbientShadowColor(Ui.alpha(color(R.color.ink), 0.12f));
+
     String[][] items = {
-      {"Home", "home", "0"}, {"Activity", "expense-list", "1"}, null,
-      {"Accounts", "wallet", "3"}, {"More", "meatballs-menu", "4"}
+      {"Home", "home", "0"},
+      {"Activity", "expense-list", "1"},
+      {"Budgets", "target", "5"},
+      {"Accounts", "wallet", "3"}
     };
     for (String[] item : items) {
-      if (item == null) {
-        LinearLayout slot = ui.row();
-        slot.setGravity(Gravity.CENTER);
-        LinearLayout fab = ui.tile("add", 52, 25, color(R.color.brand), color(R.color.on_hero), 0);
-        fab.setBackground(ui.round(color(R.color.brand), 17.6f));
-        fab.setElevation(dp(6));
-        fab.setOutlineSpotShadowColor(color(R.color.brand));
-        fab.setOutlineAmbientShadowColor(color(R.color.brand));
-        fab.setContentDescription("Add transaction");
-        slot.addView(ui.press(fab, 0.9f, () -> go(2)));
-        nav.addView(slot, new LinearLayout.LayoutParams(0, dp(72), 1));
-        continue;
-      }
       int target = Integer.parseInt(item[2]);
-      boolean active = tab == target || (target == 4 && tab == 5);
-      int ink = color(active ? R.color.brand : R.color.faint);
+      boolean active = tab == target;
+      int ink = color(active ? R.color.brand : R.color.muted);
       LinearLayout cell = ui.column();
       cell.setGravity(Gravity.CENTER);
+      cell.setMinimumHeight(dp(54));
       cell.setContentDescription(item[0]);
-      LinearLayout pill = ui.tile(item[1], 32, 21, 0, ink, 0);
-      pill.setBackground(active ? ui.round(color(R.color.brand_soft), 12) : null);
-      cell.addView(pill, new LinearLayout.LayoutParams(dp(48), dp(32)));
-      cell.addView(ui.text(item[0], 10, ink, 600), ui.top(ui.wrap(), 4));
-      nav.addView(ui.press(cell, 0.95f, () -> go(target)), new LinearLayout.LayoutParams(0, dp(72), 1));
+      if (active) {
+        cell.setBackground(ui.round(color(R.color.brand_soft), 999));
+      }
+      cell.addView(ui.icon(item[1], 20, ink));
+      TextView lbl = ui.text(item[0], 11, ink, 600);
+      lbl.setLetterSpacing(-0.008f);
+      cell.addView(lbl, ui.top(ui.wrap(), 2));
+      capsule.addView(
+          ui.press(cell, 0.96f, () -> go(target)), new LinearLayout.LayoutParams(0, dp(54), 1));
     }
-    return nav;
+    dock.addView(capsule, new LinearLayout.LayoutParams(0, dp(62), 1));
+
+    LinearLayout fab = ui.tile("add", 62, 24, color(R.color.brand), color(R.color.on_action), 0);
+    fab.setBackground(ui.round(color(R.color.brand), 999));
+    fab.setElevation(dp(8));
+    fab.setOutlineSpotShadowColor(color(R.color.brand));
+    fab.setOutlineAmbientShadowColor(color(R.color.brand));
+    fab.setContentDescription("Add transaction");
+    dock.addView(
+        ui.press(fab, 0.93f, () -> go(2)),
+        ui.start(new LinearLayout.LayoutParams(dp(62), dp(62)), 10));
+    return dock;
   }
 
   void go(int next) {
     saveDraft();
-    if (next != 1) accountFilter = null;
+    if (next != 1) {
+      accountFilter = null;
+      categoryFilter = null;
+      typeFilter = "";
+    }
     tab = next;
     draw();
   }
 
   void add(View view) {
     LinearLayout.LayoutParams p = ui.fill();
-    if (body.getChildCount() > 0) p.topMargin = dp(20);
+    if (body.getChildCount() > 0) p.topMargin = dp(18);
     body.addView(view, p);
   }
 
@@ -794,19 +847,30 @@ public final class MainActivity extends Activity {
 
   /** CurrencyToggle: which currency the totals on this screen are shown in. */
   LinearLayout currencyToggle() {
+    return currencyToggle(false);
+  }
+
+  LinearLayout currencyToggle(boolean heroVariant) {
     LinearLayout toggle = ui.row();
-    toggle.setPadding(dp(4), dp(4), dp(4), dp(4));
-    toggle.setBackground(ui.round(color(R.color.surface), 999));
+    toggle.setPadding(dp(2), dp(2), dp(2), dp(2));
+    int trackFill = heroVariant ? Ui.alpha(color(R.color.on_hero), 0.1f) : color(R.color.fill);
+    int trackStroke = heroVariant ? Ui.alpha(color(R.color.on_hero), 0.14f) : 0;
+    toggle.setBackground(ui.round(trackFill, 999, trackStroke));
     for (String code : new String[] {"USD", "KHR"}) {
       boolean on = code.equals(shown);
-      TextView t = ui.text(code, 12, color(on ? R.color.ink : R.color.muted), 700);
+      int textColor =
+          heroVariant
+              ? (on ? color(R.color.hero) : Ui.alpha(color(R.color.on_hero), 0.72f))
+              : color(on ? R.color.ink : R.color.muted);
+      TextView t = ui.text(code, 12, textColor, on ? 600 : 500);
       t.setGravity(Gravity.CENTER);
-      t.setMinHeight(dp(36));
+      t.setMinHeight(dp(30));
       t.setPadding(dp(12), 0, dp(12), 0);
       t.setContentDescription("Show totals in " + code);
       if (on) {
-        t.setBackground(ui.round(color(R.color.surface_raised), 999));
-        t.setElevation(dp(1));
+        t.setBackground(
+            ui.round(color(heroVariant ? R.color.on_hero : R.color.surface_raised), 999));
+        if (!heroVariant) t.setElevation(dp(1));
       }
       toggle.addView(
           ui.press(
@@ -821,74 +885,303 @@ public final class MainActivity extends Activity {
     return toggle;
   }
 
-  /** The dark net worth card shared by Home and Accounts. */
-  LinearLayout heroCard(boolean home) throws Exception {
+  long convertedNetWorth(String targetCurrency) throws Exception {
+    long usdMinor = ledger.total("USD");
+    long khrMinor = ledger.total("KHR");
+    return Money.add(
+        Money.convert(usdMinor, "USD", targetCurrency, app.usdKhr()),
+        Money.convert(khrMinor, "KHR", targetCurrency, app.usdKhr()));
+  }
+
+  long convertedLiabilities(String targetCurrency) throws Exception {
+    long usdLiab = -totalOf("USD", "credit_card");
+    long khrLiab = -totalOf("KHR", "credit_card");
+    return Money.add(
+        Money.convert(Math.max(0L, usdLiab), "USD", targetCurrency, app.usdKhr()),
+        Money.convert(Math.max(0L, khrLiab), "KHR", targetCurrency, app.usdKhr()));
+  }
+
+  String perDollarText() {
+    long rateMinor =
+        app.usdKhr().multiply(java.math.BigDecimal.valueOf(100)).longValue();
+    return Money.display(rateMinor, "KHR");
+  }
+
+  /**
+   * TwoPocketsHero: "Everything you have", hero currency toggle, converted net worth +
+   * equivalent in the other currency, two-segment USD/KHR share bar, Dollars & Riel pocket
+   * tiles, optional liabilities line, and "$1 = 4,100៛" rate footer.
+   */
+  LinearLayout twoPocketsHero() throws Exception {
     int onHero = color(R.color.on_hero);
     LinearLayout hero = ui.column();
     hero.setBackground(new Ui.Hero(ui));
     hero.setClipToOutline(true);
-    hero.setPadding(dp(24), dp(24), dp(24), dp(24));
+    hero.setPadding(dp(22), dp(22), dp(22), dp(20));
+
     LinearLayout top = ui.row();
-    if (home) top.addView(ui.icon("wallet", 17, Ui.alpha(onHero, 0.75f)));
     top.addView(
-        ui.text("Total net worth", 14, Ui.alpha(onHero, home ? 0.75f : 0.7f), 500),
-        ui.start(ui.weight(1), home ? 8 : 0));
-    if (home) {
-      LinearLayout open = ui.tile("arrow-top", 44, 20, 0, onHero, 45);
-      open.setBackground(
-          ui.round(Ui.alpha(onHero, 0.05f), 999, Ui.alpha(onHero, 0.15f)));
-      open.setContentDescription("View your accounts");
-      top.addView(ui.press(open, 0.95f, () -> go(3)));
-    }
+        ui.text("Everything you have", 13, Ui.alpha(onHero, 0.72f), 500), ui.weight(1));
+    top.addView(currencyToggle(true));
     hero.addView(top, ui.fill());
-    TextView total = ui.money(Money.display(ledger.total(shown), shown), 32, onHero, 600);
-    total.setLetterSpacing(-0.025f);
-    hero.addView(total, ui.top(ui.fill(), home ? 16 : 12));
-    String second = other(shown);
-    if (holds(second))
+
+    long netWorth = convertedNetWorth(shown);
+    String altCurrency = other(shown);
+    long altNetWorth = convertedNetWorth(altCurrency);
+
+    TextView total = ui.money(Money.display(netWorth, shown), 36, onHero, 700);
+    total.setLetterSpacing(-0.032f);
+    hero.addView(total, ui.top(ui.fill(), 14));
+
+    TextView sub =
+        ui.money(
+            "~ " + Money.display(altNetWorth, altCurrency) + " at today's rate",
+            13,
+            Ui.alpha(onHero, 0.62f),
+            400);
+    hero.addView(sub, ui.top(ui.fill(), 2));
+
+    long usdTotal = ledger.total("USD");
+    long khrTotal = ledger.total("KHR");
+    int usdCount = 0, khrCount = 0;
+    for (int i = 0; i < accounts.length(); i++) {
+      JSONObject a = accounts.getJSONObject(i);
+      if (!a.optBoolean("is_active", true)) continue;
+      if ("USD".equals(a.optString("currency"))) usdCount++;
+      else if ("KHR".equals(a.optString("currency"))) khrCount++;
+    }
+    long usdInShown = Math.max(0L, Money.convert(usdTotal, "USD", shown, app.usdKhr()));
+    long khrInShown = Math.max(0L, Money.convert(khrTotal, "KHR", shown, app.usdKhr()));
+    long posSum = Money.add(usdInShown, khrInShown);
+    int usdPct = posSum > 0 ? Math.round((usdInShown * 100f) / posSum) : 50;
+    int khrPct = posSum > 0 ? Math.max(0, 100 - usdPct) : 50;
+
+    LinearLayout pocketBar = ui.row();
+    pocketBar.setBackground(ui.round(Ui.alpha(onHero, 0.14f), 999));
+    pocketBar.setClipToOutline(true);
+    View segUsd = new View(this);
+    segUsd.setBackground(ui.round(color(R.color.hero_usd), 999));
+    View segKhr = new View(this);
+    segKhr.setBackground(ui.round(color(R.color.hero_khr), 999));
+    pocketBar.addView(segUsd, new LinearLayout.LayoutParams(0, -1, Math.max(1, usdPct)));
+    if (usdPct > 0 && khrPct > 0) {
+      pocketBar.addView(new View(this), new LinearLayout.LayoutParams(dp(3), -1));
+    }
+    pocketBar.addView(segKhr, new LinearLayout.LayoutParams(0, -1, Math.max(1, khrPct)));
+    hero.addView(pocketBar, ui.top(new LinearLayout.LayoutParams(-1, dp(8)), 16));
+
+    LinearLayout tiles = ui.row();
+    tiles.addView(
+        pocketTile("Dollars", R.color.hero_usd, usdTotal, "USD", usdCount, posSum > 0 ? usdPct : 0),
+        ui.weight(1));
+    tiles.addView(
+        pocketTile("Riel", R.color.hero_khr, khrTotal, "KHR", khrCount, posSum > 0 ? khrPct : 0),
+        ui.start(ui.weight(1), 10));
+    hero.addView(tiles, ui.top(ui.fill(), 10));
+
+    long owed = convertedLiabilities(shown);
+    if (owed > 0) {
       hero.addView(
-          ui.text(
-              "and " + Money.display(ledger.total(second), second) + " in " + second + " accounts",
-              14,
-              Ui.alpha(onHero, 0.65f),
+          ui.money(
+              "Owed " + Money.display(owed, shown),
+              12,
+              Ui.alpha(onHero, 0.72f),
               400),
-          ui.top(ui.fill(), 8));
+          ui.top(ui.fill(), 10));
+    }
+
     View rule = new View(this);
-    rule.setBackgroundColor(Ui.alpha(onHero, 0.15f));
-    hero.addView(rule, ui.top(new LinearLayout.LayoutParams(-1, dp(1)), home ? 28 : 24));
-    LinearLayout split = ui.row();
-    split.setGravity(Gravity.TOP);
-    long liabilities = -totalOf(shown, "credit_card");
-    split.addView(figure("Cash available", totalOf(shown, "bank", "ewallet", "cash")), ui.weight(1));
-    if (!home || liabilities != 0) split.addView(figure("Liabilities", liabilities), ui.weight(1));
-    hero.addView(split, ui.top(ui.fill(), 16));
-    hero.addView(
-        ui.text(
-            "Only "
-                + shown
-                + " accounts. Currencies are not converted on this phone.",
-            11,
-            Ui.alpha(onHero, 0.55f),
-            400),
-        ui.top(ui.fill(), 16));
+    rule.setBackgroundColor(Ui.alpha(onHero, 0.14f));
+    hero.addView(rule, ui.top(new LinearLayout.LayoutParams(-1, dp(1)), 14));
+
+    LinearLayout rateRow = ui.row();
+    rateRow.setPadding(0, dp(10), 0, 0);
+    rateRow.addView(ui.icon("horizontal-switch", 15, Ui.alpha(onHero, 0.76f)));
+    rateRow.addView(
+        ui.money("$1 = " + perDollarText(), 12, onHero, 600), ui.start(ui.wrap(), 6));
+    rateRow.addView(
+        ui.text("Today's rate", 12, Ui.alpha(onHero, 0.62f), 400),
+        ui.start(ui.weight(1), 6));
+    rateRow.addView(ui.icon("expand-right", 16, Ui.alpha(onHero, 0.76f)));
+    hero.addView(ui.press(rateRow, 0.98f, () -> go(4)), ui.fill());
     return hero;
   }
 
-  LinearLayout figure(String label, long minor) {
+  LinearLayout pocketTile(
+      String label, int dotColorRes, long subtotal, String currency, int count, int pct) {
     int onHero = color(R.color.on_hero);
-    LinearLayout box = ui.column();
-    box.addView(ui.text(label, 12, Ui.alpha(onHero, 0.6f), 400));
-    box.addView(ui.money(Money.display(minor, shown), 14, onHero, 600), ui.top(ui.wrap(), 4));
-    return box;
+    LinearLayout tile = ui.column();
+    tile.setPadding(dp(14), dp(12), dp(14), dp(12));
+    tile.setBackground(
+        ui.round(Ui.alpha(onHero, 0.08f), 16, Ui.alpha(onHero, 0.12f)));
+    LinearLayout head = ui.row();
+    View dot = new View(this);
+    dot.setBackground(ui.round(color(dotColorRes), 999));
+    head.addView(dot, new LinearLayout.LayoutParams(dp(7), dp(7)));
+    head.addView(
+        ui.text(label, 12, Ui.alpha(onHero, 0.72f), 500), ui.start(ui.wrap(), 6));
+    tile.addView(head);
+    TextView val = ui.money(Money.display(subtotal, currency), 18, onHero, 600);
+    val.setAutoSizeTextTypeUniformWithConfiguration(13, 18, 1, TypedValue.COMPLEX_UNIT_SP);
+    tile.addView(val, ui.top(new LinearLayout.LayoutParams(-1, dp(24)), 4));
+    tile.addView(
+        ui.text(
+            count + (count == 1 ? " account, " : " accounts, ") + pct + "%",
+            12,
+            Ui.alpha(onHero, 0.60f),
+            400),
+        ui.top(ui.wrap(), 2));
+    return ui.press(tile, 0.97f, () -> go(3));
   }
 
-  /** MonthStepper: previous, the month, next, in one card. */
+  static final class Habit {
+    final String type;
+    final String currency;
+    final long minor;
+    final String categoryId;
+    final String note;
+
+    Habit(String type, String currency, long minor, String categoryId, String note) {
+      this.type = type;
+      this.currency = currency;
+      this.minor = minor;
+      this.categoryId = categoryId;
+      this.note = note;
+    }
+  }
+
+  /** Mirrors `learnEntryHabits` in `src/lib/domain/entry-habits.ts`. */
+  ArrayList<Habit> learnHabits() {
+    LinkedHashMap<String, Integer> totals = new LinkedHashMap<>();
+    LinkedHashMap<String, LinkedHashMap<String, Integer>> counts = new LinkedHashMap<>();
+    LinkedHashMap<String, LinkedHashMap<String, Habit>> samples = new LinkedHashMap<>();
+    int limit = Math.min(200, transactions.length());
+    for (int i = 0; i < limit; i++) {
+      JSONObject tx = transactions.optJSONObject(i);
+      if (tx == null || isTransfer(tx)) continue;
+      String type = tx.optString("type", "expense");
+      String ccy = tx.optString("currency", "USD");
+      long amt = Math.abs(tx.optLong("amount", 0L));
+      if (amt <= 0) continue;
+      String key = type + ":" + ccy + ":" + amt;
+      totals.put(key, totals.getOrDefault(key, 0) + 1);
+      String n = tx.isNull("notes") ? "" : tx.optString("notes", "").trim().replaceAll("\\s+", " ");
+      String catId = tx.isNull("category_id") ? "" : tx.optString("category_id", "");
+      if (n.isEmpty() || catId.isEmpty()) continue;
+      String choiceKey = catId + "|" + n.toLowerCase(Locale.ROOT);
+      LinkedHashMap<String, Integer> groupCounts =
+          counts.computeIfAbsent(key, ignored -> new LinkedHashMap<>());
+      groupCounts.put(choiceKey, groupCounts.getOrDefault(choiceKey, 0) + 1);
+      samples
+          .computeIfAbsent(key, ignored -> new LinkedHashMap<>())
+          .putIfAbsent(choiceKey, new Habit(type, ccy, amt, catId, n));
+    }
+    ArrayList<Habit> result = new ArrayList<>();
+    for (Map.Entry<String, Integer> entry : totals.entrySet()) {
+      int groupTotal = entry.getValue();
+      LinkedHashMap<String, Integer> groupCounts = counts.get(entry.getKey());
+      LinkedHashMap<String, Habit> groupSamples = samples.get(entry.getKey());
+      if (groupCounts == null || groupSamples == null) continue;
+      for (Map.Entry<String, Integer> choice : groupCounts.entrySet()) {
+        int c = choice.getValue();
+        if (c >= 3 && c * 4 >= groupTotal * 3) {
+          result.add(groupSamples.get(choice.getKey()));
+          break;
+        }
+      }
+    }
+    return result;
+  }
+
+  /** AddAgainStrip: horizontal row of learned entry habits that prefill Add transaction. */
+  LinearLayout addAgainStrip() {
+    ArrayList<Habit> habits = learnHabits();
+    if (habits.isEmpty()) return null;
+    LinearLayout wrap = ui.column();
+    LinearLayout head = ui.row();
+    head.setPadding(dp(2), 0, dp(2), dp(8));
+    head.addView(ui.text("Add again", 17, color(R.color.ink), 600));
+    wrap.addView(head, ui.fill());
+
+    HorizontalScrollView scroller = new HorizontalScrollView(this);
+    scroller.setHorizontalScrollBarEnabled(false);
+    LinearLayout row = ui.row();
+    for (int i = 0; i < Math.min(5, habits.size()); i++) {
+      Habit h = habits.get(i);
+      JSONObject cat = null;
+      try {
+        cat = find(categories, h.categoryId);
+      } catch (Exception ignored) {
+      }
+      int tint = ui.categoryColor(cat);
+      LinearLayout chip = ui.row();
+      chip.setPadding(dp(8), dp(7), dp(14), dp(7));
+      chip.setBackground(
+          ui.round(color(R.color.surface_raised), 999, color(R.color.surface_variant)));
+      chip.addView(
+          ui.tile(
+              Ui.categoryIcon(cat),
+              30,
+              16,
+              Ui.mix(tint, color(R.color.surface_raised), 0.16f),
+              tint,
+              0));
+      LinearLayout textCol = ui.column();
+      textCol.addView(ui.truncate(ui.text(h.note, 13, color(R.color.ink), 600)));
+      textCol.addView(
+          ui.money(Money.display(h.minor, h.currency), 12, color(R.color.muted), 400));
+      chip.addView(textCol, ui.start(ui.wrap(), 8));
+      ui.press(
+          chip,
+          0.97f,
+          () -> {
+            String rawAmt =
+                h.currency.equals("KHR") && h.minor % 100 == 0
+                    ? String.valueOf(h.minor / 100)
+                    : Money.decimal(h.minor);
+            String accId = null;
+            for (int k = 0; k < accounts.length(); k++) {
+              JSONObject a = accounts.optJSONObject(k);
+              if (a != null
+                  && a.optBoolean("is_active", true)
+                  && h.currency.equals(a.optString("currency"))) {
+                accId = a.optString("id");
+                break;
+              }
+            }
+            mode = "income".equals(h.type) ? 1 : 0;
+            SharedPreferences.Editor ed =
+                draft()
+                    .edit()
+                    .putString("amount", rawAmt)
+                    .putString("note", h.note)
+                    .putString("category_id", h.categoryId)
+                    .putString("mode", MODES[mode])
+                    .putString("date", LocalDate.now(CAMBODIA).toString());
+            if (accId != null) ed.putString("account_id", accId);
+            ed.apply();
+            tab = 2;
+            draw();
+          });
+      row.addView(chip, i == 0 ? ui.wrap() : ui.start(ui.wrap(), 8));
+    }
+    scroller.addView(row);
+    wrap.addView(scroller, ui.fill());
+    return wrap;
+  }
+
+  /** MonthStepper: compact or full pill with `< Month YYYY >`. */
   LinearLayout monthStepper() {
+    return monthStepper(false);
+  }
+
+  LinearLayout monthStepper(boolean compact) {
     LinearLayout stepper = ui.row();
-    stepper.setPadding(dp(4), dp(4), dp(4), dp(4));
+    stepper.setPadding(dp(4), dp(2), dp(4), dp(2));
     stepper.setBackground(
-        ui.round(color(R.color.surface_raised), 24, color(R.color.surface_variant)));
-    LinearLayout previous = ui.tile("expand-left", 44, 20, 0, color(R.color.muted), 0);
+        ui.round(color(R.color.surface_raised), 999, color(R.color.surface_variant)));
+    int btnSize = compact ? 32 : 36;
+    LinearLayout previous = ui.tile("expand-left", btnSize, 16, 0, color(R.color.muted), 0);
     previous.setBackground(null);
     previous.setContentDescription("Previous month");
     stepper.addView(
@@ -900,14 +1193,11 @@ public final class MainActivity extends Activity {
               draw();
             }));
     TextView label =
-        ui.text(
-            month.format(MONTH_FORMAT),
-            16,
-            color(R.color.ink),
-            500);
+        ui.text(month.format(MONTH_FORMAT), compact ? 13 : 14, color(R.color.ink), 600);
     label.setGravity(Gravity.CENTER);
-    stepper.addView(label, ui.weight(1));
-    LinearLayout next = ui.tile("expand-right", 44, 20, 0, color(R.color.muted), 0);
+    label.setPadding(dp(8), 0, dp(8), 0);
+    stepper.addView(label, compact ? ui.wrap() : ui.weight(1));
+    LinearLayout next = ui.tile("expand-right", btnSize, 16, 0, color(R.color.muted), 0);
     next.setBackground(null);
     next.setContentDescription("Next month");
     stepper.addView(
@@ -921,105 +1211,384 @@ public final class MainActivity extends Activity {
     return stepper;
   }
 
-  /** The strip under the stepper. The web shows the exchange rate here; the phone has none. */
-  LinearLayout totalsStrip() {
-    LinearLayout strip = ui.row();
-    strip.setPadding(dp(16), dp(8), dp(8), dp(8));
-    strip.setBackground(
-        ui.round(color(R.color.surface_raised), 24, color(R.color.surface_variant)));
-    LinearLayout words = ui.column();
-    words.addView(ui.text("Totals in " + shown, 14, color(R.color.ink), 600));
-    words.addView(
-        ui.text("Each currency counts separately", 12, color(R.color.faint), 400),
-        ui.top(ui.wrap(), 3));
-    strip.addView(words, ui.weight(1));
-    strip.addView(currencyToggle());
-    return strip;
+  /**
+   * MonthSpendingCard + DailySpendingChart: compact month stepper + "Day X of Y",
+   * 3-column summary ("Spent", "Came in", "Left over"), conversion note, and daily
+   * spending bar chart with today dot and typical-day line.
+   */
+  LinearLayout monthSpendingSection() throws Exception {
+    LinearLayout section = ui.column();
+    int totalDays = month.lengthOfMonth();
+    LocalDate today = LocalDate.now(CAMBODIA);
+    YearMonth currentYm = YearMonth.from(today);
+    int elapsedDays =
+        month.isAfter(currentYm)
+            ? 0
+            : month.isBefore(currentYm) ? totalDays : today.getDayOfMonth();
+
+    LinearLayout head = ui.row();
+    head.setPadding(dp(2), 0, dp(2), dp(8));
+    head.addView(monthStepper(true));
+    head.addView(new View(this), ui.weight(1));
+    head.addView(
+        ui.text("Day " + elapsedDays + " of " + totalDays, 12, color(R.color.muted), 400));
+    section.addView(head, ui.fill());
+
+    long[] flow = convertedFlow();
+    long income = flow[0];
+    long expense = -flow[1];
+    long net = Money.add(income, flow[1]);
+
+    LinearLayout card = ui.card();
+    card.setPadding(dp(18), dp(18), dp(18), dp(18));
+
+    LinearLayout figures = ui.row();
+    figures.addView(monthFigCell("Spent", Money.display(expense, shown), color(R.color.ink)), ui.weight(1));
+    figures.addView(
+        monthFigCell("Came in", Money.display(income, shown), color(R.color.inflow)),
+        ui.start(ui.weight(1), 10));
+    String netStr = (net > 0 ? "+" : "") + Money.display(net, shown);
+    int netColor =
+        net == 0 ? color(R.color.ink) : color(net > 0 ? R.color.inflow : R.color.outflow);
+    figures.addView(monthFigCell("Left over", netStr, netColor), ui.start(ui.weight(1), 10));
+    card.addView(figures, ui.fill());
+
+    card.addView(
+        ui.text(
+            "Converted to " + shown + ". Transfers left out.",
+            12,
+            color(R.color.muted),
+            400),
+        ui.top(ui.fill(), 10));
+
+    card.addView(dailySpendingChart(totalDays, elapsedDays, today), ui.top(ui.fill(), 14));
+    section.addView(card, ui.fill());
+    return section;
+  }
+
+  LinearLayout monthFigCell(String label, String val, int color) {
+    LinearLayout col = ui.column();
+    col.addView(ui.text(label, 12, color(R.color.muted), 400));
+    TextView v = ui.money(val, 20, color, 700);
+    v.setAutoSizeTextTypeUniformWithConfiguration(12, 20, 1, TypedValue.COMPLEX_UNIT_SP);
+    col.addView(v, ui.top(new LinearLayout.LayoutParams(-1, dp(26)), 2));
+    return col;
+  }
+
+  View dailySpendingChart(int totalDays, int elapsedDays, LocalDate today) throws Exception {
+    if (elapsedDays == 0) {
+      TextView future =
+          ui.text(
+              "No spending recorded yet for " + month.format(MONTH_FORMAT) + ".",
+              12,
+              color(R.color.muted),
+              400);
+      future.setGravity(Gravity.CENTER);
+      future.setPadding(0, dp(16), 0, dp(8));
+      return future;
+    }
+    long[] daily = new long[totalDays + 1];
+    for (int i = 0; i < transactions.length(); i++) {
+      JSONObject t = transactions.getJSONObject(i);
+      if (isTransfer(t) || !inMonth(t)) continue;
+      long minor = Ledger.inCurrency(t, shown, app.usdKhr());
+      if (minor >= 0) continue;
+      int d = dayOf(t).getDayOfMonth();
+      if (d >= 1 && d <= totalDays) daily[d] = Money.add(daily[d], -minor);
+    }
+    ArrayList<Long> nonZero = new ArrayList<>();
+    long maxMinor = 0, secondMinor = 0;
+    for (int d = 1; d <= elapsedDays; d++) {
+      long m = daily[d];
+      if (m > 0) nonZero.add(m);
+      if (m > maxMinor) {
+        secondMinor = maxMinor;
+        maxMinor = m;
+      } else if (m < maxMinor && m > secondMinor) {
+        secondMinor = m;
+      }
+    }
+    if (nonZero.isEmpty()) {
+      TextView empty =
+          ui.text(
+              "Nothing spent in " + month.format(MONTH_FORMAT) + " yet.",
+              12,
+              color(R.color.muted),
+              400);
+      empty.setGravity(Gravity.CENTER);
+      empty.setPadding(0, dp(16), 0, dp(8));
+      return empty;
+    }
+    nonZero.sort(Long::compare);
+    int mid = nonZero.size() / 2;
+    long typicalMinor =
+        nonZero.size() % 2 == 1
+            ? nonZero.get(mid)
+            : (nonZero.get(mid - 1) + nonZero.get(mid) + 1) / 2;
+    boolean capped = secondMinor > 0 && maxMinor > secondMinor * 2;
+    long chartMax = Math.max(1L, capped ? (secondMinor * 6 + 2) / 5 : maxMinor);
+
+    LinearLayout chartWrap = ui.column();
+    LinearLayout barsRow = ui.row();
+    barsRow.setGravity(Gravity.BOTTOM);
+    int barHeightPx = dp(64);
+    for (int d = 1; d <= totalDays; d++) {
+      boolean isFuture = d > elapsedDays;
+      boolean isToday = month.equals(YearMonth.from(today)) && d == today.getDayOfMonth();
+      long m = daily[d];
+      float ratio = isFuture ? 0.04f : Math.min(1f, Math.max(0.06f, (float) m / chartMax));
+      LinearLayout slot = ui.column();
+      slot.setGravity(Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL);
+      if (isToday) {
+        View dot = new View(this);
+        dot.setBackground(ui.round(color(R.color.brand), 999));
+        LinearLayout.LayoutParams dotLp = new LinearLayout.LayoutParams(dp(4), dp(4));
+        dotLp.bottomMargin = dp(3);
+        slot.addView(dot, dotLp);
+      }
+      View bar = new View(this);
+      int barColor =
+          isToday
+              ? color(R.color.brand)
+              : isFuture
+                  ? Ui.alpha(color(R.color.surface_variant), 0.55f)
+                  : m == 0
+                      ? color(R.color.surface_variant)
+                      : Ui.alpha(color(R.color.brand), 0.58f);
+      bar.setBackground(ui.round(barColor, 3));
+      slot.addView(
+          bar, new LinearLayout.LayoutParams(-1, Math.max(dp(3), Math.round(barHeightPx * ratio))));
+      LinearLayout.LayoutParams slotLp = new LinearLayout.LayoutParams(0, barHeightPx + dp(10), 1);
+      if (d > 1) slotLp.setMarginStart(dp(2));
+      barsRow.addView(slot, slotLp);
+    }
+    chartWrap.addView(barsRow, ui.fill());
+    if (typicalMinor > 0) {
+      LinearLayout typRow = ui.row();
+      typRow.setGravity(Gravity.END);
+      TextView typ =
+          ui.money(
+              "typical " + Money.display(typicalMinor, shown),
+              11,
+              color(R.color.muted),
+              500);
+      typRow.addView(typ);
+      chartWrap.addView(typRow, ui.top(ui.fill(), 4));
+    }
+    return chartWrap;
+  }
+
+  String homeDayLabel(LocalDate when) {
+    LocalDate today = LocalDate.now(CAMBODIA);
+    if (when.equals(today)) return "Today";
+    if (when.equals(today.minusDays(1))) return "Yesterday";
+    return when.format(WEEKDAY_FORMAT) + ", " + when.format(SHORT_DATE_FORMAT);
+  }
+
+  /** RecentActivityDays on Home: "Recent" + "All activity", day-grouped up to 6 entries. */
+  LinearLayout recentActivitySection() throws Exception {
+    LinearLayout section = ui.column();
+    LinearLayout head = ui.row();
+    head.setPadding(dp(2), 0, dp(2), dp(8));
+    head.addView(ui.text("Recent", 17, color(R.color.ink), 600), ui.weight(1));
+    head.addView(ui.link("All activity", color(R.color.brand), 14, () -> go(1)));
+    section.addView(head, ui.fill());
+
+    ArrayList<JSONObject> recent = new ArrayList<>();
+    for (int i = 0; i < transactions.length() && recent.size() < 6; i++) {
+      JSONObject t = transactions.getJSONObject(i);
+      if (inMonth(t)) recent.add(t);
+    }
+    if (recent.isEmpty()) {
+      LinearLayout card = ui.card();
+      card.setPadding(dp(20), dp(8), dp(20), dp(20));
+      card.addView(
+          emptyState("paper", "A fresh start", "Your transactions will appear here."));
+      section.addView(card, ui.fill());
+      return section;
+    }
+
+    LinkedHashMap<LocalDate, ArrayList<JSONObject>> byDay = new LinkedHashMap<>();
+    LinkedHashMap<LocalDate, Long> dayExpense = new LinkedHashMap<>();
+    for (JSONObject row : recent) {
+      LocalDate when = dayOf(row);
+      byDay.computeIfAbsent(when, ignored -> new ArrayList<>()).add(row);
+      if (!isTransfer(row)) {
+        long minor = Ledger.inCurrency(row, shown, app.usdKhr());
+        if (minor < 0) {
+          dayExpense.put(when, Money.add(dayExpense.getOrDefault(when, 0L), -minor));
+        }
+      }
+    }
+
+    boolean firstDay = true;
+    for (Map.Entry<LocalDate, ArrayList<JSONObject>> entry : byDay.entrySet()) {
+      LocalDate when = entry.getKey();
+      LinearLayout dayHead = ui.row();
+      dayHead.setPadding(dp(2), firstDay ? 0 : dp(12), dp(2), dp(6));
+      firstDay = false;
+      dayHead.addView(
+          ui.text(homeDayLabel(when), 13, color(R.color.muted), 600), ui.weight(1));
+      long spent = dayExpense.getOrDefault(when, 0L);
+      if (spent > 0) {
+        dayHead.addView(
+            ui.money(Money.display(spent, shown) + " spent", 13, color(R.color.muted), 500));
+      }
+      section.addView(dayHead, ui.fill());
+
+      LinearLayout groupCard = ui.card();
+      ArrayList<JSONObject> rows = entry.getValue();
+      for (int i = 0; i < rows.size(); i++) {
+        if (i > 0) groupCard.addView(ui.divider());
+        groupCard.addView(homeTransactionRow(rows.get(i)), ui.fill());
+      }
+      section.addView(groupCard, ui.fill());
+    }
+    return section;
+  }
+
+  /** Home & Activity row matching `.tx-home-row` / `.tx-activity-row`. */
+  LinearLayout homeTransactionRow(JSONObject row) throws Exception {
+    boolean transfer = isTransfer(row);
+    long minor = row.getLong("amount");
+    String currency = row.getString("currency");
+    JSONObject category = categoryOf(row);
+    int tint = transfer ? color(R.color.chart_other) : ui.categoryColor(category);
+    String iconName = transfer ? "horizontal-switch" : Ui.categoryIcon(category);
+
+    LinearLayout line = ui.row();
+    line.setPadding(dp(16), dp(12), dp(16), dp(12));
+    line.addView(ui.rowIconTile(iconName, tint));
+
+    LinearLayout middle = ui.column();
+    middle.addView(ui.truncate(ui.text(title(row), 16, color(R.color.ink), 500)));
+    String subText =
+        route(row) + (row.optBoolean("_pending") ? " · Waiting to sync" : "");
+    middle.addView(
+        ui.truncate(ui.text(subText, 12, color(R.color.muted), 400)), ui.top(ui.wrap(), 2));
+    line.addView(middle, ui.start(ui.weight(1), 12));
+
+    LinearLayout right = ui.column();
+    right.setGravity(Gravity.END);
+    right.addView(rowAmountText(minor, currency, transfer, 16), ui.wrap());
+    right.addView(ui.badge(currency), ui.top(ui.wrap(), 2));
+    line.addView(right, ui.start(ui.wrap(), 12));
+    return ui.press(line, 0.99f, () -> openEntry(row));
+  }
+
+  /**
+   * Matches web `RecentActivityDays` and `TransactionRow`:
+   * transfers are muted without sign, inflows are green with `+`, expenses are ink (`#000000`).
+   */
+  TextView rowAmountText(long minor, String currency, boolean transfer, float sp) {
+    long shownMinor = transfer ? Math.abs(minor) : minor;
+    String text = Money.display(shownMinor, currency);
+    if (!transfer && minor > 0) text = "+" + text;
+    int ink =
+        transfer
+            ? color(R.color.muted)
+            : minor > 0 ? color(R.color.inflow) : color(R.color.ink);
+    return ui.money(text, sp, ink, 600);
+  }
+
+  long spentForBudgetInMonth(JSONObject b) throws Exception {
+    String bCurrency = b.optString("currency", "USD");
+    String bCat = b.isNull("category_id") ? null : b.optString("category_id", null);
+    long spent = 0;
+    for (int i = 0; i < transactions.length(); i++) {
+      JSONObject t = transactions.getJSONObject(i);
+      if (isTransfer(t) || !inMonth(t)) continue;
+      if (bCat != null && !bCat.equals(t.optString("category_id", ""))) continue;
+      long val = Ledger.inCurrency(t, bCurrency, app.usdKhr());
+      if (val < 0) spent = Money.add(spent, -val);
+    }
+    return spent;
+  }
+
+  /** BudgetSummaryCard on Home: top 3 active budgets with progress bar and pace caption. */
+  LinearLayout budgetSummarySection() throws Exception {
+    if (budgets.length() == 0) return null;
+    LinearLayout section = ui.column();
+    LinearLayout head = ui.row();
+    head.setPadding(dp(2), 0, dp(2), dp(8));
+    head.addView(ui.text("Budgets", 17, color(R.color.ink), 600), ui.weight(1));
+    head.addView(ui.link("See all", color(R.color.brand), 14, () -> go(5)));
+    section.addView(head, ui.fill());
+
+    LinearLayout card = ui.card();
+    int shownCount = Math.min(3, budgets.length());
+    for (int i = 0; i < shownCount; i++) {
+      if (i > 0) card.addView(ui.divider());
+      card.addView(budgetProgressRow(budgets.getJSONObject(i)), ui.fill());
+    }
+    section.addView(card, ui.fill());
+    return section;
+  }
+
+  LinearLayout budgetProgressRow(JSONObject b) throws Exception {
+    JSONObject category = null;
+    try {
+      if (!b.isNull("category_id")) category = find(categories, b.getString("category_id"));
+    } catch (Exception ignored) {
+    }
+    String name =
+        b.isNull("name") || b.optString("name").isEmpty()
+            ? (category == null ? "Everything" : categoryLabel(category))
+            : b.optString("name");
+    String bCurrency = b.optString("currency", "USD");
+    long limit = Math.max(0L, b.optLong("amount", 0L));
+    long spent = spentForBudgetInMonth(b);
+    int pct = limit > 0 ? (int) Math.min(100L, Math.round((spent * 100.0) / limit)) : 0;
+    boolean over = spent > limit;
+    boolean warn = !over && limit > 0 && (spent * 100.0 / limit) >= 80.0;
+
+    int tint = category != null ? ui.categoryColor(category) : color(R.color.brand);
+    LinearLayout row = ui.column();
+    row.setPadding(dp(18), dp(14), dp(18), dp(14));
+
+    LinearLayout top = ui.row();
+    top.addView(
+        ui.rowIconTile(category == null ? "target" : Ui.categoryIcon(category), tint));
+    top.addView(
+        ui.truncate(ui.text(name, 16, color(R.color.ink), 600)),
+        ui.start(ui.weight(1), 10));
+    top.addView(
+        ui.money(
+            Money.display(spent, bCurrency) + " of " + Money.display(limit, bCurrency),
+            13,
+            color(R.color.muted),
+            500));
+    row.addView(top, ui.fill());
+
+    LinearLayout bar = ui.row();
+    bar.setBackground(ui.round(color(R.color.track), 999));
+    bar.setClipToOutline(true);
+    View fillView = new View(this);
+    int fillColor =
+        color(over ? R.color.outflow : warn ? R.color.warning : R.color.brand);
+    fillView.setBackground(ui.round(fillColor, 999));
+    bar.addView(fillView, new LinearLayout.LayoutParams(0, -1, Math.max(1, pct)));
+    bar.addView(new View(this), new LinearLayout.LayoutParams(0, -1, Math.max(0, 100 - pct)));
+    row.addView(bar, ui.top(new LinearLayout.LayoutParams(-1, dp(8)), 10));
+
+    String paceText =
+        over
+            ? "Over by " + Money.display(spent - limit, bCurrency)
+            : warn ? "Ahead of pace" : "On pace";
+    row.addView(
+        ui.text(paceText, 12, color(over ? R.color.outflow : R.color.muted), over ? 500 : 400),
+        ui.top(ui.wrap(), 6));
+    return row;
   }
 
   void home() throws Exception {
-    add(heroCard(true));
-
-    LinearLayout flowHead = ui.row();
-    flowHead.setPadding(dp(4), 0, dp(4), 0);
-    flowHead.addView(ui.text("Your cash flow", 14, color(R.color.ink), 600), ui.weight(1));
-    flowHead.addView(
-        ui.text(
-            month.format(MONTH_FORMAT),
-            12,
-            color(R.color.faint),
-            400));
-    add(flowHead);
-    long[] flow = convertedFlow();
-    LinearLayout pair = ui.row();
-    pair.setGravity(Gravity.TOP);
-    pair.addView(
-        flowCard("Income", flow[0], "arrow-top", 45, R.color.inflow, R.color.inflow_soft, 1),
-        ui.weight(1));
-    pair.addView(
-        flowCard("Spending", -flow[1], "arrow-down", -45, R.color.outflow, R.color.outflow_soft, 0),
-        ui.start(ui.weight(1), 12));
-    LinearLayout.LayoutParams pairSpace = ui.fill();
-    pairSpace.topMargin = dp(12);
-    body.addView(pair, pairSpace);
-    TextView foot =
-        ui.text(
-            (flowConverted ? "Converted to " : "In ") + shown + ". Transfers excluded.",
-            11,
-            color(R.color.faint),
-            400);
-    foot.setPadding(dp(4), 0, dp(4), 0);
-    LinearLayout.LayoutParams footSpace = ui.fill();
-    footSpace.topMargin = dp(12);
-    body.addView(foot, footSpace);
-
-    LinearLayout actions = ui.row();
-    String[][] quick = {
-      {"Add expense", "add", "0"}, {"Transfer", "horizontal-switch", "2"}, {"Accounts", "wallet", "-1"}
-    };
-    for (String[] q : quick) {
-      LinearLayout tile = ui.card();
-      tile.setGravity(Gravity.CENTER);
-      tile.setMinimumHeight(dp(80));
-      tile.setPadding(dp(8), dp(16), dp(8), dp(16));
-      tile.setContentDescription(q[0]);
-      tile.addView(ui.icon(q[1], 19, color(R.color.brand)));
-      TextView label = ui.text(q[0], 12, color(R.color.ink), 600);
-      label.setGravity(Gravity.CENTER);
-      tile.addView(label, ui.top(ui.wrap(), 8));
-      int target = Integer.parseInt(q[2]);
-      ui.press(tile, 0.985f, () -> openAdd(target));
-      actions.addView(tile, actions.getChildCount() == 0 ? ui.weight(1) : ui.start(ui.weight(1), 12));
-    }
-    add(actions);
-    add(monthStepper());
-    LinearLayout.LayoutParams stripSpace = ui.fill();
-    stripSpace.topMargin = dp(12);
-    body.addView(totalsStrip(), stripSpace);
-
-    LinearLayout recent = ui.card();
-    LinearLayout head = ui.row();
-    head.setPadding(dp(20), dp(20), dp(20), dp(12));
-    LinearLayout words = ui.column();
-    words.addView(ui.text("Recent activity", 16, color(R.color.ink), 600));
-    words.addView(
-        ui.text("Your latest money moves", 12, color(R.color.faint), 400), ui.top(ui.wrap(), 4));
-    head.addView(words, ui.weight(1));
-    head.addView(ui.link("View all", color(R.color.brand), 12, () -> go(1)));
-    recent.addView(head, ui.fill());
-    LinearLayout rows = ui.column();
-    rows.setPadding(dp(20), dp(8), dp(20), dp(20));
-    int count = 0;
-    for (int i = 0; i < transactions.length() && count < 5; i++) {
-      JSONObject t = transactions.getJSONObject(i);
-      if (!inMonth(t)) continue;
-      if (count > 0) rows.addView(ui.divider());
-      rows.addView(transactionRow(t), ui.fill());
-      count++;
-    }
-    if (count == 0) rows.addView(emptyState("paper", "A fresh start", "Your transactions will appear here."));
-    recent.addView(rows, ui.fill());
-    add(recent);
+    add(twoPocketsHero());
+    LinearLayout habits = addAgainStrip();
+    if (habits != null) add(habits);
+    add(monthSpendingSection());
+    add(recentActivitySection());
+    LinearLayout budgetCard = budgetSummarySection();
+    if (budgetCard != null) add(budgetCard);
     add(breakdown());
   }
 
@@ -1050,7 +1619,8 @@ public final class MainActivity extends Activity {
     if (!id.isEmpty()) openWeb("/transactions/" + id + "/edit");
   }
 
-  void openAdd(int nextMode) {    if (nextMode < 0) {
+  void openAdd(int nextMode) {
+    if (nextMode < 0) {
       go(3);
       return;
     }
@@ -1060,78 +1630,24 @@ public final class MainActivity extends Activity {
     draw();
   }
 
-  LinearLayout flowCard(
-      String label, long minor, String icon, float rotation, int ink, int soft, int addMode) {
-    LinearLayout card = ui.card();
-    card.setPadding(dp(16), dp(16), dp(16), dp(8));
-    card.addView(ui.tile(icon, 40, 20, color(soft), color(ink), rotation));
-    card.addView(ui.text(label, 12, color(R.color.muted), 500), ui.top(ui.wrap(), 20));
-    TextView value = ui.money(Money.display(minor, shown), 18, color(R.color.ink), 600);
-    value.setAutoSizeTextTypeUniformWithConfiguration(12, 18, 1, TypedValue.COMPLEX_UNIT_SP);
-    card.addView(value, ui.top(new LinearLayout.LayoutParams(-1, dp(24)), 6));
-    card.addView(
-        ui.link(addMode == 1 ? "Add income" : "Add expense", color(ink), 12, () -> openAdd(addMode)),
-        ui.top(ui.wrap(), 4));
-    return card;
-  }
-
   LinearLayout emptyState(String icon, String heading, String detail) {
     LinearLayout empty = ui.column();
     empty.setGravity(Gravity.CENTER_HORIZONTAL);
-    empty.setPadding(0, dp(32), 0, dp(32));
+    empty.setPadding(0, dp(28), 0, dp(28));
     empty.addView(ui.tile(icon, 48, 22, color(R.color.brand_soft), color(R.color.brand), 0));
-    empty.addView(ui.text(heading, 16, color(R.color.ink), 600), ui.top(ui.wrap(), 16));
+    empty.addView(ui.text(heading, 16, color(R.color.ink), 600), ui.top(ui.wrap(), 14));
     TextView text = ui.text(detail, 14, color(R.color.muted), 400);
     text.setGravity(Gravity.CENTER);
     empty.addView(text, ui.top(ui.wrap(), 4));
     return empty;
   }
 
-  /** TransactionRow: direction tile, title, date and account, amount with its currency. */
-  LinearLayout transactionRow(JSONObject row) throws Exception {
-    boolean transfer = isTransfer(row);
-    long minor = row.getLong("amount");
-    String currency = row.getString("currency");
-    LinearLayout line = ui.row();
-    line.setPadding(0, dp(16), 0, dp(16));
-    line.addView(
-        transfer
-            ? ui.tile("horizontal-switch", 36, 17, color(R.color.surface_container), color(R.color.muted), 0)
-            : minor < 0
-                ? ui.tile("arrow-top", 36, 17, color(R.color.outflow_soft), color(R.color.outflow), 45)
-                : ui.tile("arrow-down", 36, 17, color(R.color.inflow_soft), color(R.color.inflow), 45));
-    LinearLayout middle = ui.column();
-    middle.addView(ui.truncate(ui.text(title(row), 14, color(R.color.ink), 600)));
-    String when = dayOf(row).format(SHORT_DATE_FORMAT);
-    TextView sub =
-        ui.truncate(
-            ui.text(
-                when + " · " + route(row) + (row.optBoolean("_pending") ? " · Waiting to sync" : ""),
-                11,
-                color(R.color.faint),
-                400));
-    middle.addView(sub, ui.top(ui.wrap(), 4));
-    line.addView(middle, ui.start(ui.weight(1), 12));
-    LinearLayout right = ui.column();
-    right.setGravity(Gravity.END);
-    right.addView(amountText(minor, currency, transfer, 14), ui.wrap());
-    right.addView(ui.badge(currency), ui.top(ui.wrap(), 4));
-    line.addView(right, ui.start(ui.wrap(), 12));
-    return ui.press(line, 0.99f, () -> openEntry(row));
-  }
-
   /** MoneyAmount with colorBySign and showPlus, which a transfer leg does not get. */
   TextView amountText(long minor, String currency, boolean transfer, float sp) {
-    String text = Money.display(minor, currency);
-    if (!transfer && minor > 0) text = "+" + text;
-    int ink =
-        transfer || minor == 0
-            ? color(R.color.ink)
-            : color(minor < 0 ? R.color.outflow : R.color.inflow);
-    return ui.money(text, sp, ink, 600);
+    return rowAmountText(minor, currency, transfer, sp);
   }
 
-  /** CategoryBreakdown: "Where it went", ranked bars for this month's spending. */
+  /** CategoryBreakdown: "Where it went" + "Open insights", colored dot, share %, and bar. */
   LinearLayout breakdown() throws Exception {
     LinkedHashMap<String, Long> totals = new LinkedHashMap<>();
     long all = 0;
@@ -1146,19 +1662,21 @@ public final class MainActivity extends Activity {
     }
     ArrayList<Map.Entry<String, Long>> ranked = new ArrayList<>(totals.entrySet());
     ranked.sort((a, b) -> Long.compare(b.getValue(), a.getValue()));
+
+    LinearLayout section = ui.column();
+    LinearLayout head = ui.row();
+    head.setPadding(dp(2), 0, dp(2), dp(8));
+    head.addView(ui.text("Where it went", 17, color(R.color.ink), 600), ui.weight(1));
+    head.addView(ui.link("Open insights", color(R.color.brand), 14, () -> openWeb("/reports")));
+    section.addView(head, ui.fill());
+
     LinearLayout card = ui.card();
-    LinearLayout head = ui.column();
-    head.setPadding(dp(20), dp(20), dp(20), dp(12));
-    head.addView(ui.text("Where it went", 16, color(R.color.ink), 600));
-    head.addView(
-        ui.text("Spending by category", 12, color(R.color.faint), 400), ui.top(ui.wrap(), 4));
-    card.addView(head, ui.fill());
     LinearLayout list = ui.column();
-    list.setPadding(dp(20), dp(8), dp(20), dp(20));
+    list.setPadding(dp(18), dp(18), dp(18), dp(18));
     if (ranked.isEmpty()) {
       TextView none = ui.text("Nothing spent yet.", 14, color(R.color.faint), 400);
       none.setGravity(Gravity.CENTER);
-      none.setPadding(0, dp(24), 0, dp(24));
+      none.setPadding(0, dp(16), 0, dp(16));
       list.addView(none, ui.fill());
     }
     for (int i = 0; i < Math.min(4, ranked.size()); i++) {
@@ -1170,77 +1688,59 @@ public final class MainActivity extends Activity {
       } catch (Exception ignored) {
       }
       long percent = (spent * 100 + all / 2) / all;
+      int catColor = ui.categoryColor(category);
       LinearLayout entry = ui.column();
       LinearLayout top = ui.row();
-      top.addView(ui.icon(Ui.categoryIcon(category), 16, color(R.color.ink)));
+      View dot = new View(this);
+      dot.setBackground(ui.round(catColor, 999));
+      top.addView(dot, new LinearLayout.LayoutParams(dp(8), dp(8)));
       top.addView(
-          ui.truncate(ui.text(categoryLabel(category), 14, color(R.color.ink), 500)),
-          ui.start(ui.weight(1), 8));
-      top.addView(ui.money(Money.display(spent, shown), 12, color(R.color.ink), 600));
-      TextView share = ui.text(percent + "%", 11, color(R.color.faint), 400);
-      share.setGravity(Gravity.END);
-      top.addView(share, ui.start(new LinearLayout.LayoutParams(dp(32), -2), 8));
+          ui.truncate(ui.text(categoryLabel(category), 15, color(R.color.ink), 500)),
+          ui.start(ui.wrap(), 8));
+      top.addView(
+          ui.text(percent + "%", 12, color(R.color.muted), 400),
+          ui.start(ui.weight(1), 6));
+      top.addView(ui.money(Money.display(spent, shown), 15, color(R.color.ink), 600));
       entry.addView(top, ui.fill());
       LinearLayout bar = ui.row();
-      bar.setBackground(ui.round(color(R.color.surface_variant), 999));
+      bar.setBackground(ui.round(color(R.color.track), 999));
       bar.setClipToOutline(true);
       View fillBar = new View(this);
-      fillBar.setBackground(
-          ui.round(Ui.parseColor(category, color(R.color.chart_other)), 999));
-      bar.addView(fillBar, new LinearLayout.LayoutParams(0, -1, Math.max(1, percent)));
-      bar.addView(new View(this), new LinearLayout.LayoutParams(0, -1, 100 - Math.min(100, percent)));
-      entry.addView(bar, ui.top(new LinearLayout.LayoutParams(-1, dp(6)), 8));
-      list.addView(entry, i == 0 ? ui.fill() : ui.top(ui.fill(), 20));
+      fillBar.setBackground(ui.round(catColor, 999));
+      long widthPct = Math.min(100, Math.max(4, percent));
+      bar.addView(fillBar, new LinearLayout.LayoutParams(0, -1, widthPct));
+      bar.addView(new View(this), new LinearLayout.LayoutParams(0, -1, 100 - widthPct));
+      entry.addView(bar, ui.top(new LinearLayout.LayoutParams(-1, dp(7)), 6));
+      list.addView(entry, i == 0 ? ui.fill() : ui.top(ui.fill(), 14));
     }
     card.addView(list, ui.fill());
-    return card;
+    section.addView(card, ui.fill());
+    return section;
   }
 
   void activity() throws Exception {
-    LinearLayout top = ui.row();
-    TextView count = ui.text("", 12, color(R.color.faint), 400);
-    top.addView(count, ui.weight(1));
-    top.addView(currencyToggle());
-    add(top);
-    if (accountFilter != null) {
-      JSONObject selected = find(accounts, accountFilter);
-      LinearLayout chip = ui.card();
-      chip.setOrientation(LinearLayout.HORIZONTAL);
-      chip.setGravity(Gravity.CENTER_VERTICAL);
-      chip.setPadding(dp(20), dp(12), dp(12), dp(12));
-      LinearLayout words = ui.column();
-      words.addView(ui.truncate(ui.text(selected.getString("name"), 14, color(R.color.ink), 600)));
-      words.addView(
-          ui.text(
-              "Balance " + Money.display(balance(selected), selected.getString("currency")),
-              12,
-              color(R.color.faint),
-              400),
-          ui.top(ui.wrap(), 2));
-      chip.addView(words, ui.weight(1));
-      TextView clear = ui.text("Show all", 12, color(R.color.brand), 600);
-      clear.setMinHeight(dp(44));
-      clear.setGravity(Gravity.CENTER);
-      clear.setPadding(dp(8), 0, dp(8), 0);
-      clear.setContentDescription("Show all");
-      chip.addView(
-          ui.press(
-              clear,
-              0.97f,
-              () -> {
-                accountFilter = null;
-                draw();
-              }));
-      add(chip);
-    }
-    add(monthStepper());
-    LinearLayout box = ui.row();
-    box.setPadding(dp(12), 0, dp(12), 0);
-    box.setBackground(ui.inputBackground());
-    box.addView(ui.icon("search", 16, color(R.color.faint)));
+    LinearLayout topBar = ui.row();
+    topBar.addView(monthStepper(true));
+    topBar.addView(new View(this), ui.weight(1));
+    topBar.addView(currencyToggle());
+    LinearLayout addBtn = ui.tile("add", 36, 18, color(R.color.brand), color(R.color.on_action), 0);
+    addBtn.setBackground(ui.round(color(R.color.brand), 999));
+    addBtn.setContentDescription("Add transaction");
+    topBar.addView(
+        ui.press(addBtn, 0.94f, () -> go(2)),
+        ui.start(new LinearLayout.LayoutParams(dp(36), dp(36)), 8));
+    add(topBar);
+
+    LinearLayout filterCard = ui.card();
+    filterCard.setPadding(dp(14), dp(14), dp(14), dp(14));
+
+    LinearLayout searchBox = ui.row();
+    searchBox.setPadding(dp(12), 0, dp(12), 0);
+    searchBox.setBackground(ui.inputBackground());
+    searchBox.addView(ui.icon("search", 16, color(R.color.faint)));
     EditText find = new EditText(this);
     find.setBackground(null);
-    find.setHint("Search notes");
+    find.setHint("Search notes, categories, accounts...");
     find.setHintTextColor(color(R.color.faint));
     find.setTextColor(color(R.color.ink));
     find.setTextSize(14);
@@ -1248,24 +1748,89 @@ public final class MainActivity extends Activity {
     find.setImeOptions(EditorInfo.IME_ACTION_SEARCH);
     find.setContentDescription("Search notes");
     find.setText(search);
-    box.addView(find, ui.start(new LinearLayout.LayoutParams(0, dp(44), 1), 8));
-    LinearLayout.LayoutParams boxSpace = ui.fill();
-    boxSpace.topMargin = dp(12);
-    body.addView(box, boxSpace);
+    searchBox.addView(find, ui.start(new LinearLayout.LayoutParams(0, dp(42), 1), 8));
+    filterCard.addView(searchBox, ui.fill());
+
+    HorizontalScrollView filterScroll = new HorizontalScrollView(this);
+    filterScroll.setHorizontalScrollBarEnabled(false);
+    LinearLayout filterRow = ui.row();
+    String[][] typeChips = {
+      {"All", ""},
+      {"Spending", "expense"},
+      {"Income", "income"},
+      {"Transfers", "transfer"}
+    };
+    for (int i = 0; i < typeChips.length; i++) {
+      String label = typeChips[i][0];
+      String val = typeChips[i][1];
+      boolean on = val.equals(typeFilter);
+      TextView pill = filterChip(label, on, () -> {
+        typeFilter = val;
+        draw();
+      });
+      filterRow.addView(pill, i == 0 ? ui.wrap() : ui.start(ui.wrap(), 6));
+    }
+    String catLabel = "Category";
+    if (categoryFilter != null) {
+      try {
+        catLabel = categoryLabel(find(categories, categoryFilter));
+      } catch (Exception ignored) {
+      }
+    }
+    filterRow.addView(
+        filterChip(catLabel, categoryFilter != null, this::pickCategoryFilterDialog),
+        ui.start(ui.wrap(), 6));
+
+    String accLabel = "Account";
+    if (accountFilter != null) {
+      try {
+        accLabel = find(accounts, accountFilter).getString("name");
+      } catch (Exception ignored) {
+      }
+    }
+    filterRow.addView(
+        filterChip(accLabel, accountFilter != null, this::pickAccountFilterDialog),
+        ui.start(ui.wrap(), 6));
+
+    if (!typeFilter.isEmpty() || categoryFilter != null || accountFilter != null) {
+      TextView clearAll = ui.text("Show all", 12, color(R.color.brand), 600);
+      clearAll.setGravity(Gravity.CENTER);
+      clearAll.setMinHeight(dp(34));
+      clearAll.setPadding(dp(10), 0, dp(10), 0);
+      clearAll.setContentDescription("Show all");
+      filterRow.addView(
+          ui.press(
+              clearAll,
+              0.96f,
+              () -> {
+                typeFilter = "";
+                categoryFilter = null;
+                accountFilter = null;
+                draw();
+              }),
+          ui.start(ui.wrap(), 6));
+    }
+    filterScroll.addView(filterRow);
+    filterCard.addView(filterScroll, ui.top(ui.fill(), 10));
+    add(filterCard);
+
     LinearLayout summary = ui.card();
     summary.setOrientation(LinearLayout.HORIZONTAL);
-    summary.setPadding(dp(20), dp(16), dp(20), dp(16));
+    summary.setPadding(dp(18), dp(14), dp(18), dp(14));
     add(summary);
+
     LinearLayout list = ui.column();
     add(list);
+
     Runnable refresh =
         () -> {
           summary.removeAllViews();
           try {
             long[] flow = monthFlow(search);
-            summaryCell(summary, "Income", flow[0], R.color.inflow);
-            summaryCell(summary, "Spending", flow[1], R.color.outflow);
-            summaryCell(summary, "Net", flow[0] - flow[1], R.color.ink);
+            int entryCount = (int) flow[2];
+            summaryTextCell(summary, "Entries", String.valueOf(entryCount), R.color.ink);
+            summaryCell(summary, "Spent", flow[1], R.color.ink);
+            summaryCell(summary, "Came in", flow[0], R.color.inflow);
           } catch (Exception ignored) {
           }
         };
@@ -1277,36 +1842,98 @@ public final class MainActivity extends Activity {
 
           public void afterTextChanged(Editable s) {
             search = s.toString();
-            // Rebuilding the summary and the list for every keystroke made typing lag on a
-            // long month. Render once the typing settles.
             if (pendingSearch != null) timer.removeCallbacks(pendingSearch);
             pendingSearch =
                 () -> {
                   pendingSearch = null;
                   refresh.run();
-                  count.setText(showActivity(list, search, 0));
+                  showActivity(list, search, 0);
                 };
             timer.postDelayed(pendingSearch, 180);
           }
         });
     refresh.run();
-    count.setText(showActivity(list, search, 0));
+    showActivity(list, search, 0);
+  }
+
+  TextView filterChip(String label, boolean on, Runnable action) {
+    TextView t = ui.text(label, 13, color(on ? R.color.on_action : R.color.muted), on ? 600 : 500);
+    t.setGravity(Gravity.CENTER);
+    t.setMinHeight(dp(34));
+    t.setPadding(dp(14), 0, dp(14), 0);
+    t.setBackground(
+        ui.round(
+            color(on ? R.color.brand : R.color.fill),
+            999));
+    t.setContentDescription(label);
+    return ui.press(t, 0.96f, action);
+  }
+
+  void pickCategoryFilterDialog() {
+    ArrayList<String> names = new ArrayList<>();
+    ArrayList<String> ids = new ArrayList<>();
+    names.add("All categories");
+    ids.add(null);
+    for (int i = 0; i < categories.length(); i++) {
+      JSONObject c = categories.optJSONObject(i);
+      if (c != null) {
+        names.add(categoryLabel(c));
+        ids.add(c.optString("id"));
+      }
+    }
+    new AlertDialog.Builder(this)
+        .setTitle("Filter by category")
+        .setItems(
+            names.toArray(new String[0]),
+            (d, which) -> {
+              categoryFilter = ids.get(which);
+              draw();
+            })
+        .show();
+  }
+
+  void pickAccountFilterDialog() {
+    ArrayList<String> names = new ArrayList<>();
+    ArrayList<String> ids = new ArrayList<>();
+    names.add("All accounts");
+    ids.add(null);
+    for (int i = 0; i < accounts.length(); i++) {
+      JSONObject a = accounts.optJSONObject(i);
+      if (a != null) {
+        names.add(a.optString("name"));
+        ids.add(a.optString("id"));
+      }
+    }
+    new AlertDialog.Builder(this)
+        .setTitle("Filter by account")
+        .setItems(
+            names.toArray(new String[0]),
+            (d, which) -> {
+              accountFilter = ids.get(which);
+              draw();
+            })
+        .show();
   }
 
   boolean matches(JSONObject row, String term) {
     if (!inMonth(row)) return false;
     if (accountFilter != null && !accountFilter.equals(row.optString("account_id"))) return false;
+    if (categoryFilter != null && !categoryFilter.equals(row.optString("category_id"))) return false;
+    if (!typeFilter.isEmpty() && !typeFilter.equals(row.optString("type"))) return false;
     String needle = term.toLowerCase(Locale.ROOT).trim();
     return needle.isEmpty()
         || title(row).toLowerCase(Locale.ROOT).contains(needle)
+        || route(row).toLowerCase(Locale.ROOT).contains(needle)
         || row.optString("notes", "").toLowerCase(Locale.ROOT).contains(needle);
   }
 
   long[] monthFlow(String term) throws Exception {
-    long[] flow = new long[2];
+    long[] flow = new long[3];
     for (int i = 0; i < transactions.length(); i++) {
       JSONObject row = transactions.getJSONObject(i);
-      if (isTransfer(row) || !matches(row, term)) continue;
+      if (!matches(row, term)) continue;
+      flow[2]++;
+      if (isTransfer(row)) continue;
       long minor = Ledger.inCurrency(row, shown, app.usdKhr());
       if (minor >= 0) flow[0] = Money.add(flow[0], minor);
       else flow[1] = Money.add(flow[1], -minor);
@@ -1314,17 +1941,18 @@ public final class MainActivity extends Activity {
     return flow;
   }
 
-  void summaryCell(LinearLayout parent, String label, long minor, int ink) {
+  void summaryTextCell(LinearLayout parent, String label, String textVal, int ink) {
     LinearLayout cell = ui.column();
-    cell.setGravity(Gravity.CENTER_HORIZONTAL);
-    TextView name = ui.text(label, 10, color(R.color.faint), 500);
-    name.setGravity(Gravity.CENTER);
+    TextView name = ui.text(label, 12, color(R.color.muted), 400);
     cell.addView(name, ui.fill());
-    TextView value = ui.money(Money.display(minor, shown), 14, color(ink), 600);
-    value.setAutoSizeTextTypeUniformWithConfiguration(10, 14, 1, TypedValue.COMPLEX_UNIT_SP);
-    value.setGravity(Gravity.CENTER);
-    cell.addView(value, ui.top(new LinearLayout.LayoutParams(-1, dp(20)), 4));
+    TextView value = ui.money(textVal, 18, color(ink), 700);
+    value.setAutoSizeTextTypeUniformWithConfiguration(11, 18, 1, TypedValue.COMPLEX_UNIT_SP);
+    cell.addView(value, ui.top(new LinearLayout.LayoutParams(-1, dp(24)), 2));
     parent.addView(cell, ui.weight(1));
+  }
+
+  void summaryCell(LinearLayout parent, String label, long minor, int ink) {
+    summaryTextCell(parent, label, Money.display(minor, shown), ink);
   }
 
   /** TransactionHistory: day headings with their flow, then a card of that day's rows. */
@@ -1370,12 +1998,11 @@ public final class MainActivity extends Activity {
           long[] flow = dayFlows.getOrDefault(when, new long[2]);
           list.addView(
               dayHeading(when, flow[0], flow[1]),
-              list.getChildCount() == 0 ? ui.fill() : ui.top(ui.fill(), 20));
+              list.getChildCount() == 0 ? ui.fill() : ui.top(ui.fill(), 18));
           LinearLayout card = ui.card();
-          card.setPadding(dp(12), dp(4), dp(12), dp(4));
           rows = ui.column();
           card.addView(rows, ui.fill());
-          list.addView(card, ui.top(ui.fill(), 8));
+          list.addView(card, ui.top(ui.fill(), 6));
         } else rows.addView(ui.divider());
         rows.addView(activityRow(row), ui.fill());
       }
@@ -1408,130 +2035,158 @@ public final class MainActivity extends Activity {
 
   LinearLayout dayHeading(LocalDate when, long in, long out) {
     LinearLayout head = ui.row();
-    head.setPadding(dp(4), 0, dp(4), 0);
-    TextView number = ui.money(String.valueOf(when.getDayOfMonth()), 24, color(R.color.ink), 600);
-    head.addView(number);
-    TextView weekday =
-        ui.text(
-            when.format(WEEKDAY_FORMAT),
-            10,
-            color(R.color.muted),
-            600);
-    weekday.setPadding(dp(8), dp(4), dp(8), dp(4));
-    weekday.setBackground(ui.round(color(R.color.surface_container), 999));
-    head.addView(weekday, ui.start(ui.wrap(), 8));
-    head.addView(new View(this), ui.weight(1));
-    if (in != 0) head.addView(ui.money(Money.display(in, shown), 12, color(R.color.inflow), 600));
-    if (out != 0)
+    head.setPadding(dp(2), 0, dp(2), 0);
+    head.addView(ui.text(homeDayLabel(when), 13, color(R.color.muted), 600), ui.weight(1));
+    if (out != 0) {
       head.addView(
-          ui.money(Money.display(out, shown), 12, color(R.color.outflow), 600),
-          ui.start(ui.wrap(), 12));
+          ui.money(Money.display(-out, shown) + " spent", 13, color(R.color.muted), 500));
+    } else if (in != 0) {
+      head.addView(
+          ui.money("+" + Money.display(in, shown), 13, color(R.color.inflow), 500));
+    }
     return head;
   }
 
-  /** The `activity` variant of TransactionRow: category column, title, amount. */
+  /** Activity row matching `.tx-activity-row`. */
   LinearLayout activityRow(JSONObject row) throws Exception {
-    boolean transfer = isTransfer(row);
-    JSONObject category = categoryOf(row);
-    LinearLayout line = ui.row();
-    line.setMinimumHeight(dp(56));
-    line.setPadding(0, dp(12), 0, dp(12));
-    LinearLayout kind = ui.column();
-    kind.setGravity(Gravity.CENTER_HORIZONTAL);
-    kind.addView(ui.icon(transfer ? "horizontal-switch" : Ui.categoryIcon(category), 19, color(R.color.muted)));
-    TextView label =
-        ui.truncate(
-            ui.text(transfer ? "Transfer" : categoryLabel(category), 10, color(R.color.muted), 400));
-    label.setGravity(Gravity.CENTER);
-    kind.addView(label, ui.top(new LinearLayout.LayoutParams(-1, -2), 4));
-    line.addView(kind, new LinearLayout.LayoutParams(dp(52), -2));
-    LinearLayout middle = ui.column();
-    middle.addView(ui.truncate(ui.text(title(row), 12, color(R.color.ink), 600)));
-    middle.addView(
-        ui.truncate(
-            ui.text(
-                route(row) + (row.optBoolean("_pending") ? " · Waiting to sync" : ""),
-                10,
-                color(R.color.faint),
-                400)),
-        ui.top(ui.wrap(), 4));
-    line.addView(middle, ui.start(ui.weight(1), 8));
-    line.addView(
-        amountText(row.getLong("amount"), row.getString("currency"), transfer, 12),
-        ui.start(ui.wrap(), 8));
-    return ui.press(line, 0.99f, () -> openEntry(row));
+    return homeTransactionRow(row);
   }
 
   void accounts() throws Exception {
     LinearLayout top = ui.row();
-    top.addView(
-        ui.text("Every account, one clear picture.", 14, color(R.color.muted), 400), ui.weight(1));
     top.addView(currencyToggle());
+    top.addView(new View(this), ui.weight(1));
+    LinearLayout addAcc =
+        ui.button(
+            "Add an account",
+            "add",
+            accounts.length() == 0 ? "primary" : "secondary",
+            this::newAccount);
+    top.addView(addAcc);
     add(top);
-    add(heroCard(false));
-    add(ui.button("Add an account", "add", accounts.length() == 0 ? "primary" : "secondary", this::newAccount));
-    add(ui.button("Manage accounts", "setting-line", "outline", () -> openWeb("/accounts")));
-    for (int g = 0; g < ACCOUNT_TYPES.length; g++) {
+
+    String[][] pockets = {
+      {"USD", "Dollars"},
+      {"KHR", "Riel"}
+    };
+    boolean anyAccount = false;
+    for (String[] pocket : pockets) {
+      String ccy = pocket[0];
+      String title = pocket[1];
       ArrayList<JSONObject> members = new ArrayList<>();
+      long subtotal = 0;
       for (int i = 0; i < accounts.length(); i++) {
         JSONObject a = accounts.getJSONObject(i);
-        if (ACCOUNT_TYPES[g].equals(a.optString("type", "bank"))) members.add(a);
+        if (ccy.equals(a.optString("currency"))) {
+          members.add(a);
+          if (a.optBoolean("is_active", true)) {
+            subtotal = Money.add(subtotal, balance(a));
+          }
+        }
       }
       if (members.isEmpty()) continue;
-      boolean credit = ACCOUNT_TYPES[g].equals("credit_card");
+      anyAccount = true;
+
+      LinearLayout section = ui.column();
       LinearLayout head = ui.row();
-      head.setPadding(dp(4), 0, dp(4), 0);
-      head.addView(ui.text(ACCOUNT_LABELS[g], 14, color(R.color.muted), 600), ui.weight(1));
-      LinkedHashMap<String, Long> subtotal = new LinkedHashMap<>();
-      for (JSONObject a : members)
-        subtotal.put(
-            a.getString("currency"),
-            Money.add(subtotal.getOrDefault(a.getString("currency"), 0L), balance(a)));
-      StringBuilder sums = new StringBuilder();
-      for (Map.Entry<String, Long> e : subtotal.entrySet())
-        sums.append(sums.length() == 0 ? "" : " + ").append(Money.display(e.getValue(), e.getKey()));
-      head.addView(ui.money(sums.toString(), 14, color(R.color.ink), 600));
-      add(head);
+      head.setPadding(dp(2), 0, dp(2), dp(8));
+      View dot = new View(this);
+      dot.setBackground(
+          ui.round(color("USD".equals(ccy) ? R.color.usd : R.color.khr), 999));
+      head.addView(dot, new LinearLayout.LayoutParams(dp(8), dp(8)));
+      head.addView(
+          ui.text(title, 17, color(R.color.ink), 600), ui.start(ui.wrap(), 8));
+      head.addView(ui.badge(ccy), ui.start(ui.wrap(), 6));
+      head.addView(new View(this), ui.weight(1));
+      head.addView(ui.money(Money.display(subtotal, ccy), 16, color(R.color.ink), 600));
+      section.addView(head, ui.fill());
+
       LinearLayout card = ui.card();
       for (int i = 0; i < members.size(); i++) {
         if (i > 0) card.addView(ui.divider());
-        card.addView(accountRow(members.get(i), g, credit), ui.fill());
+        JSONObject a = members.get(i);
+        int g =
+            Math.max(
+                0,
+                java.util.Arrays.asList(ACCOUNT_TYPES).indexOf(a.optString("type", "bank")));
+        boolean credit = "credit_card".equals(a.optString("type", "bank"));
+        card.addView(accountRow(a, g, credit), ui.fill());
       }
-      LinearLayout.LayoutParams cardSpace = ui.fill();
-      cardSpace.topMargin = dp(12);
-      body.addView(card, cardSpace);
+      section.addView(card, ui.fill());
+      add(section);
     }
+
+    if (!anyAccount) {
+      LinearLayout empty = ui.card();
+      empty.addView(
+          emptyState("wallet", "No accounts yet", "Add your first account to start tracking."),
+          ui.fill());
+      add(empty);
+    } else {
+      long totalCombined = convertedNetWorth(shown);
+      TextView foot =
+          ui.money(
+              "Total ~ "
+                  + Money.display(totalCombined, shown)
+                  + " at $1 = "
+                  + perDollarText(),
+              13,
+              color(R.color.muted),
+              400);
+      foot.setGravity(Gravity.CENTER);
+      add(foot);
+    }
+
+    add(ui.button("Manage accounts", "setting-line", "outline", () -> openWeb("/accounts")));
   }
 
   LinearLayout accountRow(JSONObject a, int group, boolean credit) throws Exception {
     boolean active = a.optBoolean("is_active", true);
+    String ccy = a.getString("currency");
     LinearLayout line = ui.row();
-    line.setPadding(dp(16), dp(20), dp(16), dp(20));
-    line.addView(
-        ui.tile(
-            ACCOUNT_ICONS[group],
-            40,
-            20,
-            color(credit ? R.color.outflow_soft : R.color.brand_soft),
-            color(credit ? R.color.outflow : R.color.brand),
-            0));
+    line.setPadding(dp(16), dp(14), dp(16), dp(14));
+    int tint =
+        color(
+            credit
+                ? R.color.outflow
+                : "USD".equals(ccy) ? R.color.usd : R.color.khr);
+    line.addView(ui.rowIconTile(ACCOUNT_ICONS[group], tint));
     LinearLayout middle = ui.column();
     TextView name =
-        ui.truncate(ui.text(a.getString("name"), 14, color(active ? R.color.ink : R.color.faint), 600));
+        ui.truncate(
+            ui.text(
+                a.getString("name"),
+                16,
+                color(active ? R.color.ink : R.color.faint),
+                500));
     if (!active)
       name.setPaintFlags(name.getPaintFlags() | android.graphics.Paint.STRIKE_THRU_TEXT_FLAG);
     middle.addView(name);
-    String detail = a.isNull("institution") ? ACCOUNT_LABELS[group] : a.optString("institution", ACCOUNT_LABELS[group]);
-    if (!active) detail += " · closed";
-    else if (!a.optBoolean("include_in_net_worth", true)) detail += " · not counted";
-    middle.addView(ui.truncate(ui.text(detail, 11, color(R.color.faint), 400)), ui.top(ui.wrap(), 4));
+    String detail =
+        a.isNull("institution") || a.optString("institution").isEmpty()
+            ? ACCOUNT_LABELS[group]
+            : a.optString("institution") + " · " + ACCOUNT_LABELS[group];
+    if (!active) detail += " · Archived";
+    else if (!a.optBoolean("include_in_net_worth", true)) detail += " · Excluded";
+    middle.addView(
+        ui.truncate(ui.text(detail, 12, color(R.color.muted), 400)), ui.top(ui.wrap(), 2));
     line.addView(middle, ui.start(ui.weight(1), 12));
     LinearLayout right = ui.column();
     right.setGravity(Gravity.END);
     long minor = balance(a);
-    int ink = credit && minor != 0 ? color(minor < 0 ? R.color.outflow : R.color.inflow) : color(R.color.ink);
-    right.addView(ui.money(Money.display(minor, a.getString("currency")), 14, ink, 600), ui.wrap());
-    right.addView(ui.badge(a.getString("currency")), ui.top(ui.wrap(), 4));
+    int ink =
+        credit && minor != 0
+            ? color(minor < 0 ? R.color.outflow : R.color.inflow)
+            : color(R.color.ink);
+    right.addView(ui.money(Money.display(minor, ccy), 16, ink, 600), ui.wrap());
+    if (!ccy.equals(shown)) {
+      long conv = Money.convert(minor, ccy, shown, app.usdKhr());
+      right.addView(
+          ui.money("~ " + Money.display(conv, shown), 11, color(R.color.muted), 400),
+          ui.top(ui.wrap(), 2));
+    } else {
+      right.addView(ui.badge(ccy), ui.top(ui.wrap(), 2));
+    }
     line.addView(right, ui.start(ui.wrap(), 12));
     line.setContentDescription(a.getString("name"));
     String id = a.getString("id");
@@ -1546,9 +2201,9 @@ public final class MainActivity extends Activity {
         });
   }
 
-  /** A labelled field like the web's: muted label, then a bordered rounded input. */
+  /** A labelled field like the web's: muted label, then a filled rounded input. */
   EditText input(LinearLayout parent, String label, String hint, boolean numeric) {
-    if (label != null) parent.addView(ui.text(label, 14, color(R.color.muted), 500), ui.fill());
+    if (label != null) parent.addView(ui.text(label, 13, color(R.color.muted), 500), ui.fill());
     EditText e = new EditText(this);
     e.setSingleLine(true);
     e.setTextSize(14);
@@ -1557,25 +2212,25 @@ public final class MainActivity extends Activity {
     e.setHintTextColor(color(R.color.faint));
     e.setContentDescription(label == null ? hint : label);
     e.setBackground(ui.inputBackground());
-    e.setPadding(dp(12), 0, dp(12), 0);
+    e.setPadding(dp(14), 0, dp(14), 0);
     e.setInputType(
         numeric
             ? InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_DECIMAL
             : InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_CAP_SENTENCES);
-    parent.addView(e, ui.top(new LinearLayout.LayoutParams(-1, dp(44)), label == null ? 0 : 8));
+    parent.addView(e, ui.top(new LinearLayout.LayoutParams(-1, dp(42)), label == null ? 0 : 6));
     return e;
   }
 
   /**
-   * The compact EntryChoicePicker: the chosen item in a bordered box with a "Change" link.
-   * A Spinner underneath, so the choice list is the platform's own.
+   * Spinner backed by choices, used both in dialogs and as the backing selection model
+   * on the Add transaction screen.
    */
   Spinner picker(
       LinearLayout parent, String label, ArrayList<String> labels, ArrayList<String> details,
       ArrayList<String> icons) {
-    parent.addView(ui.text(label, 14, color(R.color.muted), 500), ui.fill());
+    if (label != null) parent.addView(ui.text(label, 13, color(R.color.muted), 500), ui.fill());
     Spinner s = new Spinner(this, Spinner.MODE_DROPDOWN);
-    s.setContentDescription(label);
+    if (label != null) s.setContentDescription(label);
     s.setBackground(ui.inputBackground());
     s.setPopupBackgroundDrawable(
         ui.round(color(R.color.surface_raised), 16, color(R.color.surface_variant)));
@@ -1584,7 +2239,7 @@ public final class MainActivity extends Activity {
           View choice(int position, boolean selected) {
             LinearLayout line = ui.row();
             line.setPadding(dp(12), dp(4), selected ? dp(8) : dp(16), dp(4));
-            line.setMinimumHeight(dp(selected ? 44 : 52));
+            line.setMinimumHeight(dp(selected ? 42 : 48));
             if (icons != null)
               line.addView(
                   ui.icon(icons.get(position), 18, color(selected ? R.color.ink : R.color.muted)),
@@ -1598,7 +2253,9 @@ public final class MainActivity extends Activity {
             line.addView(words, ui.start(ui.weight(1), icons == null ? 0 : 10));
             if (selected) {
               line.addView(ui.text("Change", 12, color(R.color.brand), 600));
-              line.addView(ui.icon("expand-down", 15, color(R.color.brand)), ui.start(new LinearLayout.LayoutParams(dp(15), dp(15)), 4));
+              line.addView(
+                  ui.icon("expand-down", 15, color(R.color.brand)),
+                  ui.start(new LinearLayout.LayoutParams(dp(15), dp(15)), 4));
             }
             return line;
           }
@@ -1613,28 +2270,213 @@ public final class MainActivity extends Activity {
             return choice(position, false);
           }
         });
-    parent.addView(s, ui.top(new LinearLayout.LayoutParams(-1, dp(44)), 8));
+    parent.addView(s, ui.top(new LinearLayout.LayoutParams(-1, dp(42)), label == null ? 0 : 6));
     return s;
   }
 
   /** A row of choice chips; the chosen one is brand on brand-soft, as on the web. */
   TextView chip(String label, boolean on, Runnable action) {
-    TextView t = ui.text(label, 14, color(on ? R.color.brand : R.color.muted), 500);
+    TextView t = ui.text(label, 13, color(on ? R.color.brand : R.color.muted), on ? 600 : 500);
     t.setGravity(Gravity.CENTER);
-    t.setMinHeight(dp(44));
-    t.setPadding(dp(12), 0, dp(12), 0);
+    t.setMinHeight(dp(40));
+    t.setPadding(dp(14), 0, dp(14), 0);
     t.setBackground(
         ui.round(
-            color(on ? R.color.brand_soft : R.color.surface_raised),
-            12,
-            color(on ? R.color.brand : R.color.border_subtle)));
+            color(on ? R.color.brand_soft : R.color.fill),
+            999,
+            on ? color(R.color.brand) : 0));
     t.setContentDescription(label);
     return ui.press(t, 0.97f, action);
   }
 
+  /**
+   * Ranks applicable categories by user frequency in `transactions`, tie-broken by `Ui.quickPriority`.
+   */
+  ArrayList<Integer> topCategoryOptionIndices(ArrayList<JSONObject> options, int limit) {
+    HashMap<String, Integer> freq = new HashMap<>();
+    for (int i = 0; i < transactions.length(); i++) {
+      JSONObject tx = transactions.optJSONObject(i);
+      if (tx == null || isTransfer(tx)) continue;
+      String cid = tx.isNull("category_id") ? "" : tx.optString("category_id", "");
+      if (!cid.isEmpty()) freq.put(cid, freq.getOrDefault(cid, 0) + 1);
+    }
+    ArrayList<Integer> indices = new ArrayList<>();
+    for (int i = 1; i < options.size(); i++) indices.add(i);
+    indices.sort(
+        (a, b) -> {
+          JSONObject ca = options.get(a);
+          JSONObject cb = options.get(b);
+          int fa = freq.getOrDefault(ca.optString("id"), 0);
+          int fb = freq.getOrDefault(cb.optString("id"), 0);
+          if (fa != fb) return Integer.compare(fb, fa);
+          int pa = Ui.quickPriority(ca);
+          int pb = Ui.quickPriority(cb);
+          if (pa != pb) return Integer.compare(pa, pb);
+          return categoryLabel(ca).compareToIgnoreCase(categoryLabel(cb));
+        });
+    if (indices.size() > limit) {
+      return new ArrayList<>(indices.subList(0, limit));
+    }
+    return indices;
+  }
+
+  void showAccountPickerDialog(Spinner targetSpinner, ArrayList<JSONObject> active, String title) {
+    LinearLayout rootCol = ui.column();
+    rootCol.setPadding(dp(20), dp(12), dp(20), dp(8));
+    EditText filterInput = input(rootCol, null, "Search accounts...", false);
+    ScrollView scroller = new ScrollView(this);
+    LinearLayout listCol = ui.column();
+    scroller.addView(listCol);
+    rootCol.addView(scroller, ui.top(new LinearLayout.LayoutParams(-1, dp(320)), 10));
+
+    AlertDialog dialog =
+        new AlertDialog.Builder(this)
+            .setTitle(title)
+            .setView(rootCol)
+            .setNegativeButton("Cancel", null)
+            .create();
+
+    int currentSel = targetSpinner.getSelectedItemPosition();
+    Runnable renderList =
+        () -> {
+          listCol.removeAllViews();
+          String q = filterInput.getText().toString().toLowerCase(Locale.ROOT).trim();
+          for (int i = 0; i < active.size(); i++) {
+            JSONObject a = active.get(i);
+            String accName = a.optString("name", "");
+            String ccy = a.optString("currency", "USD");
+            if (!q.isEmpty()
+                && !accName.toLowerCase(Locale.ROOT).contains(q)
+                && !ccy.toLowerCase(Locale.ROOT).contains(q)) continue;
+            int idx = i;
+            boolean sel = idx == currentSel;
+            LinearLayout item = ui.row();
+            item.setPadding(dp(12), dp(12), dp(12), dp(12));
+            if (sel) item.setBackground(ui.round(color(R.color.brand_soft), 14));
+            LinearLayout col = ui.column();
+            col.addView(
+                ui.truncate(
+                    ui.text(
+                        accName,
+                        15,
+                        color(sel ? R.color.brand : R.color.ink),
+                        sel ? 600 : 500)));
+            long bal = 0;
+            try {
+              bal = balance(a);
+            } catch (Exception ignored) {
+            }
+            col.addView(
+                ui.money(Money.display(bal, ccy), 12, color(R.color.muted), 400),
+                ui.top(ui.wrap(), 2));
+            item.addView(col, ui.weight(1));
+            item.addView(ui.badge(ccy));
+            listCol.addView(
+                ui.press(
+                    item,
+                    0.98f,
+                    () -> {
+                      targetSpinner.setSelection(idx);
+                      dialog.dismiss();
+                    }),
+                ui.fill());
+          }
+        };
+    filterInput.addTextChangedListener(
+        new TextWatcher() {
+          public void beforeTextChanged(CharSequence s, int a, int b, int c) {}
+
+          public void onTextChanged(CharSequence s, int a, int b, int c) {}
+
+          public void afterTextChanged(Editable s) {
+            renderList.run();
+          }
+        });
+    renderList.run();
+    dialog.show();
+  }
+
+  void showCategoryPickerDialog(Spinner catSpinner, ArrayList<JSONObject> options) {
+    LinearLayout rootCol = ui.column();
+    rootCol.setPadding(dp(20), dp(12), dp(20), dp(8));
+    EditText filterInput = input(rootCol, null, "Search categories...", false);
+    ScrollView scroller = new ScrollView(this);
+    LinearLayout listCol = ui.column();
+    scroller.addView(listCol);
+    rootCol.addView(scroller, ui.top(new LinearLayout.LayoutParams(-1, dp(320)), 10));
+
+    AlertDialog dialog =
+        new AlertDialog.Builder(this)
+            .setTitle("Choose category")
+            .setView(rootCol)
+            .setNegativeButton("Cancel", null)
+            .create();
+
+    int currentSel = catSpinner.getSelectedItemPosition();
+    Runnable renderList =
+        () -> {
+          listCol.removeAllViews();
+          String q = filterInput.getText().toString().toLowerCase(Locale.ROOT).trim();
+          for (int i = 0; i < options.size(); i++) {
+            JSONObject c = options.get(i);
+            String label = c == null ? "No category" : categoryLabel(c);
+            if (!q.isEmpty() && !label.toLowerCase(Locale.ROOT).contains(q)) continue;
+            int idx = i;
+            boolean sel = idx == currentSel;
+            LinearLayout item = ui.row();
+            item.setPadding(dp(12), dp(10), dp(12), dp(10));
+            if (sel) item.setBackground(ui.round(color(R.color.brand_soft), 14));
+            String iconName = c == null ? "widget" : Ui.categoryIcon(c);
+            int tint = c == null ? color(R.color.muted) : ui.categoryColor(c);
+            item.addView(ui.rowIconTile(iconName, tint));
+            item.addView(
+                ui.truncate(
+                    ui.text(
+                        label,
+                        15,
+                        color(sel ? R.color.brand : R.color.ink),
+                        sel ? 600 : 500)),
+                ui.start(ui.weight(1), 12));
+            listCol.addView(
+                ui.press(
+                    item,
+                    0.98f,
+                    () -> {
+                      catSpinner.setSelection(idx);
+                      dialog.dismiss();
+                    }),
+                ui.fill());
+          }
+        };
+    filterInput.addTextChangedListener(
+        new TextWatcher() {
+          public void beforeTextChanged(CharSequence s, int a, int b, int c) {}
+
+          public void onTextChanged(CharSequence s, int a, int b, int c) {}
+
+          public void afterTextChanged(Editable s) {
+            renderList.run();
+          }
+        });
+    renderList.run();
+    dialog.show();
+  }
+
+  /**
+   * Add transaction (`tab == 2`): 1:1 with `QuickAddForm` and `TransferForm`:
+   * 1. Pill segmented control (`Expense`, `Income`, `Transfer`)
+   * 2. Centered `AmountDisplay` (`$0.00` / `0៛`, inline `USD | KHR` pill switch, paste button,
+   *    and `~ converted at 4,100៛` caption)
+   * 3. Horizontal `From` / `Into` account chips (name + balance + `All` button)
+   * 4. Horizontal `Category` chips (top 4 most-used categories + `All` button) or `To` account chips
+   * 5. Single compact row: `Note (optional)` + compact date button (`Today` / `Yesterday` / date)
+   * 6. Pill `AmountKeypad` (`R.color.fill` pills, including `000` when KHR) + full-width pill CTA
+   */
   void entry() throws Exception {
     ArrayList<JSONObject> active = new ArrayList<>();
-    ArrayList<String> names = new ArrayList<>(), currencies = new ArrayList<>(), kinds = new ArrayList<>();
+    ArrayList<String> names = new ArrayList<>(),
+        currencies = new ArrayList<>(),
+        kinds = new ArrayList<>();
     for (int i = 0; i < accounts.length(); i++) {
       JSONObject a = accounts.getJSONObject(i);
       if (a.optBoolean("is_active", true)) {
@@ -1649,7 +2491,7 @@ public final class MainActivity extends Activity {
       LinearLayout card = ui.card();
       card.setPadding(dp(20), dp(20), dp(20), dp(20));
       card.setGravity(Gravity.CENTER_HORIZONTAL);
-      card.addView(ui.text("No accounts yet", 14, color(R.color.ink), 600));
+      card.addView(ui.text("No accounts yet", 16, color(R.color.ink), 600));
       TextView why =
           ui.text(
               "A transaction has to come from somewhere. Add an account first.",
@@ -1657,26 +2499,36 @@ public final class MainActivity extends Activity {
               color(R.color.muted),
               400);
       why.setGravity(Gravity.CENTER);
-      card.addView(why, ui.top(ui.wrap(), 12));
-      card.addView(ui.button("Add an account", null, "primary", this::newAccount), ui.top(ui.fill(), 12));
+      card.addView(why, ui.top(ui.wrap(), 10));
+      card.addView(
+          ui.button("Add an account", null, "primary", this::newAccount), ui.top(ui.fill(), 14));
       add(card);
       return;
     }
+
     SharedPreferences saved = draft();
     boolean transfer = mode == 2;
-    add(ui.text("A few taps, and your money is up to date.", 14, color(R.color.muted), 400));
 
+    // 1. Segmented mode control (.seg-track + .seg-pill)
     LinearLayout modes = ui.row();
-    modes.setPadding(dp(6), dp(6), dp(6), dp(6));
-    modes.setBackground(ui.round(color(R.color.surface_container), 16));
+    modes.setPadding(dp(3), dp(3), dp(3), dp(3));
+    modes.setBackground(ui.round(color(R.color.fill), 999));
     String[] modeLabels = {"Expense", "Income", "Transfer"};
     for (int i = 0; i < 3; i++) {
       boolean on = i == mode;
-      TextView t = ui.text(modeLabels[i], 14, color(on ? R.color.on_hero : R.color.muted), 600);
+      TextView t =
+          ui.text(
+              modeLabels[i],
+              13,
+              color(on ? R.color.ink : R.color.muted),
+              on ? 600 : 500);
       t.setGravity(Gravity.CENTER);
-      t.setMinHeight(dp(44));
+      t.setMinHeight(dp(34));
       t.setContentDescription(modeLabels[i]);
-      if (on) t.setBackground(ui.round(color(R.color.brand), 12));
+      if (on) {
+        t.setBackground(ui.round(color(R.color.surface_raised), 999));
+        t.setElevation(dp(1));
+      }
       int next = i;
       modes.addView(
           ui.press(
@@ -1692,64 +2544,523 @@ public final class MainActivity extends Activity {
     }
     add(modes);
 
-    // Amount card, the AmountDisplay component.
-    int tone = color(transfer ? R.color.ink : mode == 0 ? R.color.outflow : R.color.inflow);
-    LinearLayout amountCard = ui.column();
-    amountCard.setBackground(ui.round(color(R.color.surface_container_low), 24));
-    amountCard.setPadding(dp(20), dp(20), dp(20), dp(20));
-    amountCard.addView(ui.caps(transfer ? "Amount sent" : "Amount", 12, color(R.color.faint), 0.05f));
-    LinearLayout amountRow = ui.row();
-    TextView prefix = ui.money("$", 36, tone, 600);
-    amountRow.addView(prefix);
+    // Backing Spinners kept in view hierarchy (0dp height) so programmatic selection and tests work.
+    LinearLayout hiddenSpinners = ui.column();
+    account = picker(hiddenSpinners, transfer ? "From" : "Account", names, currencies, kinds);
+    account.setTag(active);
+    selectId(account, saved.getString("account_id", null));
+
+    if (transfer) {
+      destination = picker(hiddenSpinners, "To", names, currencies, kinds);
+      destination.setTag(active);
+      selectId(destination, saved.getString("destination_id", null));
+      if (destination.getSelectedItemPosition() == account.getSelectedItemPosition()
+          && active.size() > 1
+          && saved.getString("destination_id", null) == null) {
+        destination.setSelection(account.getSelectedItemPosition() == 0 ? 1 : 0);
+      }
+    }
+
+    ArrayList<String> catLabels = new ArrayList<>(), catIcons = new ArrayList<>();
+    ArrayList<JSONObject> catOptions = new ArrayList<>();
+    if (!transfer) {
+      catLabels.add("No category");
+      catIcons.add("widget");
+      catOptions.add(null);
+      for (int i = 0; i < categories.length(); i++) {
+        JSONObject c = categories.getJSONObject(i);
+        JSONArray applies = c.optJSONArray("applies_to");
+        boolean fits = applies == null;
+        for (int k = 0; applies != null && k < applies.length(); k++) {
+          fits |=
+              applies.optString(k).equals(MODES[mode])
+                  || (mode == 1 && applies.optString(k).equals("refund"));
+        }
+        if (!fits) continue;
+        catLabels.add(categoryLabel(c));
+        catIcons.add(Ui.categoryIcon(c));
+        catOptions.add(c);
+      }
+      category = picker(hiddenSpinners, "Category", catLabels, null, catIcons);
+      category.setTag(catOptions);
+      selectId(category, saved.getString("category_id", null));
+    }
+    body.addView(hiddenSpinners, new LinearLayout.LayoutParams(0, 0));
+
+    // 2. Centered AmountDisplay
+    LinearLayout amountSection = ui.column();
+    amountSection.setGravity(Gravity.CENTER_HORIZONTAL);
+    amountSection.setPadding(dp(4), dp(8), dp(4), dp(4));
+
+    FrameLayout amountFrame = new FrameLayout(this);
+    LinearLayout centerCluster = ui.row();
+    centerCluster.setGravity(Gravity.CENTER);
+
+    int tone = color(mode == 1 ? R.color.inflow : R.color.ink);
+    TextView prefix = ui.money("$", 42, tone, 700);
+    centerCluster.addView(prefix);
+
     amount = new EditText(this);
     amount.setBackground(null);
     amount.setPadding(0, 0, 0, 0);
-    amount.setTextSize(TypedValue.COMPLEX_UNIT_SP, 36);
-    amount.setTypeface(Ui.font(600));
+    amount.setTextSize(TypedValue.COMPLEX_UNIT_SP, 42);
+    amount.setTypeface(Ui.font(700));
     amount.setFontFeatureSettings("tnum");
-    amount.setLetterSpacing(-0.025f);
+    amount.setLetterSpacing(-0.035f);
     amount.setTextColor(tone);
     amount.setHint("0.00");
-    amount.setHintTextColor(Ui.alpha(tone, 0.35f));
+    amount.setHintTextColor(color(R.color.faint));
     amount.setSingleLine(true);
+    amount.setGravity(Gravity.CENTER);
     amount.setContentDescription("Amount");
     amount.setInputType(InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_DECIMAL);
     amount.setShowSoftInputOnFocus(false);
     amount.setText(saved.getString("amount", ""));
     keypadTarget = amount;
-    amountRow.addView(amount, ui.weight(1));
-    TextView suffix = ui.money("៛", 36, tone, 600);
-    amountRow.addView(suffix);
-    LinearLayout pills = ui.row();
-    amountRow.addView(pills, ui.start(ui.wrap(), 8));
-    amountCard.addView(amountRow, ui.top(ui.fill(), 12));
-    add(amountCard);
+    centerCluster.addView(amount, ui.wrap());
 
-    LinearLayout accountBox = ui.column();
-    account = picker(accountBox, transfer ? "From" : "Account", names, currencies, kinds);
-    account.setTag(active);
-    selectId(account, saved.getString("account_id", null));
+    TextView suffix = ui.money("៛", 42, tone, 700);
+    centerCluster.addView(suffix);
+
+    LinearLayout pills = ui.row();
+    pills.setPadding(dp(2), dp(2), dp(2), dp(2));
+    pills.setBackground(ui.round(color(R.color.fill), 999));
+    centerCluster.addView(pills, ui.start(ui.wrap(), 10));
+
+    FrameLayout.LayoutParams centerLp =
+        new FrameLayout.LayoutParams(-2, -2, Gravity.CENTER);
+    amountFrame.addView(centerCluster, centerLp);
+
+    LinearLayout pasteBtn =
+        ui.tile("paste", 32, 16, color(R.color.fill), color(R.color.brand), 0);
+    pasteBtn.setBackground(ui.round(color(R.color.fill), 999));
+    pasteBtn.setContentDescription("Paste amount from clipboard");
+    FrameLayout.LayoutParams pasteLp =
+        new FrameLayout.LayoutParams(dp(32), dp(32), Gravity.END | Gravity.CENTER_VERTICAL);
+    amountFrame.addView(
+        ui.press(
+            pasteBtn,
+            0.94f,
+            () -> {
+              try {
+                android.content.ClipboardManager cm =
+                    (android.content.ClipboardManager) getSystemService(CLIPBOARD_SERVICE);
+                if (cm != null && cm.hasPrimaryClip() && cm.getPrimaryClip().getItemCount() > 0) {
+                  CharSequence rawClip = cm.getPrimaryClip().getItemAt(0).getText();
+                  if (rawClip != null) {
+                    String cleaned = rawClip.toString().replaceAll("[^0-9.]", "");
+                    if (!cleaned.isEmpty()) {
+                      amount.setText(cleaned);
+                      amount.setSelection(cleaned.length());
+                    }
+                  }
+                }
+              } catch (Exception ignored) {
+              }
+            }),
+        pasteLp);
+
+    amountSection.addView(amountFrame, ui.fill());
+
+    TextView equivHint = ui.money("", 12, color(R.color.muted), 400);
+    equivHint.setGravity(Gravity.CENTER);
+    equivHint.setVisibility(View.GONE);
+    amountSection.addView(equivHint, ui.top(ui.wrap(), 2));
+    add(amountSection);
+
+    // 3. Horizontal From / Into account chip strip
+    LinearLayout fromRowWrap = ui.row();
+    fromRowWrap.setGravity(Gravity.CENTER_VERTICAL);
+    TextView fromLabel =
+        ui.caps(mode == 1 ? "INTO" : "FROM", 11, color(R.color.muted), 0.04f);
+    fromRowWrap.addView(fromLabel);
+    HorizontalScrollView fromScroll = new HorizontalScrollView(this);
+    fromScroll.setHorizontalScrollBarEnabled(false);
+    LinearLayout fromChips = ui.row();
+    fromScroll.addView(fromChips);
+    fromRowWrap.addView(fromScroll, ui.start(ui.weight(1), 8));
+    LinearLayout.LayoutParams fromLp = ui.fill();
+    fromLp.topMargin = dp(10);
+    body.addView(fromRowWrap, fromLp);
+
+    // 4. Category chip strip (Expense/Income) OR To account chip strip (Transfer)
+    LinearLayout secondRowWrap = ui.row();
+    secondRowWrap.setGravity(Gravity.CENTER_VERTICAL);
+    LinearLayout secondChips = ui.row();
+    HorizontalScrollView secondScroll = new HorizontalScrollView(this);
+    secondScroll.setHorizontalScrollBarEnabled(false);
+    secondScroll.addView(secondChips);
+    if (transfer) {
+      TextView toLabel = ui.caps("TO", 11, color(R.color.muted), 0.04f);
+      secondRowWrap.addView(toLabel);
+      secondRowWrap.addView(secondScroll, ui.start(ui.weight(1), 8));
+    } else {
+      secondRowWrap.addView(secondScroll, ui.weight(1));
+    }
+    LinearLayout.LayoutParams secondLp = ui.fill();
+    secondLp.topMargin = dp(8);
+    body.addView(secondRowWrap, secondLp);
+
+    // 5. Compact Note + Date row
+    try {
+      date = LocalDate.parse(saved.getString("date", LocalDate.now(CAMBODIA).toString()));
+    } catch (Exception e) {
+      date = LocalDate.now(CAMBODIA);
+    }
+    LinearLayout noteDateRow = ui.row();
+    noteDateRow.setGravity(Gravity.CENTER_VERTICAL);
+    note = new EditText(this);
+    note.setSingleLine(true);
+    note.setTextSize(14);
+    note.setTextColor(color(R.color.ink));
+    note.setHint("Note (optional)");
+    note.setHintTextColor(color(R.color.faint));
+    note.setContentDescription("Note");
+    note.setBackground(ui.inputBackground());
+    note.setPadding(dp(14), 0, dp(14), 0);
+    note.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_CAP_SENTENCES);
+    note.setText(saved.getString("note", ""));
+    noteDateRow.addView(note, new LinearLayout.LayoutParams(0, dp(42), 1));
+
+    LinearLayout datePill = ui.row();
+    datePill.setGravity(Gravity.CENTER);
+    datePill.setMinimumHeight(dp(42));
+    datePill.setPadding(dp(12), 0, dp(12), 0);
+    datePill.setBackground(ui.round(color(R.color.fill), 14));
+    datePill.setContentDescription("Choose date");
+    TextView dateBtnText = ui.text("", 13, color(R.color.ink), 500);
+    datePill.addView(ui.icon("calendar", 15, color(R.color.muted)));
+    datePill.addView(dateBtnText, ui.start(ui.wrap(), 6));
+    Runnable updateDateText =
+        () -> {
+          LocalDate today = LocalDate.now(CAMBODIA);
+          if (date.equals(today)) dateBtnText.setText("Today");
+          else if (date.equals(today.minusDays(1))) dateBtnText.setText("Yesterday");
+          else dateBtnText.setText(date.format(SHORT_DATE_FORMAT));
+        };
+    updateDateText.run();
+    noteDateRow.addView(
+        ui.press(
+            datePill,
+            0.96f,
+            () ->
+                new DatePickerDialog(
+                        this,
+                        (p, y, m, d) -> {
+                          date = LocalDate.of(y, m + 1, d);
+                          updateDateText.run();
+                        },
+                        date.getYear(),
+                        date.getMonthValue() - 1,
+                        date.getDayOfMonth())
+                    .show()),
+        ui.start(new LinearLayout.LayoutParams(-2, dp(42)), 8));
+
+    if (transfer) {
+      LinearLayout morePill = ui.row();
+      morePill.setGravity(Gravity.CENTER);
+      morePill.setMinimumHeight(dp(42));
+      morePill.setPadding(dp(10), 0, dp(10), 0);
+      morePill.setBackground(ui.round(color(R.color.fill), 14));
+      morePill.setContentDescription("More options");
+      morePill.addView(ui.icon("horizontal-switch", 15, color(R.color.ink)));
+      noteDateRow.addView(
+          ui.press(
+              morePill,
+              0.95f,
+              () -> {
+                int fromIdx = account.getSelectedItemPosition();
+                int toIdx = destination.getSelectedItemPosition();
+                account.setSelection(toIdx);
+                destination.setSelection(fromIdx);
+              }),
+          ui.start(new LinearLayout.LayoutParams(-2, dp(42)), 6));
+    }
+
+    LinearLayout.LayoutParams noteDateLp = ui.fill();
+    noteDateLp.topMargin = dp(8);
+    body.addView(noteDateRow, noteDateLp);
+
+    if (transfer) {
+      LinearLayout receivedBox = ui.column();
+      received = input(receivedBox, "Amount received", "0.00", true);
+      received.setText(saved.getString("received", ""));
+      received.setShowSoftInputOnFocus(false);
+      received.setOnFocusChangeListener(
+          (v, focused) -> {
+            if (focused) keypadTarget = received;
+          });
+      amount.setOnFocusChangeListener(
+          (v, focused) -> {
+            if (focused) keypadTarget = amount;
+          });
+      TextView hint =
+          ui.text(
+              "The two accounts hold different currencies, so enter what arrived.",
+              12,
+              color(R.color.faint),
+              400);
+      receivedBox.addView(hint, ui.top(ui.fill(), 4));
+      LinearLayout.LayoutParams recLp = ui.fill();
+      recLp.topMargin = dp(8);
+      body.addView(receivedBox, recLp);
+    }
+
+    // 6. Keypad + Save button
+    LinearLayout keypadContainer = ui.column();
+    LinearLayout.LayoutParams kpLp = ui.fill();
+    kpLp.topMargin = dp(10);
+    body.addView(keypadContainer, kpLp);
+
+    LinearLayout saveBtn = ui.row();
+    saveBtn.setGravity(Gravity.CENTER);
+    saveBtn.setMinimumHeight(dp(48));
+    saveBtn.setPadding(dp(20), dp(12), dp(20), dp(12));
+    saveBtn.setContentDescription("Save " + MODES[mode]);
+    TextView saveLabel = ui.text("Enter an amount", 15, color(R.color.on_action), 600);
+    saveBtn.addView(saveLabel);
+    ui.press(saveBtn, 0.98f, () -> save(active));
+    LinearLayout.LayoutParams saveLp = ui.fill();
+    saveLp.topMargin = dp(10);
+    body.addView(saveBtn, saveLp);
+
+    Runnable updateSaveAndConversion =
+        () -> {
+          String code =
+              active
+                  .get(Math.max(0, account.getSelectedItemPosition()))
+                  .optString("currency", "USD");
+          long parsed = 0;
+          try {
+            String raw = amount.getText().toString().trim();
+            if (!raw.isEmpty()) parsed = Money.parse(raw);
+          } catch (Exception ignored) {
+          }
+          if (parsed > 0) {
+            saveBtn.setBackground(ui.round(color(R.color.brand), 999));
+            String disp = Money.display(parsed, code);
+            if (transfer) {
+              saveLabel.setText("Move " + disp);
+            } else {
+              saveLabel.setText(
+                  "Save " + MODES[mode] + ", " + disp);
+            }
+            String alt = other(code);
+            long conv = Money.convert(parsed, code, alt, app.usdKhr());
+            equivHint.setText(
+                "~ " + Money.display(conv, alt) + " at " + perDollarText());
+            equivHint.setVisibility(View.VISIBLE);
+          } else {
+            saveBtn.setBackground(ui.round(Ui.alpha(color(R.color.brand), 0.55f), 999));
+            saveLabel.setText("Enter an amount");
+            equivHint.setVisibility(View.GONE);
+          }
+        };
+
+    amount.addTextChangedListener(
+        new TextWatcher() {
+          public void beforeTextChanged(CharSequence s, int a, int b, int c) {}
+
+          public void onTextChanged(CharSequence s, int a, int b, int c) {}
+
+          public void afterTextChanged(Editable s) {
+            updateSaveAndConversion.run();
+          }
+        });
+
+    Runnable renderFromChips =
+        () -> {
+          fromChips.removeAllViews();
+          int selIdx = Math.max(0, account.getSelectedItemPosition());
+          for (int i = 0; i < active.size(); i++) {
+            JSONObject a = active.get(i);
+            boolean on = i == selIdx;
+            int idx = i;
+            LinearLayout chip = ui.column();
+            chip.setPadding(dp(12), dp(6), dp(12), dp(6));
+            chip.setBackground(
+                ui.round(
+                    color(on ? R.color.brand_soft : R.color.fill),
+                    14,
+                    on ? color(R.color.brand) : 0));
+            TextView n =
+                ui.truncate(
+                    ui.text(a.optString("name"), 13, color(R.color.ink), 600));
+            n.setMaxWidth(dp(136));
+            chip.addView(n);
+            long bal = 0;
+            try {
+              bal = balance(a);
+            } catch (Exception ignored) {
+            }
+            chip.addView(
+                ui.money(
+                    Money.display(bal, a.optString("currency", "USD")),
+                    11,
+                    color(on ? R.color.brand : R.color.muted),
+                    500));
+            ui.press(chip, 0.96f, () -> account.setSelection(idx));
+            fromChips.addView(chip, i == 0 ? ui.wrap() : ui.start(ui.wrap(), 6));
+          }
+          if (active.size() > 3) {
+            LinearLayout allBtn = ui.row();
+            allBtn.setGravity(Gravity.CENTER);
+            allBtn.setMinimumHeight(dp(40));
+            allBtn.setPadding(dp(12), 0, dp(12), 0);
+            allBtn.setBackground(ui.round(color(R.color.fill), 999));
+            allBtn.addView(ui.text("All", 13, color(R.color.ink), 500));
+            fromChips.addView(
+                ui.press(
+                    allBtn,
+                    0.96f,
+                    () ->
+                        showAccountPickerDialog(
+                            account, active, mode == 1 ? "Into account" : "From account")),
+                ui.start(ui.wrap(), 6));
+          }
+        };
+
+    Runnable renderSecondChips =
+        () -> {
+          secondChips.removeAllViews();
+          if (transfer) {
+            int selTo = Math.max(0, destination.getSelectedItemPosition());
+            for (int i = 0; i < active.size(); i++) {
+              JSONObject a = active.get(i);
+              boolean on = i == selTo;
+              int idx = i;
+              LinearLayout chip = ui.column();
+              chip.setPadding(dp(12), dp(6), dp(12), dp(6));
+              chip.setBackground(
+                  ui.round(
+                      color(on ? R.color.brand_soft : R.color.fill),
+                      14,
+                      on ? color(R.color.brand) : 0));
+              TextView n =
+                  ui.truncate(
+                      ui.text(a.optString("name"), 13, color(R.color.ink), 600));
+              n.setMaxWidth(dp(136));
+              chip.addView(n);
+              long bal = 0;
+              try {
+                bal = balance(a);
+              } catch (Exception ignored) {
+              }
+              chip.addView(
+                  ui.money(
+                      Money.display(bal, a.optString("currency", "USD")),
+                      11,
+                      color(on ? R.color.brand : R.color.muted),
+                      500));
+              ui.press(chip, 0.96f, () -> destination.setSelection(idx));
+              secondChips.addView(chip, i == 0 ? ui.wrap() : ui.start(ui.wrap(), 6));
+            }
+            if (active.size() > 3) {
+              LinearLayout allBtn = ui.row();
+              allBtn.setGravity(Gravity.CENTER);
+              allBtn.setMinimumHeight(dp(40));
+              allBtn.setPadding(dp(12), 0, dp(12), 0);
+              allBtn.setBackground(ui.round(color(R.color.fill), 999));
+              allBtn.addView(ui.text("All", 13, color(R.color.ink), 500));
+              secondChips.addView(
+                  ui.press(
+                      allBtn,
+                      0.96f,
+                      () -> showAccountPickerDialog(destination, active, "To account")),
+                  ui.start(ui.wrap(), 6));
+            }
+          } else {
+            ArrayList<Integer> topIdx = topCategoryOptionIndices(catOptions, 4);
+            int selCat = Math.max(0, category.getSelectedItemPosition());
+            if (selCat > 0 && !topIdx.contains(selCat)) {
+              topIdx.add(0, selCat);
+              if (topIdx.size() > 4) topIdx.remove(topIdx.size() - 1);
+            }
+            for (int k = 0; k < topIdx.size(); k++) {
+              int optIdx = topIdx.get(k);
+              JSONObject c = catOptions.get(optIdx);
+              boolean on = optIdx == selCat;
+              LinearLayout chip = ui.row();
+              chip.setGravity(Gravity.CENTER_VERTICAL);
+              chip.setMinimumHeight(dp(38));
+              chip.setPadding(dp(12), dp(6), dp(12), dp(6));
+              chip.setBackground(
+                  ui.round(
+                      color(on ? R.color.brand_soft : R.color.fill),
+                      999,
+                      on ? color(R.color.brand) : 0));
+              chip.addView(
+                  ui.icon(
+                      Ui.categoryIcon(c),
+                      15,
+                      color(on ? R.color.brand : R.color.ink)));
+              chip.addView(
+                  ui.text(
+                      categoryLabel(c),
+                      13,
+                      color(on ? R.color.brand : R.color.ink),
+                      on ? 600 : 500),
+                  ui.start(ui.wrap(), 6));
+              ui.press(
+                  chip,
+                  0.96f,
+                  () -> category.setSelection(on ? 0 : optIdx));
+              secondChips.addView(chip, k == 0 ? ui.wrap() : ui.start(ui.wrap(), 6));
+            }
+            LinearLayout allCatBtn = ui.row();
+            allCatBtn.setGravity(Gravity.CENTER_VERTICAL);
+            allCatBtn.setMinimumHeight(dp(38));
+            allCatBtn.setPadding(dp(12), dp(6), dp(12), dp(6));
+            allCatBtn.setBackground(ui.round(color(R.color.fill), 999));
+            allCatBtn.addView(ui.icon("widget", 15, color(R.color.ink)));
+            allCatBtn.addView(
+                ui.text("All", 13, color(R.color.ink), 500), ui.start(ui.wrap(), 6));
+            secondChips.addView(
+                ui.press(
+                    allCatBtn,
+                    0.96f,
+                    () -> showCategoryPickerDialog(category, catOptions)),
+                secondChips.getChildCount() == 0 ? ui.wrap() : ui.start(ui.wrap(), 6));
+          }
+        };
+
+    String[] lastCurrency = {""};
     Runnable currencyChanged =
         () -> {
-          String code = active.get(Math.max(0, account.getSelectedItemPosition())).optString("currency");
+          String code =
+              active
+                  .get(Math.max(0, account.getSelectedItemPosition()))
+                  .optString("currency", "USD");
           prefix.setVisibility(code.equals("USD") ? View.VISIBLE : View.GONE);
           suffix.setVisibility(code.equals("KHR") ? View.VISIBLE : View.GONE);
+          amount.setHint(code.equals("KHR") ? "0" : "0.00");
           pills.removeAllViews();
-          if (transfer) return;
           for (String c : new String[] {"USD", "KHR"}) {
             int target = currencies.indexOf(c);
             boolean on = c.equals(code);
-            TextView pill = ui.text(c, 12, color(on ? R.color.on_hero : R.color.muted), 700);
+            TextView pill =
+                ui.text(c, 12, color(on ? R.color.ink : R.color.muted), on ? 600 : 500);
             pill.setGravity(Gravity.CENTER);
-            pill.setMinHeight(dp(44));
-            pill.setPadding(dp(12), 0, dp(12), 0);
-            pill.setBackground(ui.round(color(on ? R.color.brand : R.color.surface), 999));
+            pill.setMinHeight(dp(28));
+            pill.setPadding(dp(10), 0, dp(10), 0);
+            if (on) {
+              pill.setBackground(ui.round(color(R.color.surface_raised), 999));
+              pill.setElevation(dp(1));
+            }
             pill.setContentDescription("Use " + c);
-            if (target < 0) pill.setAlpha(0.3f);
+            if (target < 0) pill.setAlpha(0.35f);
             else ui.press(pill, 0.95f, () -> account.setSelection(target));
-            pills.addView(pill, pills.getChildCount() == 0 ? ui.wrap() : ui.start(ui.wrap(), 4));
+            pills.addView(pill, pills.getChildCount() == 0 ? ui.wrap() : ui.start(ui.wrap(), 2));
           }
+          if (!code.equals(lastCurrency[0])) {
+            lastCurrency[0] = code;
+            keypadContainer.removeAllViews();
+            keypadContainer.addView(keypad(code), ui.fill());
+          }
+          renderFromChips.run();
+          updateSaveAndConversion.run();
         };
+
     account.setOnItemSelectedListener(
         new AdapterView.OnItemSelectedListener() {
           public void onNothingSelected(AdapterView<?> p) {}
@@ -1759,144 +3070,31 @@ public final class MainActivity extends Activity {
             if (destination != null) transferCurrencies();
           }
         });
-    currencyChanged.run();
-
-    // TransactionDateField: Today, Yesterday, or any date.
-    try {
-      date = LocalDate.parse(saved.getString("date", LocalDate.now(CAMBODIA).toString()));
-    } catch (Exception e) {
-      date = LocalDate.now(CAMBODIA);
-    }
-    LinearLayout dateBox = ui.column();
-    LinearLayout dateLabel = ui.row();
-    dateLabel.addView(ui.icon("calendar", 16, color(R.color.muted)));
-    dateLabel.addView(ui.text("Date", 14, color(R.color.muted), 500), ui.start(ui.wrap(), 8));
-    dateBox.addView(dateLabel);
-    LinearLayout dates = ui.row();
-    dateBox.addView(dates, ui.top(ui.fill(), 8));
-    Runnable[] paint = new Runnable[1];
-    paint[0] =
-        () -> {
-          dates.removeAllViews();
-          LocalDate today = LocalDate.now(CAMBODIA);
-          dates.addView(chip("Today", date.equals(today), () -> {
-            date = today;
-            paint[0].run();
-          }));
-          dates.addView(chip("Yesterday", date.equals(today.minusDays(1)), () -> {
-            date = today.minusDays(1);
-            paint[0].run();
-          }), ui.start(ui.wrap(), 8));
-          boolean other = !date.equals(today) && !date.equals(today.minusDays(1));
-          TextView pick =
-              chip(
-                  date.format(FULL_DATE_FORMAT),
-                  other,
-                  () ->
-                      new DatePickerDialog(
-                              this,
-                              (p, y, m, d) -> {
-                                date = LocalDate.of(y, m + 1, d);
-                                paint[0].run();
-                              },
-                              date.getYear(),
-                              date.getMonthValue() - 1,
-                              date.getDayOfMonth())
-                          .show());
-          pick.setContentDescription("Choose date");
-          dates.addView(pick, ui.start(ui.weight(1), 8));
-        };
-    paint[0].run();
-    add(dateBox);
-    add(accountBox);
-
-    if (transfer) {
-      LinearLayout toBox = ui.column();
-      destination = picker(toBox, "To", names, currencies, kinds);
-      destination.setTag(active);
-      selectId(destination, saved.getString("destination_id", null));
-      if (destination.getSelectedItemPosition() == account.getSelectedItemPosition()
-          && active.size() > 1
-          && saved.getString("destination_id", null) == null)
-        destination.setSelection(account.getSelectedItemPosition() == 0 ? 1 : 0);
-      add(toBox);
-      LinearLayout receivedBox = ui.column();
-      received = input(receivedBox, "Amount received", "0.00", true);
-      received.setText(saved.getString("received", ""));
-      received.setShowSoftInputOnFocus(false);
-      received.setOnFocusChangeListener((v, focused) -> {
-        if (focused) keypadTarget = received;
-      });
-      amount.setOnFocusChangeListener((v, focused) -> {
-        if (focused) keypadTarget = amount;
-      });
-      TextView hint =
-          ui.text(
-              "The two accounts hold different currencies, so enter what arrived.",
-              12,
-              color(R.color.faint),
-              400);
-      receivedBox.addView(hint, ui.top(ui.fill(), 8));
-      add(receivedBox);
+    if (destination != null) {
       destination.setOnItemSelectedListener(
           new AdapterView.OnItemSelectedListener() {
             public void onNothingSelected(AdapterView<?> p) {}
 
             public void onItemSelected(AdapterView<?> p, View v, int n, long id) {
+              renderSecondChips.run();
               transferCurrencies();
             }
           });
-      transferCurrencies();
+    }
+    if (category != null) {
+      category.setOnItemSelectedListener(
+          new AdapterView.OnItemSelectedListener() {
+            public void onNothingSelected(AdapterView<?> p) {}
+
+            public void onItemSelected(AdapterView<?> p, View v, int n, long id) {
+              renderSecondChips.run();
+            }
+          });
     }
 
-    LinearLayout noteBox = ui.column();
-    note = input(noteBox, "Note", transfer ? "What was it for? (optional)" : "What was it for?", false);
-    note.setText(saved.getString("note", ""));
-    add(noteBox);
-
-    add(keypad());
-
-    if (!transfer) {
-      ArrayList<String> labels = new ArrayList<>(), icons = new ArrayList<>();
-      ArrayList<JSONObject> options = new ArrayList<>();
-      labels.add("No category");
-      icons.add("widget");
-      options.add(null);
-      for (int i = 0; i < categories.length(); i++) {
-        JSONObject c = categories.getJSONObject(i);
-        JSONArray applies = c.optJSONArray("applies_to");
-        boolean fits = applies == null;
-        for (int k = 0; applies != null && k < applies.length(); k++)
-          fits |= applies.optString(k).equals(MODES[mode]) || (mode == 1 && applies.optString(k).equals("refund"));
-        if (!fits) continue;
-        labels.add(categoryLabel(c));
-        icons.add(Ui.categoryIcon(c));
-        options.add(c);
-      }
-      LinearLayout categoryBox = ui.column();
-      category = picker(categoryBox, "Category", labels, null, icons);
-      category.setTag(options);
-      selectId(category, saved.getString("category_id", null));
-      add(categoryBox);
-    }
-
-    add(
-        ui.button(
-            "Save " + MODES[mode],
-            "check-fill",
-            "primary",
-            () -> save(active)));
-    TextView foot =
-        ui.text(
-            "Saved on this phone first. Pending entries count in your balances and sync when you"
-                + " are online.",
-            12,
-            color(R.color.faint),
-            400);
-    foot.setGravity(Gravity.CENTER);
-    LinearLayout.LayoutParams footSpace = ui.fill();
-    footSpace.topMargin = dp(12);
-    body.addView(foot, footSpace);
+    currencyChanged.run();
+    renderSecondChips.run();
+    if (transfer) transferCurrencies();
   }
 
   /** Shows "Amount received" only when the transfer crosses currencies. */
@@ -1910,10 +3108,15 @@ public final class MainActivity extends Activity {
     if (!crosses && keypadTarget == received) keypadTarget = amount;
   }
 
-  /** AmountKeypad: 1 to 9, the decimal point, 0 and delete. */
+  /** AmountKeypad: pill buttons in `R.color.fill` matching `.keypad-btn`. */
   LinearLayout keypad() {
+    return keypad("USD");
+  }
+
+  LinearLayout keypad(String currency) {
     LinearLayout grid = ui.column();
-    String[] keys = {"1", "2", "3", "4", "5", "6", "7", "8", "9", ".", "0", "del"};
+    String bottomLeft = "KHR".equals(currency) ? "000" : ".";
+    String[] keys = {"1", "2", "3", "4", "5", "6", "7", "8", "9", bottomLeft, "0", "del"};
     LinearLayout line = null;
     for (int i = 0; i < keys.length; i++) {
       if (i % 3 == 0) {
@@ -1923,13 +3126,18 @@ public final class MainActivity extends Activity {
       String key = keys[i];
       LinearLayout cell = ui.row();
       cell.setGravity(Gravity.CENTER);
-      cell.setBackground(
-          ui.round(color(R.color.surface_raised), 16, color(R.color.surface_variant)));
+      if (!key.equals("del")) {
+        cell.setBackground(ui.round(color(R.color.fill), 999));
+      }
       cell.setContentDescription(key.equals("del") ? "Delete last digit" : "Key " + key);
       if (key.equals("del")) cell.addView(ui.icon("back", 20, color(R.color.ink)));
-      else cell.addView(ui.text(key, 24, color(R.color.ink), 500));
-      ui.press(cell, 0.9f, () -> press(key));
-      line.addView(cell, i % 3 == 0 ? new LinearLayout.LayoutParams(0, dp(56), 1) : ui.start(new LinearLayout.LayoutParams(0, dp(56), 1), 8));
+      else cell.addView(ui.money(key, "000".equals(key) ? 18 : 22, color(R.color.ink), 500));
+      ui.press(cell, 0.92f, () -> press(key));
+      line.addView(
+          cell,
+          i % 3 == 0
+              ? new LinearLayout.LayoutParams(0, dp(48), 1)
+              : ui.start(new LinearLayout.LayoutParams(0, dp(48), 1), 8));
     }
     return grid;
   }
@@ -1941,6 +3149,10 @@ public final class MainActivity extends Activity {
     if (key.equals("del")) value = value.isEmpty() ? "" : value.substring(0, value.length() - 1);
     else if (key.equals(".")) {
       if (!value.contains(".")) value = (value.isEmpty() ? "0" : value) + ".";
+    } else if (key.equals("000")) {
+      if (!value.isEmpty() && !value.equals("0") && value.length() <= 12) {
+        value = value + "000";
+      }
     } else {
       int dot = value.indexOf('.');
       if (dot >= 0 && value.length() - dot > 2) return;
@@ -2077,30 +3289,76 @@ public final class MainActivity extends Activity {
     app.sync(() -> runOnUiThread(this::load));
   }
 
-  /** One row of the More list: tinted icon tile, title, description, chevron. */
+  /** One row of the Settings list: rounded 38dp icon tile, title, subtitle, chevron. */
   LinearLayout moreRow(String icon, String title, String detail, boolean danger, Runnable action) {
     LinearLayout line = ui.row();
-    line.setPadding(dp(20), dp(20), dp(20), dp(20));
-    line.addView(
-        ui.tile(
-            icon,
-            48,
-            22,
-            color(danger ? R.color.outflow_soft : R.color.brand_soft),
-            color(danger ? R.color.outflow : R.color.brand),
-            0));
+    line.setPadding(dp(16), dp(14), dp(16), dp(14));
+    int tint = color(danger ? R.color.outflow : R.color.brand);
+    line.addView(ui.rowIconTile(icon, tint));
     LinearLayout words = ui.column();
-    words.addView(ui.text(title, 16, color(R.color.ink), 600));
-    words.addView(ui.text(detail, 14, color(R.color.muted), 400), ui.top(ui.wrap(), 4));
-    line.addView(words, ui.start(ui.weight(1), 16));
+    words.addView(ui.text(title, 16, color(danger ? R.color.outflow : R.color.ink), 500));
+    if (detail != null && !detail.isEmpty()) {
+      words.addView(ui.text(detail, 12, color(R.color.muted), 400), ui.top(ui.wrap(), 2));
+    }
+    line.addView(words, ui.start(ui.weight(1), 12));
     line.addView(ui.icon("expand-right", 18, color(R.color.faint)));
     line.setContentDescription(title);
     return ui.press(line, 0.99f, action);
   }
 
   void more() throws Exception {
-    add(ui.text("Make room for the bigger picture.", 14, color(R.color.muted), 400));
     int pending = app.store.pendingCount();
+
+    // Preferences group: display currency + exchange rate + sync now
+    LinearLayout prefSection = ui.column();
+    TextView prefHead = ui.text("Preferences", 13, color(R.color.muted), 600);
+    prefHead.setPadding(dp(2), 0, dp(2), dp(6));
+    prefSection.addView(prefHead, ui.fill());
+    LinearLayout prefCard = ui.card();
+
+    LinearLayout ccyRow = ui.row();
+    ccyRow.setPadding(dp(16), dp(14), dp(16), dp(14));
+    ccyRow.addView(ui.rowIconTile("dollar", color(R.color.brand)));
+    LinearLayout ccyWords = ui.column();
+    ccyWords.addView(ui.text("Display currency", 16, color(R.color.ink), 500));
+    ccyWords.addView(
+        ui.text("Totals and charts convert to " + shown, 12, color(R.color.muted), 400),
+        ui.top(ui.wrap(), 2));
+    ccyRow.addView(ccyWords, ui.start(ui.weight(1), 12));
+    ccyRow.addView(currencyToggle());
+    prefCard.addView(ccyRow, ui.fill());
+    prefCard.addView(ui.divider());
+
+    prefCard.addView(
+        moreRow(
+            "horizontal-switch",
+            "Exchange rate",
+            "$1 = " + perDollarText() + " · Tap to change in Settings",
+            false,
+            () -> openWeb("/settings")),
+        ui.fill());
+    prefCard.addView(ui.divider());
+
+    prefCard.addView(
+        moreRow(
+            "refresh",
+            "Sync now",
+            pending > 0 ? pending + " waiting to sync. " + app.status : app.status,
+            false,
+            () -> {
+              app.status = "Syncing";
+              updateStatus();
+              app.sync(() -> runOnUiThread(this::load));
+            }),
+        ui.fill());
+    prefSection.addView(prefCard, ui.fill());
+    add(prefSection);
+
+    // Navigation & Web tools group
+    LinearLayout navSection = ui.column();
+    TextView navHead = ui.text("More tools", 13, color(R.color.muted), 600);
+    navHead.setPadding(dp(2), 0, dp(2), dp(6));
+    navSection.addView(navHead, ui.fill());
     LinearLayout list = ui.card();
     if (app.reauth) {
       list.addView(
@@ -2113,59 +3371,49 @@ public final class MainActivity extends Activity {
           ui.fill());
       list.addView(ui.divider());
     }
-    list.addView(moreRow("pie-chart", "Budgets", "Stay on top of your spending", false, () -> go(5)), ui.fill());
-    list.addView(ui.divider());
     list.addView(
-        moreRow(
-            "refresh",
-            "Sync now",
-            pending > 0 ? pending + " waiting to sync. " + app.status : app.status,
-            false,
-            () -> {
-              app.status = "Syncing";
-              updateStatus();
-              app.sync(() -> runOnUiThread(this::load));
-            }),
+        moreRow("target", "Budgets", "Stay on top of your monthly limits", false, () -> go(5)),
         ui.fill());
     list.addView(ui.divider());
+    list.addView(
+        moreRow("wallet", "Accounts", "Every account in Dollars and Riel", false, () -> go(3)),
+        ui.fill());
     String[][] webAreas = {
-      {"colum-up", "Reports", "Spending, trends and the overall report", "/reports"},
+      {"colum-up", "Insights & reports", "Spending, trends and the overall report", "/reports"},
       {"calendar", "Calendar and filters", "Calendar view, filters and recently deleted", "/transactions"},
-      {"pie-chart", "Manage budgets", "Create and change budgets", "/budgets"},
+      {"target", "Manage budgets", "Create and change budgets", "/budgets"},
       {"wallet", "Manage accounts", "Add, edit and archive accounts", "/accounts"},
-      {"setting-line", "Settings", "Currency, exchange rate and Telegram", "/settings"},
+      {"setting-line", "Web settings", "Currency, exchange rate and Telegram", "/settings"},
       {"layers", "Full web app", "Open every screen of the website", "/"}
     };
     for (String[] area : webAreas) {
       list.addView(ui.divider());
       list.addView(moreRow(area[0], area[1], area[2], false, () -> openWeb(area[3])), ui.fill());
     }
-    add(list);
+    navSection.addView(list, ui.fill());
+    add(navSection);
 
     if (pending > 0) {
-      TextView head = ui.text("Waiting to sync", 14, color(R.color.muted), 600);
-      head.setPadding(dp(4), 0, dp(4), 0);
-      add(head);
+      LinearLayout pendSection = ui.column();
+      TextView head = ui.text("Waiting to sync", 13, color(R.color.muted), 600);
+      head.setPadding(dp(2), 0, dp(2), dp(6));
+      pendSection.addView(head, ui.fill());
       LinearLayout queued = ui.card();
       boolean first = true;
       for (JSONObject item : app.store.pending()) {
         if (!first) queued.addView(ui.divider());
         first = false;
         LinearLayout line = ui.row();
-        line.setPadding(dp(20), dp(16), dp(20), dp(16));
+        line.setPadding(dp(16), dp(14), dp(16), dp(14));
         boolean failed = !item.optString("error").isEmpty();
         line.addView(
-            ui.tile(
+            ui.rowIconTile(
                 failed ? "critical" : "load-circle",
-                36,
-                17,
-                color(failed ? R.color.outflow_soft : R.color.surface_container),
-                color(failed ? R.color.outflow : R.color.muted),
-                0));
+                color(failed ? R.color.outflow : R.color.muted)));
         LinearLayout words = ui.column();
         String table = item.getJSONObject("operation").getString("table");
         words.addView(
-            ui.text(table.equals("accounts") ? "New account" : "New entry", 14, color(R.color.ink), 600));
+            ui.text(table.equals("accounts") ? "New account" : "New entry", 15, color(R.color.ink), 500));
         words.addView(
             ui.text(
                 failed
@@ -2180,31 +3428,32 @@ public final class MainActivity extends Activity {
                 12,
                 color(R.color.faint),
                 400),
-            ui.top(ui.wrap(), 4));
+            ui.top(ui.wrap(), 2));
         line.addView(words, ui.start(ui.weight(1), 12));
         queued.addView(line, ui.fill());
       }
-      LinearLayout.LayoutParams space = ui.fill();
-      space.topMargin = dp(12);
-      body.addView(queued, space);
+      pendSection.addView(queued, ui.fill());
+      add(pendSection);
     }
 
-    LinearLayout telegram = ui.column();
-    telegram.setBackground(ui.round(color(R.color.brand_soft), 24));
-    telegram.setPadding(dp(24), dp(24), dp(24), dp(24));
-    telegram.addView(ui.icon("send", 24, color(R.color.brand)));
-    telegram.addView(ui.text("Your money, in a message.", 18, color(R.color.ink), 600), ui.top(ui.wrap(), 16));
-    telegram.addView(
+    LinearLayout telegram = ui.card();
+    telegram.setPadding(dp(18), dp(18), dp(18), dp(18));
+    LinearLayout tgTop = ui.row();
+    tgTop.addView(ui.rowIconTile("send", color(R.color.brand)));
+    LinearLayout tgWords = ui.column();
+    tgWords.addView(ui.text("Telegram bot", 16, color(R.color.ink), 600));
+    tgWords.addView(
         ui.text(
-            "Connect @LuyManagerBot and keep your ledger up to date from Telegram.",
-            14,
+            "Connect @LuyManagerBot to log spending from a chat message.",
+            13,
             color(R.color.muted),
             400),
-        ui.top(ui.wrap(), 8));
-    LinearLayout connect = ui.button("Connect Telegram", null, "primary", () -> openWeb("/settings"));
-    connect.setMinimumHeight(dp(44));
-    connect.addView(ui.icon("expand-right", 16, color(R.color.on_hero)), ui.start(new LinearLayout.LayoutParams(dp(16), dp(16)), 8));
-    telegram.addView(connect, ui.top(ui.wrap(), 20));
+        ui.top(ui.wrap(), 2));
+    tgTop.addView(tgWords, ui.start(ui.weight(1), 12));
+    telegram.addView(tgTop, ui.fill());
+    telegram.addView(
+        ui.button("Connect Telegram", null, "secondary", () -> openWeb("/settings")),
+        ui.top(ui.fill(), 14));
     add(telegram);
 
     LinearLayout leave = ui.card();
@@ -2232,49 +3481,87 @@ public final class MainActivity extends Activity {
   }
 
   void budgetList() throws Exception {
-    add(ui.text("Your budgets.", 14, color(R.color.muted), 400));
-    add(ui.button("Manage budgets", "pie-chart", "outline", () -> openWeb("/budgets")));
+    LinearLayout topBar = ui.row();
+    topBar.addView(monthStepper(true));
+    topBar.addView(new View(this), ui.weight(1));
+    topBar.addView(currencyToggle());
+    add(topBar);
+
+    add(ui.button("Manage budgets", "target", "outline", () -> openWeb("/budgets")));
+
     if (budgets.length() == 0) {
       LinearLayout empty = ui.card();
       empty.addView(
-          emptyState("pie-chart", "No budgets yet", "Tap Manage budgets to create one."),
+          emptyState("target", "No budgets yet", "Tap Manage budgets to set your first monthly limit."),
           ui.fill());
       add(empty);
       return;
     }
-    LinearLayout card = ui.card();
+
+    long totalLimitShown = 0;
+    long totalSpentShown = 0;
     for (int i = 0; i < budgets.length(); i++) {
       JSONObject b = budgets.getJSONObject(i);
+      String bCurrency = b.optString("currency", "USD");
+      long limit = Math.max(0L, b.optLong("amount", 0L));
+      long spent = spentForBudgetInMonth(b);
+      totalLimitShown =
+          Money.add(totalLimitShown, Money.convert(limit, bCurrency, shown, app.usdKhr()));
+      totalSpentShown =
+          Money.add(totalSpentShown, Money.convert(spent, bCurrency, shown, app.usdKhr()));
+    }
+    int overallPct =
+        totalLimitShown > 0
+            ? (int) Math.min(999L, Math.round((totalSpentShown * 100.0) / totalLimitShown))
+            : 0;
+    boolean overallOver = totalSpentShown > totalLimitShown;
+
+    LinearLayout summaryCard = ui.card();
+    summaryCard.setPadding(dp(18), dp(18), dp(18), dp(18));
+    LinearLayout sumRow = ui.row();
+    LinearLayout pctBadge = ui.column();
+    pctBadge.setGravity(Gravity.CENTER);
+    pctBadge.setBackground(
+        ui.round(
+            color(overallOver ? R.color.outflow_soft : R.color.brand_soft),
+            999,
+            color(overallOver ? R.color.outflow : R.color.brand)));
+    pctBadge.addView(
+        ui.money(
+            overallPct + "%",
+            16,
+            color(overallOver ? R.color.outflow : R.color.brand),
+            700));
+    sumRow.addView(pctBadge, new LinearLayout.LayoutParams(dp(64), dp(64)));
+
+    LinearLayout sumWords = ui.column();
+    sumWords.addView(ui.text("Total budgeted", 12, color(R.color.muted), 500));
+    sumWords.addView(
+        ui.money(
+            Money.display(totalSpentShown, shown) + " of " + Money.display(totalLimitShown, shown),
+            18,
+            color(R.color.ink),
+            700),
+        ui.top(ui.wrap(), 2));
+    String verdict =
+        overallOver
+            ? "Over by " + Money.display(totalSpentShown - totalLimitShown, shown)
+            : Money.display(totalLimitShown - totalSpentShown, shown) + " left this month";
+    sumWords.addView(
+        ui.text(
+            verdict,
+            13,
+            color(overallOver ? R.color.outflow : R.color.muted),
+            overallOver ? 600 : 400),
+        ui.top(ui.wrap(), 2));
+    sumRow.addView(sumWords, ui.start(ui.weight(1), 14));
+    summaryCard.addView(sumRow, ui.fill());
+    add(summaryCard);
+
+    LinearLayout card = ui.card();
+    for (int i = 0; i < budgets.length(); i++) {
       if (i > 0) card.addView(ui.divider());
-      JSONObject category = null;
-      try {
-        if (!b.isNull("category_id")) category = find(categories, b.getString("category_id"));
-      } catch (Exception ignored) {
-      }
-      LinearLayout line = ui.row();
-      line.setPadding(dp(20), dp(16), dp(20), dp(16));
-      line.addView(
-          ui.tile(
-              category == null ? "pie-chart" : Ui.categoryIcon(category),
-              40,
-              20,
-              color(R.color.brand_soft),
-              color(R.color.brand),
-              0));
-      LinearLayout words = ui.column();
-      String name = b.isNull("name") ? (category == null ? "Overall" : categoryLabel(category)) : b.optString("name");
-      words.addView(ui.truncate(ui.text(name, 14, color(R.color.ink), 600)));
-      String period = b.optString("period", "monthly");
-      words.addView(
-          ui.text(period.substring(0, 1).toUpperCase(Locale.ROOT) + period.substring(1), 11, color(R.color.faint), 400),
-          ui.top(ui.wrap(), 4));
-      line.addView(words, ui.start(ui.weight(1), 12));
-      LinearLayout right = ui.column();
-      right.setGravity(Gravity.END);
-      right.addView(ui.money(Money.display(b.getLong("amount"), b.getString("currency")), 14, color(R.color.ink), 600), ui.wrap());
-      right.addView(ui.badge(b.getString("currency")), ui.top(ui.wrap(), 4));
-      line.addView(right, ui.start(ui.wrap(), 12));
-      card.addView(line, ui.fill());
+      card.addView(budgetProgressRow(budgets.getJSONObject(i)), ui.fill());
     }
     add(card);
   }
