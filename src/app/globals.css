@@ -2405,7 +2405,7 @@
   min-height: 0;
   display: grid;
   grid-template-rows: repeat(4, minmax(40px, 1fr));
-  gap: 8px;
+  gap: 12px;
 }
 
 .add-keypad-grid > div {
@@ -2413,10 +2413,28 @@
   min-height: 0;
 }
 
+/*
+ * Keypad keys are raised keycaps: a dished top, a thick side wall and a hard
+ * contact edge underneath. Every colour comes from the app tokens, so the keys
+ * stay on the existing neutral palette in light and dark mode.
+ */
 .key-btn {
+  --key-depth: 5px;
+  --key-line: color-mix(in srgb, var(--color-outline) 70%, var(--color-fill));
+  --key-side: color-mix(in srgb, var(--color-border-subtle) 85%, var(--color-fill));
+  --key-hi: color-mix(in srgb, var(--color-fill) 45%, white);
+  position: relative;
+  isolation: isolate;
   height: clamp(46px, 5.8dvh, 54px);
+  padding-bottom: 5px;
+  border: 1.5px solid var(--key-line);
   border-radius: var(--radius-pill);
-  background: var(--color-fill);
+  background: linear-gradient(var(--key-hi), var(--color-fill));
+  box-shadow:
+    inset 0 -6px 0 var(--key-side),
+    inset 0 -6px 6px rgb(0 0 0 / 0.06),
+    inset 0 2px 0 rgb(255 255 255 / 0.75),
+    0 var(--key-depth) 0 var(--key-line);
   color: var(--color-ink);
   font-family: var(--font-numeric);
   font-size: 24px;
@@ -2427,9 +2445,21 @@
   align-items: center;
   justify-content: center;
   user-select: none;
-  transition: background-color 250ms ease, scale 350ms var(--ease-spring);
+  transition: translate 90ms var(--ease-spring), box-shadow 90ms var(--ease-spring);
 }
 
+.key-btn::after {
+  content: "";
+  position: absolute;
+  inset: 5px 8px 11px;
+  z-index: -1;
+  border-radius: var(--radius-pill);
+  background: linear-gradient(var(--color-fill), var(--key-hi));
+  box-shadow:
+    inset 0 2px 4px rgb(0 0 0 / 0.12),
+    inset 0 -2px 0 rgb(255 255 255 / 0.7);
+  pointer-events: none;
+}
 .add-keypad-grid .key-btn {
   height: 100%;
   min-height: 40px;
@@ -2451,14 +2481,20 @@
   }
 }
 
-.key-btn.is-back {
-  background: transparent;
+.key-btn:active:not(:disabled) {
+  translate: 0 4px;
+  box-shadow:
+    inset 0 -2px 0 var(--key-side),
+    inset 0 -2px 4px rgb(0 0 0 / 0.06),
+    inset 0 2px 0 rgb(255 255 255 / 0.75),
+    0 1px 0 var(--key-line);
+  transition-duration: 0ms;
 }
 
-.key-btn:active:not(:disabled) {
-  background: var(--color-surface-container);
-  scale: 0.94;
-  transition-duration: 0ms;
+@media (prefers-reduced-motion: reduce) {
+  .key-btn {
+    transition: none;
+  }
 }
 
 .add-save-btn {
