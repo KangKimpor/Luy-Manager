@@ -73,3 +73,15 @@ Only use an entry you intend to keep when testing with your production account.
 - APK signature and ZIP alignment verified. Package `com.luymanager.nativeapp`, minimum Android API 28, target API 36, version code 1.
 - Final APK SHA-256: `8CEB65AB345EDE160FB7EF3659705B120FC96B9A4D03AF0161299FD68A55AE70`.
 - No physical Android device was attached. No authenticated production financial writes were performed for testing. At the initial build, source changes and the APK were local to this checkout. The user subsequently requested publishing the source to main; the APK and signing files remain ignored and local.
+
+## Version 0.6.0, 2026-11-21
+
+Matches the web app at this commit, tuned for the Samsung Galaxy S25 Ultra (about 412dp wide, Android 15 and 16).
+
+- Activity and Home list a transfer once, as the leg that left the account, like the web's `collapseTransfers`. Filtering to the destination account keeps the incoming leg.
+- The amount keypad and Save button are raised 3D keycaps drawn from the same tokens as `.key-btn` and `.add-save-btn`, with the cap travelling down on press and a keyboard-tap haptic.
+- The riel keypad has the decimal point back (`. 0 000` and delete, four across). Bank KHR keeps two decimals, so the old layout could not enter `9993.55`. The `000` key no longer appends after a decimal point, matching the web rule.
+- Insets include the display cutout, so in landscape the punch-hole camera no longer covers content. The web screens and sign-in pad for the keyboard explicitly, since `adjustResize` stops resizing an edge-to-edge window from API 35.
+- The web screens register a predictive back callback. Android 16 stops calling `onBackPressed` for apps targeting API 36, so the back gesture used to close the screen instead of going back a page.
+
+Checks: 49 native unit tests passed, release assembly passed, Android lint reported 0 errors. No physical device or emulator was attached, so layout on the S25 Ultra itself is not yet verified.

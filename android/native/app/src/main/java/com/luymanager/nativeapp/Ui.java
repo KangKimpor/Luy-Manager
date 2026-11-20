@@ -18,6 +18,7 @@ import android.text.TextUtils;
 import android.util.TypedValue;
 import android.view.Gravity;
 import android.view.View;
+import android.view.ViewGroup;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.TextView;
@@ -38,6 +39,28 @@ final class Ui {
 
   int dp(float value) {
     return Math.round(value * context.getResources().getDisplayMetrics().density);
+  }
+
+  /**
+   * Left, top, right and bottom padding that keeps content clear of the system bars, the camera
+   * cutout and the keyboard. Since targetSdk 35 the window is always edge to edge and
+   * `adjustResize` no longer shrinks it, so the keyboard must be padded for by hand.
+   */
+  static int[] safeInsets(android.view.WindowInsets insets) {
+    if (android.os.Build.VERSION.SDK_INT >= 30) {
+      int types =
+          android.view.WindowInsets.Type.systemBars()
+              | android.view.WindowInsets.Type.displayCutout();
+      android.graphics.Insets bars = insets.getInsets(types);
+      int ime = insets.getInsets(android.view.WindowInsets.Type.ime()).bottom;
+      return new int[] {bars.left, bars.top, bars.right, Math.max(bars.bottom, ime)};
+    }
+    return new int[] {
+      insets.getSystemWindowInsetLeft(),
+      insets.getSystemWindowInsetTop(),
+      insets.getSystemWindowInsetRight(),
+      insets.getSystemWindowInsetBottom()
+    };
   }
 
   int color(int id) {
@@ -68,6 +91,89 @@ final class Ui {
     bg.setCornerRadius(dp(radius));
     if (stroke != 0) bg.setStroke(dp(1), stroke);
     return bg;
+  }
+
+  /**
+   * The raised keycap from `.key-btn` and `.add-save-btn`: a hard contact edge underneath, a
+   * thick side wall, a lit top face and a dished centre. CSS draws the contact edge as an outer
+   * box-shadow that takes no layout space; a View cannot paint outside its bounds, so the edge
+   * lives inside the bottom `depth` dp of the view instead and callers pad content by it.
+   *
+   * <p>Pressed, the cap travels down until only a 1dp edge remains, exactly as the web's
+   * `translate: 0 4px` plus shrunken shadow does, so the key's footprint never moves.
+   */
+  android.graphics.drawable.StateListDrawable keycap(
+      int face, int side, int line, int hi, int depth, int wall, int dishSide) {
+    android.graphics.drawable.StateListDrawable states =
+        new android.graphics.drawable.StateListDrawable();
+    states.addState(
+        new int[] {android.R.attr.state_pressed},
+        keycapLayers(face, side, line, hi, depth, depth - 1, 2, dishSide));
+    states.addState(new int[] {}, keycapLayers(face, side, line, hi, depth, 0, wall, dishSide));
+    states.setExitFadeDuration(90);
+    return states;
+  }
+
+  private android.graphics.drawable.LayerDrawable keycapLayers(
+      int face, int side, int line, int hi, int depth, int travel, int wall, int dishSide) {
+    int stroke = Math.max(1, Math.round(1.5f * context.getResources().getDisplayMetrics().density));
+    float radius = dp(999);
+    GradientDrawable contact = new GradientDrawable();
+    contact.setColor(line);
+    contact.setCornerRadius(radius);
+    GradientDrawable body = new GradientDrawable();
+    body.setColor(side);
+    body.setCornerRadius(radius);
+    body.setStroke(stroke, line);
+    GradientDrawable top =
+        new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, new int[] {hi, face});
+    top.setCornerRadius(radius);
+    GradientDrawable dish =
+        new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, new int[] {face, hi});
+    dish.setCornerRadius(radius);
+    android.graphics.drawable.LayerDrawable layers =
+        new android.graphics.drawable.LayerDrawable(
+            new android.graphics.drawable.Drawable[] {contact, body, top, dish});
+    int t = dp(travel), d = dp(depth);
+    layers.setLayerInset(0, 0, t + dp(6), 0, 0);
+    layers.setLayerInset(1, 0, t, 0, d - t);
+    layers.setLayerInset(2, stroke, t + stroke, stroke, d - t + dp(wall));
+    layers.setLayerInset(3, dp(dishSide), t + dp(5), dp(dishSide), d - t + dp(11));
+    return layers;
+  }
+
+  /**
+   * Press feedback for a keycap: the content rides down with the cap instead of the whole view
+   * scaling, which is what `.key-btn:active` does. Reduced motion is honoured by the system
+   * animator scale, so no separate branch is needed.
+   */
+  <T extends ViewGroup> T keycapPress(T view, int travel, Runnable action) {
+    view.setClickable(true);
+    view.setFocusable(true);
+    view.setHapticFeedbackEnabled(true);
+    view.setOnTouchListener(
+        (v, event) -> {
+          int act = event.getActionMasked();
+          float to =
+              act == android.view.MotionEvent.ACTION_DOWN
+                  ? dp(travel)
+                  : act == android.view.MotionEvent.ACTION_UP
+                          || act == android.view.MotionEvent.ACTION_CANCEL
+                      ? 0
+                      : -1;
+          if (to >= 0) {
+            ViewGroup group = (ViewGroup) v;
+            for (int i = 0; i < group.getChildCount(); i++)
+              group.getChildAt(i).animate().translationY(to).setDuration(to > 0 ? 0 : 90).start();
+          }
+          return false;
+        });
+    view.setOnClickListener(
+        v -> {
+          v.performHapticFeedback(android.view.HapticFeedbackConstants.KEYBOARD_TAP);
+          action.run();
+        });
+    return view;
   }
 
   private static final android.util.SparseArray<Typeface> FONTS = new android.util.SparseArray<>();

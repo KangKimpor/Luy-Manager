@@ -12,6 +12,12 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Git-ignored scratch and build output. Linting them made `npm run lint`
+    // fail locally on files CI never sees.
+    ".tmp/**",
+    ".cache/**",
+    "dist/**",
+    "android/**",
   ]),
 ]);
 

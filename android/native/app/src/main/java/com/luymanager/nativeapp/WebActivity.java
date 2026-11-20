@@ -68,8 +68,8 @@ public final class WebActivity extends Activity {
     root.setBackgroundColor(ui.color(R.color.surface));
     root.setOnApplyWindowInsetsListener(
         (v, insets) -> {
-          v.setPadding(
-              0, insets.getSystemWindowInsetTop(), 0, insets.getSystemWindowInsetBottom());
+          int[] safe = Ui.safeInsets(insets);
+          v.setPadding(safe[0], safe[1], safe[2], safe[3]);
           return insets;
         });
 
@@ -116,6 +116,13 @@ public final class WebActivity extends Activity {
     root.addView(stage, new LinearLayout.LayoutParams(-1, 0, 1));
     setContentView(root);
     root.requestApplyInsets();
+    // Apps targeting API 36 get predictive back on Android 16 (One UI 8), which stops calling
+    // onBackPressed. Without this callback the back gesture closed the screen instead of
+    // stepping back a page inside it.
+    if (android.os.Build.VERSION.SDK_INT >= 33)
+      getOnBackInvokedDispatcher()
+          .registerOnBackInvokedCallback(
+              android.window.OnBackInvokedDispatcher.PRIORITY_DEFAULT, this::goBack);
     inject(true);
   }
   private void configure(WebView view) {
@@ -280,10 +287,14 @@ public final class WebActivity extends Activity {
     super.onPause();
   }
 
+  void goBack() {
+    if (web.canGoBack() && failure.getVisibility() != View.VISIBLE) web.goBack();
+    else finish();
+  }
+
   @Override
   public void onBackPressed() {
-    if (web.canGoBack() && failure.getVisibility() != View.VISIBLE) web.goBack();
-    else super.onBackPressed();
+    goBack();
   }
 
   @Override

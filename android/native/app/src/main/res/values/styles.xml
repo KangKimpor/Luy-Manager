@@ -6,6 +6,7 @@
     <color name="fill">#ececf0</color>
     <color name="track">#e5e5ea</color>
     <color name="border_subtle">#c6c6c8</color>
+    <color name="outline">#67676c</color>
     <color name="faint">#67676c</color>
     <color name="brand_strong">#04524e</color>
     <color name="brand_fixed">#bce5d7</color>

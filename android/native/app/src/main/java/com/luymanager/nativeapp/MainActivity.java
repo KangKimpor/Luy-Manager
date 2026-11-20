@@ -30,6 +30,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.List;
 import java.util.LinkedHashMap;
 import java.util.Locale;
 import java.util.Map;
@@ -481,7 +482,10 @@ public final class MainActivity extends Activity {
         (v, insets) -> {
           int top, bottom, left, right, ime = 0;
           if (android.os.Build.VERSION.SDK_INT >= 30) {
-            android.graphics.Insets bars = insets.getInsets(WindowInsets.Type.systemBars());
+            // The cutout joins the bars because targetSdk 35+ is always edge to edge: in landscape
+            // the S25 Ultra's punch-hole camera would otherwise sit over the screen content.
+            android.graphics.Insets bars =
+                insets.getInsets(WindowInsets.Type.systemBars() | WindowInsets.Type.displayCutout());
             ime = insets.getInsets(WindowInsets.Type.ime()).bottom;
             top = bars.top;
             bottom = bars.bottom;
@@ -658,7 +662,8 @@ public final class MainActivity extends Activity {
     scroll.addView(page);
     root.setOnApplyWindowInsetsListener(
         (v, insets) -> {
-          root.setPadding(0, insets.getSystemWindowInsetTop(), 0, insets.getSystemWindowInsetBottom());
+          int[] safe = Ui.safeInsets(insets);
+          root.setPadding(safe[0], safe[1], safe[2], safe[3]);
           return insets;
         });
     root.requestApplyInsets();
@@ -774,6 +779,31 @@ public final class MainActivity extends Activity {
     JSONObject category = categoryOf(row);
     if (category != null) return categoryLabel(category);
     return isTransfer(row) ? "Transfer" : "Transaction";
+  }
+
+  /**
+   * A transfer is two ledger rows but one event. The lists show the leg that left the account,
+   * which names the source and the amount that actually left. When a filter leaves only the
+   * incoming leg, that leg stays so the transfer does not vanish from its own history. Mirrors
+   * collapseTransfers in the web activity domain.
+   */
+  static ArrayList<JSONObject> collapseTransfers(List<JSONObject> rows) {
+    HashMap<String, JSONObject> shownByGroup = new HashMap<>();
+    for (JSONObject row : rows) {
+      if (row.isNull("transfer_group_id")) continue;
+      String group = row.optString("transfer_group_id");
+      if (group.isEmpty()) continue;
+      JSONObject kept = shownByGroup.get(group);
+      if (kept == null || (kept.optLong("amount") >= 0 && row.optLong("amount") < 0)) {
+        shownByGroup.put(group, row);
+      }
+    }
+    ArrayList<JSONObject> out = new ArrayList<>(rows.size());
+    for (JSONObject row : rows) {
+      String group = row.isNull("transfer_group_id") ? "" : row.optString("transfer_group_id");
+      if (group.isEmpty() || shownByGroup.get(group) == row) out.add(row);
+    }
+    return out;
   }
 
   /** "ABA USD to Wing" for either leg of a transfer, as the web transaction row does. */
@@ -1394,11 +1424,13 @@ public final class MainActivity extends Activity {
     head.addView(ui.link("All activity", color(R.color.brand), 14, () -> go(1)));
     section.addView(head, ui.fill());
 
-    ArrayList<JSONObject> recent = new ArrayList<>();
-    for (int i = 0; i < transactions.length() && recent.size() < 6; i++) {
+    ArrayList<JSONObject> monthRows = new ArrayList<>();
+    for (int i = 0; i < transactions.length(); i++) {
       JSONObject t = transactions.getJSONObject(i);
-      if (inMonth(t)) recent.add(t);
+      if (inMonth(t)) monthRows.add(t);
     }
+    ArrayList<JSONObject> recent = collapseTransfers(monthRows);
+    if (recent.size() > 6) recent = new ArrayList<>(recent.subList(0, 6));
     if (recent.isEmpty()) {
       LinearLayout card = ui.card();
       card.setPadding(dp(20), dp(8), dp(20), dp(20));
@@ -1959,21 +1991,22 @@ public final class MainActivity extends Activity {
   String showActivity(LinearLayout list, String term, int start) {
     list.removeAllViews();
     try {
-      ArrayList<JSONObject> matched = new ArrayList<>();
-      ArrayList<LocalDate> matchedDays = new ArrayList<>();
-      HashMap<LocalDate, long[]> dayFlows = new HashMap<>();
+      ArrayList<JSONObject> candidates = new ArrayList<>();
       for (int i = 0; i < transactions.length(); i++) {
         JSONObject row = transactions.getJSONObject(i);
-        if (matches(row, term)) {
-          LocalDate when = dayOf(row);
-          matched.add(row);
-          matchedDays.add(when);
-          if (!isTransfer(row)) {
-            long minor = Ledger.inCurrency(row, shown, app.usdKhr());
-            long[] flow = dayFlows.computeIfAbsent(when, ignored -> new long[2]);
-            if (minor > 0) flow[0] = Money.add(flow[0], minor);
-            else flow[1] = Money.add(flow[1], minor);
-          }
+        if (matches(row, term)) candidates.add(row);
+      }
+      ArrayList<JSONObject> matched = collapseTransfers(candidates);
+      ArrayList<LocalDate> matchedDays = new ArrayList<>();
+      HashMap<LocalDate, long[]> dayFlows = new HashMap<>();
+      for (JSONObject row : matched) {
+        LocalDate when = dayOf(row);
+        matchedDays.add(when);
+        if (!isTransfer(row)) {
+          long minor = Ledger.inCurrency(row, shown, app.usdKhr());
+          long[] flow = dayFlows.computeIfAbsent(when, ignored -> new long[2]);
+          if (minor > 0) flow[0] = Money.add(flow[0], minor);
+          else flow[1] = Money.add(flow[1], minor);
         }
       }
       if (matched.isEmpty()) {
@@ -2812,16 +2845,31 @@ public final class MainActivity extends Activity {
     kpLp.topMargin = dp(10);
     body.addView(keypadContainer, kpLp);
 
+    // `.add-save-btn`: the keypad's keycap in the brand colour, 54px tall plus a 6px edge.
+    int brand = color(R.color.brand);
+    int saveDepth = 6;
     LinearLayout saveBtn = ui.row();
     saveBtn.setGravity(Gravity.CENTER);
-    saveBtn.setMinimumHeight(dp(48));
-    saveBtn.setPadding(dp(20), dp(12), dp(20), dp(12));
+    saveBtn.setPadding(dp(20), 0, dp(20), dp(saveDepth + 5));
+    saveBtn.setBackground(
+        ui.keycap(
+            brand,
+            Ui.mix(brand, 0xff000000, 0.72f),
+            Ui.mix(brand, 0xff000000, 0.45f),
+            Ui.mix(brand, 0xffffffff, 0.78f),
+            saveDepth,
+            6,
+            10));
     saveBtn.setContentDescription("Save " + MODES[mode]);
+    android.widget.ImageView saveCheck = ui.icon("check_fill", 18, color(R.color.on_action));
+    saveCheck.setVisibility(View.GONE);
+    saveBtn.addView(saveCheck);
     TextView saveLabel = ui.text("Enter an amount", 15, color(R.color.on_action), 600);
-    saveBtn.addView(saveLabel);
-    ui.press(saveBtn, 0.98f, () -> save(active));
-    LinearLayout.LayoutParams saveLp = ui.fill();
-    saveLp.topMargin = dp(10);
+    saveBtn.addView(saveLabel, ui.start(ui.wrap(), 6));
+    ui.keycapPress(saveBtn, saveDepth - 2, () -> save(active));
+    LinearLayout.LayoutParams saveLp =
+        new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(54 + saveDepth));
+    saveLp.topMargin = dp(8);
     body.addView(saveBtn, saveLp);
 
     Runnable updateSaveAndConversion =
@@ -2837,7 +2885,8 @@ public final class MainActivity extends Activity {
           } catch (Exception ignored) {
           }
           if (parsed > 0) {
-            saveBtn.setBackground(ui.round(color(R.color.brand), 999));
+            saveBtn.setAlpha(1f);
+            saveCheck.setVisibility(View.VISIBLE);
             String disp = Money.display(parsed, code);
             if (transfer) {
               saveLabel.setText("Move " + disp);
@@ -2851,7 +2900,9 @@ public final class MainActivity extends Activity {
                 "~ " + Money.display(conv, alt) + " at " + perDollarText());
             equivHint.setVisibility(View.VISIBLE);
           } else {
-            saveBtn.setBackground(ui.round(Ui.alpha(color(R.color.brand), 0.55f), 999));
+            // The web disables Save at zero; it keeps its shape and fades, like `:disabled`.
+            saveBtn.setAlpha(0.55f);
+            saveCheck.setVisibility(View.GONE);
             saveLabel.setText("Enter an amount");
             equivHint.setVisibility(View.GONE);
           }
@@ -3113,31 +3164,47 @@ public final class MainActivity extends Activity {
     return keypad("USD");
   }
 
+  /** Contact edge under a keypad key, the `--key-depth` of `.key-btn`. */
+  static final int KEY_DEPTH = 5;
+
+  /**
+   * Rows of keys exactly as `AmountKeypad` lays them out. Bank KHR keeps two decimals since
+   * migration 0014, so riel gets both the decimal point and the `000` shortcut, four across.
+   */
+  static String[][] keypadRows(String currency) {
+    String[] bottom =
+        "KHR".equals(currency)
+            ? new String[] {".", "0", "000", "del"}
+            : new String[] {".", "0", "del"};
+    return new String[][] {{"1", "2", "3"}, {"4", "5", "6"}, {"7", "8", "9"}, bottom};
+  }
+
   LinearLayout keypad(String currency) {
     LinearLayout grid = ui.column();
-    String bottomLeft = "KHR".equals(currency) ? "000" : ".";
-    String[] keys = {"1", "2", "3", "4", "5", "6", "7", "8", "9", bottomLeft, "0", "del"};
-    LinearLayout line = null;
-    for (int i = 0; i < keys.length; i++) {
-      if (i % 3 == 0) {
-        line = ui.row();
-        grid.addView(line, i == 0 ? ui.fill() : ui.top(ui.fill(), 8));
+    int fill = color(R.color.fill);
+    int line = Ui.mix(color(R.color.outline), fill, 0.70f);
+    int side = Ui.mix(color(R.color.border_subtle), fill, 0.85f);
+    int hi = Ui.mix(fill, 0xffffffff, 0.45f);
+    String[][] rows = keypadRows(currency);
+    // The web's 14px row gap is measured between caps; the contact edge sits inside this view.
+    int rowGap = 14 - KEY_DEPTH;
+    int keyHeight = 50 + KEY_DEPTH;
+    for (int r = 0; r < rows.length; r++) {
+      LinearLayout keyLine = ui.row();
+      grid.addView(keyLine, r == 0 ? ui.fill() : ui.top(ui.fill(), rowGap));
+      for (int c = 0; c < rows[r].length; c++) {
+        String key = rows[r][c];
+        LinearLayout cell = ui.row();
+        cell.setGravity(Gravity.CENTER);
+        cell.setPadding(0, 0, 0, dp(KEY_DEPTH + 5));
+        cell.setBackground(ui.keycap(fill, side, line, hi, KEY_DEPTH, 6, 8));
+        cell.setContentDescription(key.equals("del") ? "Delete last digit" : "Key " + key);
+        if (key.equals("del")) cell.addView(ui.icon("back", 22, color(R.color.ink)));
+        else cell.addView(ui.money(key, "000".equals(key) ? 20 : 24, color(R.color.ink), 500));
+        ui.keycapPress(cell, KEY_DEPTH - 1, () -> press(key));
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, dp(keyHeight), 1);
+        keyLine.addView(cell, c == 0 ? lp : ui.start(lp, 10));
       }
-      String key = keys[i];
-      LinearLayout cell = ui.row();
-      cell.setGravity(Gravity.CENTER);
-      if (!key.equals("del")) {
-        cell.setBackground(ui.round(color(R.color.fill), 999));
-      }
-      cell.setContentDescription(key.equals("del") ? "Delete last digit" : "Key " + key);
-      if (key.equals("del")) cell.addView(ui.icon("back", 20, color(R.color.ink)));
-      else cell.addView(ui.money(key, "000".equals(key) ? 18 : 22, color(R.color.ink), 500));
-      ui.press(cell, 0.92f, () -> press(key));
-      line.addView(
-          cell,
-          i % 3 == 0
-              ? new LinearLayout.LayoutParams(0, dp(48), 1)
-              : ui.start(new LinearLayout.LayoutParams(0, dp(48), 1), 8));
     }
     return grid;
   }
@@ -3146,21 +3213,44 @@ public final class MainActivity extends Activity {
     EditText target = keypadTarget == null ? amount : keypadTarget;
     if (target == null) return;
     String value = target.getText().toString();
-    if (key.equals("del")) value = value.isEmpty() ? "" : value.substring(0, value.length() - 1);
-    else if (key.equals(".")) {
-      if (!value.contains(".")) value = (value.isEmpty() ? "0" : value) + ".";
-    } else if (key.equals("000")) {
-      if (!value.isEmpty() && !value.equals("0") && value.length() <= 12) {
-        value = value + "000";
+    String next = pressAmountKey(value, key);
+    if (next.equals(value)) return;
+    target.setText(next);
+    target.setSelection(next.length());
+  }
+
+  /**
+   * Mirrors `pressAmountKey` in `src/components/amount-keypad.tsx`. Both currencies keep two
+   * decimal places, and a key that would produce an amount the ledger cannot hold is refused
+   * rather than accepted and rounded away on save.
+   */
+  static String pressAmountKey(String raw, String key) {
+    if (key.equals("del")) return raw.isEmpty() ? raw : raw.substring(0, raw.length() - 1);
+    if (key.equals("000")) {
+      if (raw.contains(".")) return raw;
+      if (raw.isEmpty() || raw.equals("0")) return "0";
+      String next = raw;
+      for (int i = 0; i < 3; i++) {
+        String candidate = pressAmountKey(next, "0");
+        if (candidate.equals(next)) return raw;
+        next = candidate;
       }
-    } else {
-      int dot = value.indexOf('.');
-      if (dot >= 0 && value.length() - dot > 2) return;
-      if (value.length() >= 15) return;
-      value = value.equals("0") ? key : value + key;
+      return next;
     }
-    target.setText(value);
-    target.setSelection(value.length());
+    if (key.equals(".")) {
+      if (raw.contains(".")) return raw;
+      return raw.isEmpty() ? "0." : raw + ".";
+    }
+    int dot = raw.indexOf('.');
+    if (dot >= 0 && raw.length() - dot - 1 >= 2) return raw;
+    if (raw.equals("0")) return key;
+    String candidate = raw + key;
+    try {
+      Money.parse(candidate);
+      return candidate;
+    } catch (RuntimeException tooLarge) {
+      return raw;
+    }
   }
 
   void save(ArrayList<JSONObject> active) {
